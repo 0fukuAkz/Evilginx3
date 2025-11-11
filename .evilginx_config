@@ -1,8 +1,0 @@
-# Evilginx3 Default Configuration
-# This file sets the default paths for phishlets and redirectors
-# when running 'evilginx' command without arguments
-
-EVILGINX_PHISHLETS_DIR="/opt/evilginx/phishlets"
-EVILGINX_REDIRECTORS_DIR="/opt/evilginx/redirectors"
-EVILGINX_CONFIG_DIR="$HOME/.evilginx"
-
