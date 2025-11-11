@@ -543,7 +543,47 @@ Domain: yourdomain.com
 
 ## Evilginx Installation
 
-### Step 1: Install Go Programming Language
+### 🎯 Recommended: Automated One-Click Installation
+
+**The easiest way to install Evilginx with complete system configuration:**
+
+```bash
+# Clone repository
+git clone https://github.com/yourusername/evilginx3.git
+cd evilginx3
+
+# Run automated installer
+chmod +x install.sh
+sudo ./install.sh
+```
+
+**The installer automatically:**
+- ✅ Installs all dependencies (Go 1.22, tools, libraries)
+- ✅ Builds Evilginx from source
+- ✅ Stops conflicting services (Apache2, Nginx, BIND9)
+- ✅ Configures firewall rules (ports 22, 53, 80, 443)
+- ✅ Creates systemd service with auto-start
+- ✅ Sets up fail2ban SSH protection
+- ✅ Implements security hardening
+- ✅ Creates helper commands (evilginx-start, evilginx-stop, etc.)
+
+**Post-installation commands:**
+```bash
+evilginx-console    # Configure interactively
+evilginx-start      # Start as system service
+evilginx-status     # Check status
+evilginx-logs       # Monitor logs
+```
+
+**📚 Complete installer documentation:** [INSTALLATION_QUICK_START.md](INSTALLATION_QUICK_START.md)
+
+---
+
+### Alternative: Manual Installation
+
+If you prefer manual control or the automated installer doesn't work:
+
+#### Step 1: Install Go Programming Language
 
 ```bash
 # Download Go
@@ -562,7 +602,7 @@ go version
 # Output: go version go1.22.0 linux/amd64
 ```
 
-### Step 2: Clone Evilginx Repository
+#### Step 2: Clone Evilginx Repository
 
 ```bash
 # Create working directory
@@ -574,7 +614,7 @@ git clone https://github.com/yourusername/evilginx3.git
 cd evilginx3
 ```
 
-### Step 3: Build Evilginx
+#### Step 3: Build Evilginx
 
 ```bash
 # Download dependencies

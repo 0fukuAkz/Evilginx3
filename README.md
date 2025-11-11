@@ -246,12 +246,66 @@ Multi-layer code and traffic obfuscation.
 
 ### Prerequisites
 
-- VPS with Ubuntu 20.04+ or Debian 11+
+**For Linux (VPS):**
+- Ubuntu 20.04+ or Debian 11+
 - Domain name
 - Cloudflare account (free tier works)
-- Go 1.22+ (for building from source)
+- Root or sudo access
 
-### Basic Installation
+**For Windows:**
+- Windows 10/11 or Windows Server 2016+
+- Administrator access
+- Domain name
+- Cloudflare account (free tier works)
+
+### 🎯 One-Click Installation
+
+#### Linux (Ubuntu/Debian) - Recommended for Production
+
+```bash
+# Clone repository
+git clone https://github.com/yourusername/evilginx3.git
+cd evilginx3
+
+# Run automated installer
+chmod +x install.sh
+sudo ./install.sh
+```
+
+**The installer automatically:**
+- ✅ Installs all dependencies (Go, tools, etc.)
+- ✅ Builds Evilginx from source
+- ✅ Stops conflicting services (Apache2, Nginx)
+- ✅ Configures firewall (UFW)
+- ✅ Creates systemd service with auto-start
+- ✅ Sets up helper commands
+- ✅ Implements security hardening
+
+**See [INSTALLATION_QUICK_START.md](INSTALLATION_QUICK_START.md) for complete Linux installation guide**
+
+#### Windows (Windows 10/11/Server)
+
+```powershell
+# Open PowerShell as Administrator
+# Navigate to Evilginx directory
+cd C:\Users\user\Desktop\git\Evilginx3
+
+# Run Windows installer
+.\install-windows.ps1
+```
+
+**The Windows installer automatically:**
+- ✅ Installs Go 1.22 (if not present)
+- ✅ Builds Evilginx from source
+- ✅ Installs NSSM (service manager)
+- ✅ Creates Windows Service with auto-start
+- ✅ Configures Windows Firewall
+- ✅ Creates helper commands
+- ✅ Sets up logging
+
+**See [WINDOWS_INSTALLATION_GUIDE.md](WINDOWS_INSTALLATION_GUIDE.md) for complete Windows installation guide**
+
+### Manual Installation
 
 ```bash
 # Clone repository
@@ -290,19 +344,69 @@ lures get-url 0
 
 ## 📦 Installation
 
-### Option 1: Pre-built Binary (Recommended)
+### Option 1: One-Click Automated Installer (Recommended) 🎯
 
-Download from releases or build from source:
+#### Linux (Ubuntu/Debian) - Production Deployment
+
+**Complete system setup with one command:**
 
 ```bash
-# Linux/macOS
-./build.sh
-
-# Windows
-build.bat
+git clone https://github.com/yourusername/evilginx3.git
+cd evilginx3
+chmod +x install.sh
+sudo ./install.sh
 ```
 
-### Option 2: Build from Source
+**Features:**
+- ✅ Installs all dependencies automatically
+- ✅ Builds from source
+- ✅ Configures firewall (ports 22, 53, 80, 443)
+- ✅ Creates systemd service with auto-start
+- ✅ Stops conflicting services (Apache2, Nginx)
+- ✅ Implements security hardening
+- ✅ Creates helper commands (`evilginx-start`, `evilginx-stop`, etc.)
+- ✅ Sets up fail2ban protection
+
+**Post-installation:**
+```bash
+evilginx-console    # Configure interactively
+evilginx-start      # Start as system service
+evilginx-status     # Check status
+evilginx-logs       # Monitor logs
+```
+
+**See:** [INSTALLATION_QUICK_START.md](INSTALLATION_QUICK_START.md) for complete Linux guide
+
+#### Windows (Windows 10/11/Server)
+
+**Windows Service installation:**
+
+```powershell
+# Open PowerShell as Administrator
+cd C:\Users\user\Desktop\git\Evilginx3
+.\install-windows.ps1
+```
+
+**Features:**
+- ✅ Installs Go 1.22 automatically
+- ✅ Builds from source
+- ✅ Installs NSSM (service manager)
+- ✅ Creates Windows Service with auto-start
+- ✅ Configures Windows Firewall (ports 53, 80, 443)
+- ✅ Creates helper commands (`evilginx-start`, `evilginx-stop`, etc.)
+- ✅ Sets up logging
+
+**Post-installation:**
+```powershell
+evilginx-console    # Configure interactively
+evilginx-start      # Start Windows service
+evilginx-status     # Check service status
+evilginx-logs       # Monitor logs
+```
+
+**See:** [WINDOWS_INSTALLATION_GUIDE.md](WINDOWS_INSTALLATION_GUIDE.md) for complete Windows guide
+
+### Option 2: Build from Source (Manual)
 
 **Requirements:**
 - Go 1.22 or higher
@@ -324,7 +428,17 @@ go build -o build/evilginx main.go
 chmod +x build/evilginx
 ```
 
-### Option 3: Docker (Experimental)
+### Option 3: Quick Build
+
+```bash
+# Linux/macOS
+make
+
+# Windows
+build.bat
+```
+
+### Option 4: Docker (Experimental)
 
 ```bash
 # Build image

