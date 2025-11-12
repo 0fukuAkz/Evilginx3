@@ -219,17 +219,43 @@ install_go() {
     log_info "Extracting Go..."
     tar -C /usr/local -xzf "go${GO_VERSION}.linux-amd64.tar.gz"
     
-    # Add to PATH
+    # Add to PATH for all users
+    log_info "Adding Go to system PATH..."
+    
+    # Add to /etc/profile for all users
     if ! grep -q "/usr/local/go/bin" /etc/profile; then
         echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile
     fi
     
+    # Add to /etc/environment for system-wide availability
+    if ! grep -q "/usr/local/go/bin" /etc/environment 2>/dev/null; then
+        if [ -f /etc/environment ]; then
+            sed -i 's|PATH="\(.*\)"|PATH="\1:/usr/local/go/bin"|' /etc/environment
+        else
+            echo 'PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/go/bin"' > /etc/environment
+        fi
+    fi
+    
+    # Add to .bashrc for root
+    if ! grep -q "/usr/local/go/bin" /root/.bashrc 2>/dev/null; then
+        echo 'export PATH=$PATH:/usr/local/go/bin' >> /root/.bashrc
+    fi
+    
+    # Add to .bashrc for current user (if not root)
+    if [ "$HOME" != "/root" ] && [ -f "$HOME/.bashrc" ]; then
+        if ! grep -q "/usr/local/go/bin" "$HOME/.bashrc"; then
+            echo 'export PATH=$PATH:/usr/local/go/bin' >> "$HOME/.bashrc"
+        fi
+    fi
+    
+    # Export for current session
     export PATH=$PATH:/usr/local/go/bin
     
     # Cleanup
     rm -f "go${GO_VERSION}.linux-amd64.tar.gz"
     
     log_success "Go $GO_VERSION installed successfully"
+    log_success "Go added to PATH (system-wide, all users, all shells)"
     /usr/local/go/bin/go version
     
     # Return to original directory
@@ -254,7 +280,25 @@ setup_directories() {
 stop_conflicting_services() {
     log_step "Step 5: Stopping Conflicting Services"
     
-    SERVICES=("apache2" "nginx" "bind9" "named")
+    # Stop Evilginx if it's running
+    log_info "Checking for running Evilginx instances..."
+    if systemctl is-active --quiet evilginx 2>/dev/null; then
+        log_info "Stopping Evilginx service..."
+        systemctl stop evilginx
+        sleep 2
+        log_success "Evilginx service stopped"
+    fi
+    
+    # Kill any running evilginx processes
+    if pgrep -x evilginx >/dev/null; then
+        log_info "Killing running Evilginx processes..."
+        pkill -9 evilginx
+        sleep 2
+        log_success "Evilginx processes terminated"
+    fi
+    
+    # Stop other conflicting services
+    SERVICES=("apache2" "nginx" "bind9" "named" "systemd-resolved")
     
     for service in "${SERVICES[@]}"; do
         if systemctl is-active --quiet "$service" 2>/dev/null; then
@@ -338,10 +382,7 @@ RESOLVEOF
 }
 
 build_evilginx() {
-    log_step "Step 6: Building Evilginx"
-    
-    # Get current directory (where install.sh is located)
-    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+    log_step "Step 6: Building and Installing Evilginx"
     
     log_info "Building from: $SCRIPT_DIR"
     
@@ -367,6 +408,28 @@ build_evilginx() {
     
     log_success "Evilginx compiled successfully"
     
+    # Create installation directories
+    log_info "Installing to system directories..."
+    mkdir -p "$INSTALL_BASE"
+    mkdir -p "$LOG_DIR"
+    mkdir -p "$CONFIG_DIR"
+    
+    # Remove old binary if exists (after stopping services)
+    if [ -f "$INSTALL_DIR/evilginx" ]; then
+        log_info "Removing old binary..."
+        rm -f "$INSTALL_DIR/evilginx"
+    fi
+    
+    # Copy binary to /usr/local/bin
+    log_info "Installing binary to /usr/local/bin..."
+    cp "$SCRIPT_DIR/build/evilginx" "$INSTALL_DIR/evilginx"
+    chmod +x "$INSTALL_DIR/evilginx"
+    
+    # Copy phishlets and redirectors to /opt/evilginx
+    log_info "Installing phishlets and redirectors..."
+    cp -r "$SCRIPT_DIR/phishlets" "$INSTALL_BASE/"
+    cp -r "$SCRIPT_DIR/redirectors" "$INSTALL_BASE/"
+    
     # Create system-wide installation directory
     mkdir -p "$INSTALL_DIR"
     mkdir -p "$PHISHLETS_DIR"
@@ -385,14 +448,16 @@ exec /usr/local/evilginx/evilginx.bin -p /usr/local/evilginx/phishlets -t /usr/l
 EOF
     chmod +x /usr/local/bin/evilginx
     
-    # Copy documentation
-    cp "$SCRIPT_DIR/README.md" "$INSTALL_DIR/" 2>/dev/null || true
-    cp "$SCRIPT_DIR/DEPLOYMENT_GUIDE.md" "$INSTALL_DIR/" 2>/dev/null || true
-    cp "$SCRIPT_DIR/LURE_RANDOMIZATION_GUIDE.md" "$INSTALL_DIR/" 2>/dev/null || true
-    
-    # Set permissions
-    chmod +x "$INSTALL_DIR/evilginx.bin"
-    chmod 755 "$INSTALL_DIR"
+    # Copy all documentation
+    log_info "Copying documentation to $INSTALL_BASE..."
+    cp "$SCRIPT_DIR/README.md" "$INSTALL_BASE/" 2>/dev/null || true
+    cp "$SCRIPT_DIR/DEPLOYMENT_GUIDE.md" "$INSTALL_BASE/" 2>/dev/null || true
+    cp "$SCRIPT_DIR/BEST_PRACTICES.md" "$INSTALL_BASE/" 2>/dev/null || true
+    cp "$SCRIPT_DIR/SESSION_FORMATTING_GUIDE.md" "$INSTALL_BASE/" 2>/dev/null || true
+    cp "$SCRIPT_DIR/LINUX_VPS_SETUP.md" "$INSTALL_BASE/" 2>/dev/null || true
+    cp "$SCRIPT_DIR/TELEGRAM_NOTIFICATIONS.md" "$INSTALL_BASE/" 2>/dev/null || true
+    cp "$SCRIPT_DIR/NEW_PHISHLETS_GUIDE.md" "$INSTALL_BASE/" 2>/dev/null || true
+    cp "$SCRIPT_DIR/PATH_AUTO_DETECTION.md" "$INSTALL_BASE/" 2>/dev/null || true
     chmod -R 755 "$PHISHLETS_DIR"
     chmod -R 755 "$REDIRECTORS_DIR"
     # No need to change ownership when running as admin
@@ -678,21 +743,38 @@ display_completion() {
     echo ""
     
     echo -e "${GREEN}Documentation:${NC}"
-    echo "  • Main Guide:           $INSTALL_DIR/DEPLOYMENT_GUIDE.md"
-    echo "  • Lure Randomization:   $INSTALL_DIR/LURE_RANDOMIZATION_GUIDE.md"
-    echo "  • README:               $INSTALL_DIR/README.md"
+    echo "  • Main Guide:           /opt/evilginx/DEPLOYMENT_GUIDE.md"
+    echo "  • Session Formatting:   /opt/evilginx/SESSION_FORMATTING_GUIDE.md (NEW!)"
+    echo "  • Linux VPS Setup:      /opt/evilginx/LINUX_VPS_SETUP.md"
+    echo "  • Best Practices:       /opt/evilginx/BEST_PRACTICES.md"
+    echo "  • README:               /opt/evilginx/README.md"
     echo ""
     
     echo -e "${CYAN}Quick Start:${NC}"
-    echo "  1. evilginx-console     # Configure interactively"
+    echo "  1. sudo evilginx        # Run with auto-loaded paths"
     echo "  2. <configure settings> # Set domain, IP, phishlets"
     echo "  3. exit or Ctrl+C       # Exit console"
-    echo "  4. evilginx-start       # Start service"
-    echo "  5. evilginx-status      # Verify running"
+    if [ "$IS_WSL" = false ]; then
+        echo "  4. evilginx-start       # Start service"
+        echo "  5. evilginx-status      # Verify running"
+    fi
+    echo ""
+    
+    echo -e "${CYAN}Environment:${NC}"
+    echo "  • Go installed at:      /usr/local/go"
+    echo "  • Go added to PATH for all users and shells"
+    echo "  • Verify with:          go version"
     echo ""
     
     echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
     echo ""
+    
+    # Remind about PATH
+    if [ "$IS_WSL" = false ]; then
+        echo -e "${YELLOW}Note:${NC} Go has been added to PATH. You may need to reload your shell or run:"
+        echo "  source /etc/profile"
+        echo ""
+    fi
 }
 
 #############################################################################
