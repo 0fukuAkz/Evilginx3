@@ -79,11 +79,19 @@ func (bl *Blacklist) AddIP(ip string) error {
 		return nil
 	}
 
-	ipv4 := net.ParseIP(ip)
-	if ipv4 != nil {
-		bl.ips[ipv4.String()] = &BlockIP{ipv4: ipv4, mask: nil}
+	if strings.Contains(ip, "/") {
+		ipv4, mask, err := net.ParseCIDR(ip)
+		if err != nil {
+			return fmt.Errorf("invalid ip/mask address: %s", ip)
+		}
+		bl.masks = append(bl.masks, &BlockIP{ipv4: ipv4, mask: mask})
 	} else {
-		return fmt.Errorf("invalid ip address: %s", ip)
+		ipv4 := net.ParseIP(ip)
+		if ipv4 != nil {
+			bl.ips[ipv4.String()] = &BlockIP{ipv4: ipv4, mask: nil}
+		} else {
+			return fmt.Errorf("invalid ip address: %s", ip)
+		}
 	}
 
 	// write to file
@@ -93,7 +101,7 @@ func (bl *Blacklist) AddIP(ip string) error {
 	}
 	defer f.Close()
 
-	_, err = f.WriteString(ipv4.String() + "\n")
+	_, err = f.WriteString(ip + "\n")
 	if err != nil {
 		return err
 	}
@@ -107,7 +115,7 @@ func (bl *Blacklist) IsBlacklisted(ip string) bool {
 		return false
 	}
 
-	if _, ok := bl.ips[ip]; ok {
+	if _, ok := bl.ips[ipv4.String()]; ok {
 		return true
 	}
 	for _, m := range bl.masks {

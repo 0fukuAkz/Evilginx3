@@ -139,7 +139,7 @@ func AsTable(columns []string, rows [][]string) string {
 	}
 
 	// footer
-	table += dg.Sprintf(lineSep) + "\n"
+	table += dg.Sprintf("%s", lineSep) + "\n"
 
 	return table
 }

@@ -1,224 +1,231 @@
 package core
 
 import (
-  "bufio"
-  "fmt"
-  "net"
-  "os"
-  "strings"
+	"bufio"
+	"fmt"
+	"net"
+	"os"
+	"strings"
 
-  "github.com/kgretzky/evilginx2/log"
+	"github.com/kgretzky/evilginx2/log"
 )
 
 type AllowIP struct {
-  ipv4 net.IP
-  mask *net.IPNet
+	ipv4 net.IP
+	mask *net.IPNet
 }
 
 type Whitelist struct {
-  ips        map[string]*AllowIP
-  masks      []*AllowIP
-  configPath string
-  enabled    bool
-  verbose    bool
+	ips        map[string]*AllowIP
+	masks      []*AllowIP
+	configPath string
+	enabled    bool
+	verbose    bool
 }
 
 func NewWhitelist(path string) (*Whitelist, error) {
-  f, err := os.OpenFile(path, os.O_CREATE|os.O_RDONLY, 0644)
-  if err != nil {
-    return nil, err
-  }
-  defer f.Close()
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
 
-  wl := &Whitelist{
-    ips:        make(map[string]*AllowIP),
-    configPath: path,
-    enabled:    false,
-    verbose:    true,
-  }
+	wl := &Whitelist{
+		ips:        make(map[string]*AllowIP),
+		configPath: path,
+		enabled:    false,
+		verbose:    true,
+	}
 
-  fs := bufio.NewScanner(f)
-  fs.Split(bufio.ScanLines)
+	fs := bufio.NewScanner(f)
+	fs.Split(bufio.ScanLines)
 
-  for fs.Scan() {
-    l := fs.Text()
-    // remove comments
-    if n := strings.Index(l, ";"); n > -1 {
-      l = l[:n]
-    }
-    l = strings.Trim(l, " ")
+	for fs.Scan() {
+		l := fs.Text()
+		// remove comments
+		if n := strings.Index(l, ";"); n > -1 {
+			l = l[:n]
+		}
+		l = strings.Trim(l, " ")
 
-    if len(l) > 0 {
-      if strings.Contains(l, "/") {
-        ipv4, mask, err := net.ParseCIDR(l)
-        if err == nil {
-          wl.masks = append(wl.masks, &AllowIP{ipv4: ipv4, mask: mask})
-        } else {
-          log.Error("whitelist: invalid ip/mask address: %s", l)
-        }
-      } else {
-        ipv4 := net.ParseIP(l)
-        if ipv4 != nil {
-          wl.ips[ipv4.String()] = &AllowIP{ipv4: ipv4, mask: nil}
-        } else {
-          log.Error("whitelist: invalid ip address: %s", l)
-        }
-      }
-    }
-  }
+		if len(l) > 0 {
+			if strings.Contains(l, "/") {
+				ipv4, mask, err := net.ParseCIDR(l)
+				if err == nil {
+					wl.masks = append(wl.masks, &AllowIP{ipv4: ipv4, mask: mask})
+				} else {
+					log.Error("whitelist: invalid ip/mask address: %s", l)
+				}
+			} else {
+				ipv4 := net.ParseIP(l)
+				if ipv4 != nil {
+					wl.ips[ipv4.String()] = &AllowIP{ipv4: ipv4, mask: nil}
+				} else {
+					log.Error("whitelist: invalid ip address: %s", l)
+				}
+			}
+		}
+	}
 
-  log.Info("whitelist: loaded %d ip addresses and %d ip masks", len(wl.ips), len(wl.masks))
-  return wl, nil
+	log.Info("whitelist: loaded %d ip addresses and %d ip masks", len(wl.ips), len(wl.masks))
+	return wl, nil
 }
 
 func (wl *Whitelist) GetStats() (int, int) {
-  return len(wl.ips), len(wl.masks)
+	return len(wl.ips), len(wl.masks)
 }
 
 func (wl *Whitelist) AddIP(ip string) error {
-  if wl.IsWhitelisted(ip) {
-    return nil
-  }
+	if wl.IsWhitelisted(ip) {
+		return nil
+	}
 
-  ipv4 := net.ParseIP(ip)
-  if ipv4 != nil {
-    wl.ips[ipv4.String()] = &AllowIP{ipv4: ipv4, mask: nil}
-  } else {
-    return fmt.Errorf("invalid ip address: %s", ip)
-  }
+	if strings.Contains(ip, "/") {
+		ipv4, mask, err := net.ParseCIDR(ip)
+		if err != nil {
+			return fmt.Errorf("invalid ip/mask address: %s", ip)
+		}
+		wl.masks = append(wl.masks, &AllowIP{ipv4: ipv4, mask: mask})
+	} else {
+		ipv4 := net.ParseIP(ip)
+		if ipv4 != nil {
+			wl.ips[ipv4.String()] = &AllowIP{ipv4: ipv4, mask: nil}
+		} else {
+			return fmt.Errorf("invalid ip address: %s", ip)
+		}
+	}
 
-  // write to file
-  f, err := os.OpenFile(wl.configPath, os.O_APPEND|os.O_WRONLY, 0644)
-  if err != nil {
-    return err
-  }
-  defer f.Close()
+	// write to file
+	f, err := os.OpenFile(wl.configPath, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
 
-  _, err = f.WriteString(ipv4.String() + "\n")
-  if err != nil {
-    return err
-  }
+	_, err = f.WriteString(ip + "\n")
+	if err != nil {
+		return err
+	}
 
-  return nil
+	return nil
 }
 
 func (wl *Whitelist) RemoveIP(ip string) error {
-  ipv4 := net.ParseIP(ip)
-  if ipv4 == nil {
-    return fmt.Errorf("invalid ip address: %s", ip)
-  }
+	ipv4 := net.ParseIP(ip)
+	if ipv4 == nil {
+		return fmt.Errorf("invalid ip address: %s", ip)
+	}
 
-  // remove from memory
-  delete(wl.ips, ipv4.String())
+	// remove from memory
+	delete(wl.ips, ipv4.String())
 
-  // rewrite file without this IP
-  f, err := os.OpenFile(wl.configPath, os.O_RDONLY, 0644)
-  if err != nil {
-    return err
-  }
-  defer f.Close()
+	// rewrite file without this IP
+	f, err := os.OpenFile(wl.configPath, os.O_RDONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
 
-  var lines []string
-  fs := bufio.NewScanner(f)
-  fs.Split(bufio.ScanLines)
+	var lines []string
+	fs := bufio.NewScanner(f)
+	fs.Split(bufio.ScanLines)
 
-  for fs.Scan() {
-    l := fs.Text()
-    cleanL := l
-    if n := strings.Index(l, ";"); n > -1 {
-      cleanL = l[:n]
-    }
-    cleanL = strings.Trim(cleanL, " ")
+	for fs.Scan() {
+		l := fs.Text()
+		cleanL := l
+		if n := strings.Index(l, ";"); n > -1 {
+			cleanL = l[:n]
+		}
+		cleanL = strings.Trim(cleanL, " ")
 
-    if cleanL != ipv4.String() {
-      lines = append(lines, l)
-    }
-  }
+		if cleanL != ipv4.String() {
+			lines = append(lines, l)
+		}
+	}
 
-  // write back to file
-  fw, err := os.OpenFile(wl.configPath, os.O_WRONLY|os.O_TRUNC, 0644)
-  if err != nil {
-    return err
-  }
-  defer fw.Close()
+	// write back to file
+	fw, err := os.OpenFile(wl.configPath, os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer fw.Close()
 
-  for _, line := range lines {
-    _, err = fw.WriteString(line + "\n")
-    if err != nil {
-      return err
-    }
-  }
+	for _, line := range lines {
+		_, err = fw.WriteString(line + "\n")
+		if err != nil {
+			return err
+		}
+	}
 
-  return nil
+	return nil
 }
 
 func (wl *Whitelist) IsWhitelisted(ip string) bool {
-  ipv4 := net.ParseIP(ip)
-  if ipv4 == nil {
-    return false
-  }
+	ipv4 := net.ParseIP(ip)
+	if ipv4 == nil {
+		return false
+	}
 
-  // Always allow localhost
-  if ip == "127.0.0.1" || ip == "::1" {
-    return true
-  }
+	// Always allow localhost
+	if ip == "127.0.0.1" || ip == "::1" {
+		return true
+	}
 
-  if _, ok := wl.ips[ip]; ok {
-    return true
-  }
+	if _, ok := wl.ips[ip]; ok {
+		return true
+	}
 
-  for _, m := range wl.masks {
-    if m.mask != nil && m.mask.Contains(ipv4) {
-      return true
-    }
-  }
+	for _, m := range wl.masks {
+		if m.mask != nil && m.mask.Contains(ipv4) {
+			return true
+		}
+	}
 
-  return false
+	return false
 }
 
 func (wl *Whitelist) Clear() error {
-  wl.ips = make(map[string]*AllowIP)
-  wl.masks = []*AllowIP{}
+	wl.ips = make(map[string]*AllowIP)
+	wl.masks = []*AllowIP{}
 
-  // clear file
-  f, err := os.OpenFile(wl.configPath, os.O_WRONLY|os.O_TRUNC, 0644)
-  if err != nil {
-    return err
-  }
-  defer f.Close()
+	// clear file
+	f, err := os.OpenFile(wl.configPath, os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
 
-  return nil
+	return nil
 }
 
 func (wl *Whitelist) SetEnabled(enabled bool) {
-  wl.enabled = enabled
+	wl.enabled = enabled
 }
 
 func (wl *Whitelist) IsEnabled() bool {
-  return wl.enabled
+	return wl.enabled
 }
 
 func (wl *Whitelist) SetVerbose(verbose bool) {
-  wl.verbose = verbose
+	wl.verbose = verbose
 }
 
 func (wl *Whitelist) IsVerbose() bool {
-  return wl.verbose
+	return wl.verbose
 }
 
 func (wl *Whitelist) GetAllIPs() []string {
-  var ips []string
+	var ips []string
 
-  for ip := range wl.ips {
-    ips = append(ips, ip)
-  }
+	for ip := range wl.ips {
+		ips = append(ips, ip)
+	}
 
-  for _, m := range wl.masks {
-    if m.mask != nil {
-      ips = append(ips, m.mask.String())
-    }
-  }
+	for _, m := range wl.masks {
+		if m.mask != nil {
+			ips = append(ips, m.mask.String())
+		}
+	}
 
-  return ips
+	return ips
 }
-

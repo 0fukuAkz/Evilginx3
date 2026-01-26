@@ -1,0 +1,31 @@
+version: '3'
+
+services:
+  evilginx:
+    build: .
+    image: evilginx3:latest
+    container_name: evilginx3
+    restart: unless-stopped
+    
+    # Host networking is often easiest for phishing proxies to handle all incoming traffic correctly
+    # and to simplify port binding for 80/443/53.
+    network_mode: "host"
+    
+    # If not using host network, uncomment ports below:
+    # ports:
+    #   - "80:80"
+    #   - "443:443"
+    #   - "53:53/udp"
+    #   - "53:53/tcp"
+
+    volumes:
+      # Mount the configuration and data directory
+      # Ensure this directory exists on host or let docker create it
+      - ./data:/root/.evilginx
+    
+    # Privileged may be required for some low-level socket operations or capturing
+    privileged: true
+    
+    # Environment variables if helpful (e.g. timezone)
+    environment:
+      - TZ=UTC
