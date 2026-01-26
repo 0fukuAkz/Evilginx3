@@ -15,25 +15,6 @@ This **Private Development Edition** includes advanced evasion, detection, and o
 **Original Author:** Kuba Gretzky ([@mrgretzky](https://twitter.com/mrgretzky))  
 **Version:** 3.3.1 - Private Dev Edition
 
-## ✅ Latest Updates (Nov 2025)
-
-**All Systems Validated:**
-- ✅ **13 Phishlets Debugged** - Fixed `force_post` fields in all auth_tokens sections
-- ✅ **13 Turnstile Redirectors** - Complete Cloudflare CAPTCHA integration for all phishlets
-- ✅ **Perfect 1:1 Mapping** - Every phishlet has a matching Turnstile redirector
-- ✅ **Build Tested** - Compiles successfully with Go 1.25.1
-- ✅ **Clean Structure** - Orphaned redirectors removed, optimized directory layout
-
-**Included Phishlets:**
-Amazon, Apple, Booking, Coinbase, Facebook, Instagram, LinkedIn, Netflix, O365, Okta, PayPal, Salesforce, Spotify
-
-**Turnstile Redirectors:**
-All phishlets include professional Cloudflare Turnstile verification pages with browser compatibility files.
-
-<p align="center">
-  <img alt="Screenshot" src="https://raw.githubusercontent.com/kgretzky/evilginx2/master/media/img/screen.png" height="320" />
-</p>
-
 ## 🚨 Disclaimer
 
 This tool is designed for **AUTHORIZED PENETRATION TESTING AND RED TEAM ENGAGEMENTS ONLY**. Unauthorized use of this tool is illegal and unethical. The authors and contributors are not responsible for misuse or damage caused by this tool.
@@ -97,47 +78,6 @@ For comprehensive instructions on installation, detailed configuration, enterpri
     ```
 
 **👉 [Click here for the complete DEPLOYMENT.md guide](DEPLOYMENT.md)**
-
----
-
-## 📋 Feature Comparison
-
-| Feature | Standard 3.3 | Private Dev Edition |
-|---------|--------------|---------------------|
-| Basic MITM Proxy | ✅ | ✅ |
-| 2FA Bypass | ✅ | ✅ |
-| Phishlet System | ✅ | ✅ |
-| Gophish Integration | ✅ | ✅ |
-| **Turnstile Redirectors** | ❌ | ✅ (13 pre-built) |
-| **Debugged Phishlets** | ❌ | ✅ (13 validated) |
-| **ML Bot Detection** | ❌ | ✅ |
-| **JA3 Fingerprinting** | ❌ | ✅ |
-| **Sandbox Detection** | ❌ | ✅ |
-| **Polymorphic Engine** | ❌ | ✅ |
-| **Domain Rotation** | ❌ | ✅ |
-| **Traffic Shaping** | ❌ | ✅ |
-| **C2 Channel** | ❌ | ✅ |
-| **Advanced Obfuscation** | ❌ | ✅ |
-| **Cloudflare Workers** | ❌ | ✅ |
-| **Enhanced Telegram** | ❌ | ✅ |
-
-### Phishlet Status
-
-| Phishlet | Status | Turnstile Redirector | Auth Tokens Fixed |
-|----------|--------|---------------------|-------------------|
-| Amazon | ✅ Ready | ✅ Complete | ✅ force_post added |
-| Apple | ✅ Ready | ✅ Complete | ✅ force_post added |
-| Booking | ✅ Ready | ✅ Complete | ✅ force_post added |
-| Coinbase | ✅ Ready | ✅ Complete | ✅ force_post added |
-| Facebook | ✅ Ready | ✅ Complete | ✅ force_post added |
-| Instagram | ✅ Ready | ✅ Complete | ✅ force_post added |
-| LinkedIn | ✅ Ready | ✅ Complete | ✅ force_post added |
-| Netflix | ✅ Ready | ✅ Complete | ✅ force_post added |
-| O365 | ✅ Ready | ✅ Complete | ✅ Already correct |
-| Okta | ✅ Ready | ✅ Complete | ✅ Fixed + wildcard domains |
-| PayPal | ✅ Ready | ✅ Complete | ✅ force_post added |
-| Salesforce | ✅ Ready | ✅ Complete | ✅ force_post added |
-| Spotify | ✅ Ready | ✅ Complete | ✅ force_post added |
 
 ---
 
