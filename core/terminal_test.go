@@ -1,13 +1,13 @@
 package core
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/kgretzky/evilginx2/database"
+	glog "github.com/kgretzky/evilginx2/log"
 )
 
 func TestTerminal_Config(t *testing.T) {
@@ -30,8 +30,8 @@ func TestTerminal_Config(t *testing.T) {
 	}
 
 	// Redirect global log output to mock buffer for verification
-	log.SetOutput(mockIO.GetOutput())
-	defer log.SetOutput(os.Stdout) // Restore
+	glog.SetOutput(mockIO.GetOutput())
+	defer glog.SetOutput(os.Stdout) // Restore
 
 	// 3. Test Config Command
 	// config domain example.com

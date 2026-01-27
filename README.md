@@ -117,4 +117,5 @@ By using this software, you agree to:
 
 **For this private edition:**
 - Review **[DEPLOYMENT.md](DEPLOYMENT.md)** for setup help and troubleshooting.
+- Contact **AKaZA (Akz0fuku) on Telegram (@Akaza0fuku) ** for support.
 - Enable debug mode for detailed logs.
