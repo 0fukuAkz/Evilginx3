@@ -11,11 +11,6 @@
 3. [Domain Configuration](#3-domain-configuration)
 4. [Server Preparation](#4-server-preparation)
 5. [Installation](#5-installation)
-   - [Clone Repository](#51-clone-repository)
-   - [Linux Automated Installer](#52-linux-automated-installer-recommended)
-   - [Windows Automated Installer](#53-windows-automated-installer)
-   - [Manual Installation](#54-manual-installation)
-   - [Docker Installation](#55-docker-installation-experimental)
 6. [SSL/TLS Certificate Setup](#6-ssltls-certificate-setup)
 7. [Phishlet Configuration](#7-phishlet-configuration)
 8. [Redirector Setup (Turnstile)](#8-redirector-setup-turnstile)
@@ -23,6 +18,7 @@
 10. [Advanced Features & Evasion](#10-advanced-features--evasion)
 11. [Operational Security](#11-operational-security)
 12. [Troubleshooting](#12-troubleshooting)
+13. [Command Reference](#13-command-reference)
 
 ---
 
@@ -399,3 +395,95 @@ sudo lsof -i :443
 
 **Issue: Sessions not capturing**
 - Run in debug mode: `./build/evilginx -debug -p ./phishlets` to see raw traffic logs.
+
+---
+
+## 13. Command Reference
+
+### General Configuration
+
+| Command | Usage | Description |
+| :--- | :--- | :--- |
+| **`config`** | `config` | Show all configuration variables. |
+| | `config domain <domain>` | Set base domain for all phishlets (e.g. `evilsite.com`). |
+| | `config ipv4 <ipv4_address>` | Set IPv4 external address of the server. |
+| | `config unauth_url <url>` | Set redirect URL for unauthorized requests. |
+| | `config autocert <on|off>` | Enable/disable automatic Let's Encrypt certificates. |
+| | `config lure_strategy <strategy>` | Set lure URL strategy (`short`, `medium`, `long`, `realistic`, `hex`, `base64`, `mixed`). |
+| | `config gophish <args...>` | Configure Gophish integration (`admin_url`, `api_key`, `test`). |
+| | `config telegram <args...>` | Configure Telegram notifications (`bot_token`, `chat_id`, `enabled`, `test`). |
+| | `config cloudflare_worker <args...>` | Configure Cloudflare Worker settings (`account_id`, `api_token`, `enabled`, `test`). |
+| **`proxy`** | `proxy` | Show proxy configuration. |
+| | `proxy enable`, `proxy disable` | Enable/disable upstream proxy. |
+| | `proxy type <http|https|socks5>` | Set proxy type. |
+| | `proxy address <address>`, `proxy port <port>` | Configure proxy endpoint. |
+| | `proxy username <user>`, `proxy password <pass>` | Configure proxy auth. |
+| **`test-certs`** | `test-certs` | Test availability of set up TLS certificates for active phishlets. |
+| **`clear`** | `clear` | Clear the terminal screen. |
+
+### Phishlets & Lures
+
+| Command | Usage | Description |
+| :--- | :--- | :--- |
+| **`phishlets`** | `phishlets` | Show status of all available phishlets. |
+| | `phishlets <name>` | Show details of a specific phishlet. |
+| | `phishlets create <template> <name> <params...>` | Create a child phishlet from a template with custom params. |
+| | `phishlets hostname <name> <host>` | Set hostname for a phishlet (e.g. `login.evilsite.com`). |
+| | `phishlets enable <name>` | Enable phishlet and request SSL/TLS certificates. |
+| | `phishlets disable <name>` | Disable phishlet. |
+| | `phishlets hide <name>`, `unhide <name>` | Toggle visibility (hidden state logs requests but doesn't serve page). |
+| | `phishlets get-hosts <name>` | Generate hosts file entries for local testing. |
+| **`lures`** | `lures` | Show all created lures. |
+| | `lures create <phishlet>` | Create a new lure for a phishlet. |
+| | `lures get-url <id> [params...]` | Generate a phishing URL for a lure. |
+| | `lures pause <id> <duration>` | Pause a lure for a specific duration (e.g., `1d2h`). |
+| | `lures unpause <id>` | Unpause a lure. |
+| | `lures edit <id> <field> <value>` | Edit lure properties (`hostname`, `path`, `redirect_url`, `ua_filter`, `og_title`, `og_image`, `phishlet`). |
+| | `lures delete <id>`, `lures delete all` | Delete one or more lures. |
+
+### Sessions & Data
+
+| Command | Usage | Description |
+| :--- | :--- | :--- |
+| **`sessions`** | `sessions` | Show history of captured sessions. |
+| | `sessions <id>` | Show detailed session info (tokens, credentials). |
+| | `sessions delete <id>`, `sessions delete all` | Delete captured session data. |
+| **`c2`** | `c2` | Show C2 channel status. |
+| | `c2 enable <on|off>` | Enable/disable C2 channel. |
+| | `c2 transport <https|dns>` | Set C2 transport method. |
+| | `c2 server add <id> <url> <priority>` | Add a C2 coordination server. |
+| | `c2 key generate`, `c2 key export` | Manage encryption keys. |
+
+### Defense & Evasion
+
+| Command | Usage | Description |
+| :--- | :--- | :--- |
+| **`blacklist`** | `blacklist <mode>` | Set mode: `all` (block everything), `unauth` (block unauthorized), `noadd` (stop adding ips), `off`. |
+| | `blacklist log <on|off>` | Toggle blacklist logging. |
+| **`whitelist`** | `whitelist <on|off>` | Enable/disable IP whitelist (blocks all non-whitelisted). |
+| | `whitelist add <ip>`, `remove <ip>` | Manage allowed IPs. |
+| **`ja3`** | `ja3 stats` | Show TLS fingerprinting stats. |
+| | `ja3 signatures` | List known bot signatures. |
+| | `ja3 add <name> <hash> <desc>` | Add a custom JA3 signature to block. |
+| **`captcha`** | `captcha enable <on|off>` | Enable/disable CAPTCHA protection. |
+| | `captcha provider <name>` | Select provider (`turnstile`, `recaptcha_v3`, `hcaptcha`). |
+| | `captcha require <on|off>` | Force CAPTCHA on all lures. |
+| **`sandbox`** | `sandbox enable <on|off>` | Enable/disable anti-analysis/sandbox detection. |
+| | `sandbox mode <passive|active|aggressive>` | Set detection aggressiveness. |
+| | `sandbox action <block|redirect|honeypot>` | Set action upon detecting a bot/sandbox. |
+| **`polymorphic`** | `polymorphic enable <on|off>` | Enable/disable dynamic code mutation. |
+| | `polymorphic level <low|medium|high|extreme>` | Set level of code obfuscation. |
+
+### Infrastructure & Traffic
+
+| Command | Usage | Description |
+| :--- | :--- | :--- |
+| **`domain-rotation`**| `domain-rotation enable <on|off>` | Enable automated domain rotation. |
+| | `domain-rotation strategy <type>` | Set strategy: `round-robin`, `weighted`, `health-based`, `random`. |
+| | `domain-rotation add-domain` | Add a domain to the rotation pool. |
+| **`traffic-shaping`**| `traffic-shaping enable <on|off>` | Enable traffic shaping/rate limiting. |
+| | `traffic-shaping global-limit <rate>` | Set global request rate limit. |
+| | `traffic-shaping geo-rule <country> ...` | Set geographic blocking or limiting rules. |
+| **`cloudflare`** | `cloudflare worker <type> ...` | Generate a Cloudflare Worker script (`simple`, `html`, `advanced`). |
+| | `cloudflare deploy ...` | Deploy a worker directly to Cloudflare. |
+| | `cloudflare list`, `cloudflare status` | Manage deployed workers. |
