@@ -54,7 +54,7 @@ if [[ -z "$SCRIPT_DIR" ]] || [[ ! -d "$SCRIPT_DIR" ]]; then
 fi
 
 # Configuration
-GO_VERSION="1.22.0"
+GO_VERSION="1.24.0"
 INSTALL_DIR="/usr/local/bin"
 INSTALL_BASE="/opt/evilginx"
 SERVICE_USER="root"  # Run as admin
