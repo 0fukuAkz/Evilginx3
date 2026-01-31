@@ -524,7 +524,7 @@ build_evilginx() {
 # Default paths
 PHISHLETS_PATH="$PHISHLETS_DIR"
 REDIRECTORS_PATH="$REDIRECTORS_DIR"
-CONFIG_PATH="\$HOME/.evilginx"
+CONFIG_PATH="/etc/evilginx"
 
 # Check if user provided paths, otherwise use defaults
 ARGS=()
