@@ -133,6 +133,7 @@ type GeneralConfig struct {
 	HttpsPort        int          `mapstructure:"https_port" json:"https_port" yaml:"https_port"`
 	DnsPort          int          `mapstructure:"dns_port" json:"dns_port" yaml:"dns_port"`
 	Autocert         bool         `mapstructure:"autocert" json:"autocert" yaml:"autocert"`
+	Http2Enabled     bool         `mapstructure:"http2_enabled" json:"http2_enabled" yaml:"http2_enabled"`
 	TrustedProxies   []string     `mapstructure:"trusted_proxies" json:"trusted_proxies" yaml:"trusted_proxies"`
 	ServerCookieName string       `mapstructure:"server_cookie_name" json:"server_cookie_name" yaml:"server_cookie_name"`
 }
@@ -683,6 +684,17 @@ func (c *Config) SetDnsPort(port int) {
 	c.general.DnsPort = port
 	c.cfg.Set(CFG_GENERAL, c.general)
 	log.Info("dns port set to: %d", port)
+	c.cfg.WriteConfig()
+}
+
+func (c *Config) IsHttp2Enabled() bool {
+	return c.general.Http2Enabled
+}
+
+func (c *Config) EnableHttp2(enabled bool) {
+	c.general.Http2Enabled = enabled
+	c.cfg.Set(CFG_GENERAL, c.general)
+	log.Info("http/2 enabled: %v", enabled)
 	c.cfg.WriteConfig()
 }
 

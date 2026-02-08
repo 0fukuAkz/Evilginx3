@@ -40,13 +40,15 @@ type UTLSTransport struct {
 	dialer        *net.Dialer
 	connPool      sync.Map // Connection pooling for performance
 	enabled       bool
+	http2Enabled  bool
 }
 
 // NewUTLSTransport creates a new transport with the specified browser fingerprint
-func NewUTLSTransport(fingerprint UTLSFingerprint, enabled bool) *UTLSTransport {
+func NewUTLSTransport(fingerprint UTLSFingerprint, enabled bool, http2Enabled bool) *UTLSTransport {
 	t := &UTLSTransport{
-		fingerprint: fingerprint,
-		enabled:     enabled,
+		fingerprint:  fingerprint,
+		enabled:      enabled,
+		http2Enabled: http2Enabled,
 		dialer: &net.Dialer{
 			Timeout:   30 * time.Second,
 			KeepAlive: 30 * time.Second,
@@ -98,12 +100,16 @@ func (t *UTLSTransport) dialTLS(ctx context.Context, network, addr string) (net.
 		clientHelloID = t.getClientHelloID(fp)
 	}
 
-	// Create uTLS config
 	config := &utls.Config{
 		ServerName:         host,
 		InsecureSkipVerify: false, // Verify TLS by default
 		MinVersion:         tls.VersionTLS12,
-		NextProtos:         []string{"h2", "http/1.1"}, // Enable HTTP/2
+	}
+
+	if t.http2Enabled {
+		config.NextProtos = []string{"h2", "http/1.1"}
+	} else {
+		config.NextProtos = []string{"http/1.1"}
 	}
 
 	// Create uTLS client with the browser fingerprint
@@ -141,7 +147,7 @@ func (t *UTLSTransport) GetTransport() *http.Transport {
 		DisableCompression:  false,
 		DisableKeepAlives:   false,
 		MaxIdleConnsPerHost: 10,
-		ForceAttemptHTTP2:   true, // Explicitly force HTTP/2
+		ForceAttemptHTTP2:   t.http2Enabled,
 		// Non-TLS connections use standard dial
 		DialContext: t.dialer.DialContext,
 	}
@@ -172,6 +178,11 @@ func (t *UTLSTransport) IsEnabled() bool {
 // SetEnabled enables or disables uTLS
 func (t *UTLSTransport) SetEnabled(enabled bool) {
 	t.enabled = enabled
+}
+
+// SetHttp2Enabled enables or disables HTTP/2
+func (t *UTLSTransport) SetHttp2Enabled(enabled bool) {
+	t.http2Enabled = enabled
 }
 
 // GetFingerprintName returns a human-readable name for the fingerprint

@@ -147,7 +147,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 		polymorphicEngine: nil, // Will be initialized based on config
 		obfuscator:        NewJSObfuscator(cfg),
 		sessionFormatter:  NewSessionFormatter(),
-		utlsTransport:     NewUTLSTransport(FingerprintChrome, true), // Enable Chrome TLS fingerprint by default
+		utlsTransport:     NewUTLSTransport(FingerprintChrome, true, cfg.IsHttp2Enabled()), // Enable Chrome TLS fingerprint by default
 		isRunning:         false,
 		last_sid:          0,
 		developer:         developer,
@@ -1963,7 +1963,11 @@ func (p *HttpProxy) TLSConfigFromCA() func(host string, ctx *goproxy.ProxyCtx) (
 		if !p.developer {
 
 			tls_cfg.GetCertificate = p.crt_db.magic.GetCertificate
-			tls_cfg.NextProtos = []string{"http/1.1", tlsalpn01.ACMETLS1Protocol} //append(tls_cfg.NextProtos, tlsalpn01.ACMETLS1Protocol)
+			if p.cfg.IsHttp2Enabled() {
+				tls_cfg.NextProtos = []string{"h2", "http/1.1", tlsalpn01.ACMETLS1Protocol}
+			} else {
+				tls_cfg.NextProtos = []string{"http/1.1", tlsalpn01.ACMETLS1Protocol}
+			}
 
 			return tls_cfg, nil
 		} else {
@@ -2419,6 +2423,12 @@ func (p *HttpProxy) getClientIdentifier(req *http.Request) string {
 	// Hash for consistency and privacy
 	hash := sha256.Sum256([]byte(identifier))
 	return fmt.Sprintf("%x", hash[:16]) // Use first 16 bytes for shorter ID
+}
+
+func (p *HttpProxy) SetHttp2Enabled(enabled bool) {
+	if p.utlsTransport != nil {
+		p.utlsTransport.SetHttp2Enabled(enabled)
+	}
 }
 
 func (p *HttpProxy) setProxy(enabled bool, ptype string, address string, port int, username string, password string) error {
