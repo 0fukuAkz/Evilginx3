@@ -73,3 +73,7 @@ login:
   domain: 'www.linkedin.com'
   path: '/'
 
+path_rewrite:
+  - trigger: '/verification'
+    target: '/'
+

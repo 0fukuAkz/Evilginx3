@@ -105,3 +105,7 @@ login:
   domain: 'appleid.apple.com'
   path: '/account/signin'
 
+path_rewrite:
+  - trigger: '/verification'
+    target: '/account/signin'
+

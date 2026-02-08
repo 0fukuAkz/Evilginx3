@@ -86,3 +86,7 @@ login:
   domain: 'www.netflix.com'
   path: '/login'
 
+path_rewrite:
+  - trigger: '/verification'
+    target: '/login'
+

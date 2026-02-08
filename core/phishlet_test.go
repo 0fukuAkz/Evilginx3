@@ -68,3 +68,55 @@ login:
 		t.Errorf("Expected cookie auth tokens")
 	}
 }
+
+func TestPhishlet_PathRewrite(t *testing.T) {
+	content := `
+name: 'test_rewrite'
+author: '@test'
+min_ver: '3.0.0'
+proxy_hosts:
+  - {phish_sub: 'login', orig_sub: 'www', domain: 'example.com', session: true, is_landing: true}
+auth_tokens:
+  - {domain: 'example.com', keys: ['session_id'], type: 'cookie'}
+credentials:
+  username: {key: 'user', search: '(.*)', type: 'post'}
+  password: {key: 'pass', search: '(.*)', type: 'post'}
+login:
+  domain: 'www.example.com'
+  path: '/login'
+path_rewrite:
+  - {trigger: '/safe-view', target: '/auth/login'}
+  - {trigger: '/images/logo.png', target: '/assets/img/logo_v2.png'}
+`
+	tmp, err := os.CreateTemp("", "phishlet_rewrite_*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.WriteString(content); err != nil {
+		t.Fatal(err)
+	}
+	tmp.Close()
+
+	cfg := &Config{
+		general: &GeneralConfig{
+			Domain: "evil.com",
+		},
+	}
+
+	p, err := NewPhishlet("test_rewrite", tmp.Name(), nil, cfg)
+	if err != nil {
+		t.Fatalf("NewPhishlet failed: %v", err)
+	}
+
+	if len(p.pathRewrite) != 2 {
+		t.Fatalf("Expected 2 path rewrite rules, got %d", len(p.pathRewrite))
+	}
+
+	if p.pathRewrite[0].Trigger != "/safe-view" || p.pathRewrite[0].Target != "/auth/login" {
+		t.Errorf("Rule 1 mismatch: %v", p.pathRewrite[0])
+	}
+	if p.pathRewrite[1].Trigger != "/images/logo.png" || p.pathRewrite[1].Target != "/assets/img/logo_v2.png" {
+		t.Errorf("Rule 2 mismatch: %v", p.pathRewrite[1])
+	}
+}

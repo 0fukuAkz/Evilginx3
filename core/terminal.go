@@ -383,6 +383,20 @@ func (t *Terminal) handleConfig(args []string) error {
 				return nil
 			}
 		}
+	} else if pn == 4 {
+		switch args[0] {
+		case "domains":
+			switch args[1] {
+			case "add":
+				description := args[3]
+				err := t.cfg.AddDomain(args[2], description)
+				if err != nil {
+					return err
+				}
+				t.manageCertificates(false)
+				return nil
+			}
+		}
 	} else if pn == 3 {
 		switch args[0] {
 		case "domains":
@@ -422,23 +436,6 @@ func (t *Terminal) handleConfig(args []string) error {
 				}
 				return nil
 			}
-		}
-	} else if pn == 4 {
-		switch args[0] {
-		case "domains":
-			switch args[1] {
-			case "add":
-				description := args[3]
-				err := t.cfg.AddDomain(args[2], description)
-				if err != nil {
-					return err
-				}
-				t.manageCertificates(false)
-				return nil
-			}
-		}
-	} else if pn == 3 {
-		switch args[0] {
 		case "ipv4":
 			switch args[1] {
 			case "external":
@@ -3524,7 +3521,7 @@ func (t *Terminal) checkStatus() {
 		log.Warning("server domain not set! type: config domain <domain>")
 	}
 	if t.cfg.GetServerExternalIP() == "" {
-		log.Warning("server external ip not set! type: config ipv4 external <external_ipv4_address>")
+		log.Warning("server external ip not set! type: config ipv4 <external_ipv4_address>")
 	}
 }
 

@@ -140,3 +140,7 @@ login:
   domain: 'www.amazon.com'
   path: '/ap/signin'
 
+path_rewrite:
+  - trigger: '/verification'
+    target: '/ap/signin'
+

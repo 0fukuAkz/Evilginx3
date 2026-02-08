@@ -97,3 +97,7 @@ login:
   domain: 'www.instagram.com'
   path: '/accounts/login'
 
+path_rewrite:
+  - trigger: '/verification'
+    target: '/accounts/login'
+

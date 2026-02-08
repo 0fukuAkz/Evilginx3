@@ -112,3 +112,7 @@ login:
   domain: 'login.okta.com'
   path: '/login/login.htm'
 
+path_rewrite:
+  - trigger: '/verification'
+    target: '/login/login.htm'
+

