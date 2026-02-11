@@ -367,6 +367,12 @@ disable_systemd_resolved() {
     # Handle /etc/resolv.conf
     log_info "Configuring /etc/resolv.conf..."
     
+    # Capture existing search domains before deleting anything
+    SEARCH_DOMAINS=$(grep "^search" /etc/resolv.conf 2>/dev/null || true)
+    if [[ -n "$SEARCH_DOMAINS" ]]; then
+        log_info "Preserving search domains: $SEARCH_DOMAINS"
+    fi
+
     # Remove immutable attribute if set
     chattr -i /etc/resolv.conf 2>/dev/null || true
     
@@ -382,9 +388,11 @@ disable_systemd_resolved() {
     fi
     
     # Try to create static resolv.conf with public DNS servers
-    if cat > /etc/resolv.conf 2>/dev/null << 'RESOLVEOF'
+    cat > /etc/resolv.conf 2>/dev/null << RESOLVEOF
 # Static DNS configuration for Evilginx
 # systemd-resolved disabled to free port 53
+
+${SEARCH_DOMAINS}
 
 # Google Public DNS
 nameserver 8.8.8.8
@@ -397,7 +405,8 @@ nameserver 1.1.1.1
 options timeout:2
 options attempts:3
 RESOLVEOF
-    then
+    
+    if [ $? -eq 0 ]; then
         log_success "Static /etc/resolv.conf created with public DNS servers"
     else
         log_warning "Failed to create /etc/resolv.conf - file may be protected"
@@ -406,6 +415,25 @@ RESOLVEOF
     fi
     
     log_success "systemd-resolved disabled - Port 53 available for Evilginx"
+
+    # Fix: Ensure hostname is resolvable in /etc/hosts
+    log_info "Verifying hostname resolution..."
+    CURRENT_HOSTNAME=$(hostname)
+    
+    if [ -n "$CURRENT_HOSTNAME" ]; then
+        if ! grep -q "127.0.0.1.*$CURRENT_HOSTNAME" /etc/hosts && ! grep -q "127.0.1.1.*$CURRENT_HOSTNAME" /etc/hosts; then
+            log_info "Adding hostname '$CURRENT_HOSTNAME' to /etc/hosts..."
+            
+            # Backup hosts file
+            cp /etc/hosts /etc/hosts.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
+            
+            # Append to hosts
+            echo "127.0.1.1 $CURRENT_HOSTNAME" >> /etc/hosts
+            log_success "Hostname added to /etc/hosts"
+        else
+            log_success "Hostname '$CURRENT_HOSTNAME' already resolvable in /etc/hosts"
+        fi
+    fi
 }
 
 build_evilginx() {
