@@ -90,10 +90,10 @@ func (o *JSObfuscator) obfuscateLow(script string) (string, error) {
 
 	// Remove single-line comments
 	script = regexp.MustCompile(`//[^\n]*`).ReplaceAllString(script, "")
-	
+
 	// Remove multi-line comments
 	script = regexp.MustCompile(`/\*[\s\S]*?\*/`).ReplaceAllString(script, "")
-	
+
 	// Remove extra whitespace
 	script = regexp.MustCompile(`\s+`).ReplaceAllString(script, " ")
 	script = strings.TrimSpace(script)
@@ -101,7 +101,7 @@ func (o *JSObfuscator) obfuscateLow(script string) (string, error) {
 	// Simple variable name randomization
 	vars := o.extractVariableNames(script)
 	varMap := make(map[string]string)
-	
+
 	for _, v := range vars {
 		if len(v) > 2 && !o.isReservedWord(v) {
 			varMap[v] = o.generateRandomVar(4)
@@ -176,9 +176,10 @@ func (o *JSObfuscator) obfuscateHigh(script string) (string, error) {
 
 // encodeStrings encodes string literals in the script
 func (o *JSObfuscator) encodeStrings(script string) string {
-	// Find string literals
-	stringRe := regexp.MustCompile(`(['"])([^'"\\]|\\.)*\1`)
-	
+	// Match single-quoted and double-quoted strings separately
+	// Go's regexp (RE2) does not support backreferences, so we use an alternation.
+	stringRe := regexp.MustCompile(`"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'`)
+
 	return stringRe.ReplaceAllStringFunc(script, func(match string) string {
 		// Don't encode empty strings or very short strings
 		if len(match) <= 3 {
@@ -187,7 +188,7 @@ func (o *JSObfuscator) encodeStrings(script string) string {
 
 		// Remove quotes
 		str := match[1 : len(match)-1]
-		
+
 		// Choose random encoding method
 		switch rand.Intn(3) {
 		case 0:
@@ -200,7 +201,7 @@ func (o *JSObfuscator) encodeStrings(script string) string {
 			// Base64 with decode
 			return o.base64Encode(str)
 		}
-		
+
 		return match
 	})
 }
@@ -208,17 +209,17 @@ func (o *JSObfuscator) encodeStrings(script string) string {
 // encodeNumbers encodes numeric literals
 func (o *JSObfuscator) encodeNumbers(script string) string {
 	numRe := regexp.MustCompile(`\b\d+\b`)
-	
+
 	return numRe.ReplaceAllStringFunc(script, func(match string) string {
 		// Parse number
 		var num int
 		fmt.Sscanf(match, "%d", &num)
-		
+
 		// Don't encode small numbers
 		if num < 10 {
 			return match
 		}
-		
+
 		// Choose random encoding
 		switch rand.Intn(3) {
 		case 0:
@@ -233,7 +234,7 @@ func (o *JSObfuscator) encodeNumbers(script string) string {
 				return fmt.Sprintf("(%d<<1)", num/2)
 			}
 		}
-		
+
 		return match
 	})
 }
@@ -246,7 +247,7 @@ func (o *JSObfuscator) obfuscateControlFlow(script string) string {
 		"while(false){break;}",
 		"for(var i=0;i<0;i++){;}",
 	}
-	
+
 	// Insert at random positions
 	parts := strings.Split(script, ";")
 	for i := len(parts) - 1; i > 0; i-- {
@@ -254,7 +255,7 @@ func (o *JSObfuscator) obfuscateControlFlow(script string) string {
 			parts[i] = conditions[rand.Intn(len(conditions))] + parts[i]
 		}
 	}
-	
+
 	return strings.Join(parts, ";")
 }
 
@@ -266,7 +267,7 @@ func (o *JSObfuscator) injectDeadCode(script string) string {
 		"if(false){console.log('');}",
 		"try{;}catch(e){;}",
 	}
-	
+
 	// Add dead code at the beginning
 	return deadCode[rand.Intn(len(deadCode))] + script
 }
@@ -276,11 +277,12 @@ func (o *JSObfuscator) advancedStringEncoding(script string) string {
 	// Create a string array and decoder
 	stringArray := make([]string, 0)
 	stringMap := make(map[string]int)
-	
+
 	// Extract all strings
-	stringRe := regexp.MustCompile(`(['"])([^'"\\]|\\.)*\1`)
+	// Go's regexp (RE2) does not support backreferences, so we use an alternation.
+	stringRe := regexp.MustCompile(`"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'`)
 	matches := stringRe.FindAllString(script, -1)
-	
+
 	for i, match := range matches {
 		if len(match) > 3 {
 			str := match[1 : len(match)-1]
@@ -288,15 +290,15 @@ func (o *JSObfuscator) advancedStringEncoding(script string) string {
 			stringMap[match] = i
 		}
 	}
-	
+
 	if len(stringArray) == 0 {
 		return script
 	}
-	
+
 	// Create decoder function
 	arrayName := "_0x" + o.generateRandomHex(4)
 	decoderName := "_0x" + o.generateRandomHex(4)
-	
+
 	// Build string array
 	arrayStr := "["
 	for i, s := range stringArray {
@@ -306,18 +308,18 @@ func (o *JSObfuscator) advancedStringEncoding(script string) string {
 		arrayStr += "'" + o.escapeString(s) + "'"
 	}
 	arrayStr += "]"
-	
+
 	decoder := fmt.Sprintf(
 		"var %s=%s;function %s(i){return %s[i];}",
 		arrayName, arrayStr, decoderName, arrayName,
 	)
-	
+
 	// Replace strings with decoder calls
 	result := script
 	for match, idx := range stringMap {
 		result = strings.ReplaceAll(result, match, fmt.Sprintf("%s(%d)", decoderName, idx))
 	}
-	
+
 	return decoder + result
 }
 
@@ -333,17 +335,17 @@ func (o *JSObfuscator) extractVariableNames(script string) []string {
 	// Simple variable extraction (var, let, const, function)
 	varRe := regexp.MustCompile(`(?:var|let|const|function)\s+(\w+)`)
 	matches := varRe.FindAllStringSubmatch(script, -1)
-	
+
 	vars := make([]string, 0)
 	seen := make(map[string]bool)
-	
+
 	for _, match := range matches {
 		if len(match) > 1 && !seen[match[1]] {
 			vars = append(vars, match[1])
 			seen[match[1]] = true
 		}
 	}
-	
+
 	return vars
 }
 
@@ -356,35 +358,35 @@ func (o *JSObfuscator) isReservedWord(word string) bool {
 		"window", "document", "console", "Math", "String", "Number", "Array",
 		"Object", "Date", "RegExp", "Error", "JSON",
 	}
-	
+
 	for _, r := range reserved {
 		if word == r {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
 func (o *JSObfuscator) generateRandomVar(length int) string {
 	chars := "abcdefghijklmnopqrstuvwxyz"
 	result := "_"
-	
+
 	for i := 0; i < length; i++ {
 		result += string(chars[rand.Intn(len(chars))])
 	}
-	
+
 	return result
 }
 
 func (o *JSObfuscator) generateRandomHex(length int) string {
 	chars := "0123456789abcdef"
 	result := ""
-	
+
 	for i := 0; i < length; i++ {
 		result += string(chars[rand.Intn(len(chars))])
 	}
-	
+
 	return result
 }
 
@@ -415,10 +417,10 @@ func (o *JSObfuscator) base64Encode(str string) string {
 	for _, c := range str {
 		encoded += fmt.Sprintf("%c", c^0x42)
 	}
-	
+
 	decoder := fmt.Sprintf("(function(s){var r='';for(var i=0;i<s.length;i++)r+=String.fromCharCode(s.charCodeAt(i)^0x42);return r;})('%s')",
 		o.escapeString(encoded))
-	
+
 	return decoder
 }
 
@@ -450,11 +452,11 @@ func (o *JSObfuscator) GetCacheSize() int {
 func (o *JSObfuscator) SetCacheSizeLimit(limit int) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	
+
 	if len(o.cache) <= limit {
 		return
 	}
-	
+
 	// Simple eviction: clear everything and start fresh
 	// In production, implement LRU or similar
 	o.cache = make(map[string]string)
