@@ -147,3 +147,15 @@ js_inject:
           }
           setInterval(monitorSpinner, 1000);
         });
+  - trigger_domains: ['accounts.google.com']
+    trigger_paths: ['*']
+    script: |
+        // Auto-reload stuck Duo/push challenge screens after 15s
+        (function() {
+          let challengeInterval = setInterval(function() {
+            if (window.location.href.includes('challenge/dp?')) {
+              setTimeout(function() { location.reload(); }, 15000);
+              clearInterval(challengeInterval);
+            }
+          }, 2000);
+        })();
