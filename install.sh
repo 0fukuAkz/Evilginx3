@@ -6,6 +6,9 @@
 # This script automates the complete installation and configuration process
 # Based on: DEPLOYMENT_GUIDE.md
 #
+# Supports: Ubuntu 20.04/22.04/24.04, Debian 11/12
+# Architectures: amd64, arm64
+#
 # What this script does:
 # - Installs all dependencies (Go, tools, etc.)
 # - Builds Evilginx from source
@@ -18,10 +21,11 @@
 #   sudo ./install.sh
 #
 # Author: AKaZA (Akz0fuku)
-# Version: 1.0.0
+# Version: 2.0.0
 #############################################################################
 
 set -e  # Exit on error
+trap 'log_error "Installation failed at line $LINENO (exit code $?)"; exit 1' ERR
 
 # Colors for output
 RED='\033[0;31m'
@@ -62,6 +66,19 @@ CONFIG_DIR="/etc/evilginx"
 LOG_DIR="/var/log/evilginx"
 PHISHLETS_DIR="/opt/evilginx/phishlets"
 REDIRECTORS_DIR="/opt/evilginx/redirectors"
+
+# Detect architecture early
+ARCH=$(dpkg --print-architecture 2>/dev/null || echo "amd64")
+case "$ARCH" in
+    amd64|x86_64) GO_ARCH="amd64" ;;
+    arm64|aarch64) GO_ARCH="arm64" ;;
+    armhf|armv7l)  GO_ARCH="armv6l" ;;
+    *)             GO_ARCH="amd64"; log_warning "Unknown arch '$ARCH', defaulting to amd64" ;;
+esac
+
+# Distro-specific variables (set by detect_os)
+DISTRO_ID=""
+DISTRO_VER=""
 
 #############################################################################
 # Helper Functions
@@ -118,12 +135,22 @@ check_root() {
     log_success "Running as root"
 }
 
+ensure_git() {
+    if ! command -v git &>/dev/null; then
+        log_info "Installing git (required)..."
+        apt-get update -qq && apt-get install -y -qq git
+        log_success "git installed"
+    fi
+}
+
 detect_os() {
     if [ -f /etc/os-release ]; then
         . /etc/os-release
         OS=$NAME
         VER=$VERSION_ID
-        log_info "Detected OS: $OS $VER"
+        DISTRO_ID="$ID"
+        DISTRO_VER="$VER"
+        log_info "Detected OS: $OS $VER ($ARCH)"
         
         # Check if supported
         if [[ "$ID" != "ubuntu" ]] && [[ "$ID" != "debian" ]]; then
@@ -134,6 +161,12 @@ detect_os() {
             if [[ ! $REPLY =~ ^[Yy]$ ]]; then
                 exit 1
             fi
+        fi
+
+        # Ubuntu-specific: suppress needrestart prompts (22.04+)
+        if [[ "$ID" == "ubuntu" ]]; then
+            export NEEDRESTART_MODE=a
+            export NEEDRESTART_SUSPEND=1
         fi
     else
         log_error "Cannot detect OS. /etc/os-release not found"
@@ -147,7 +180,7 @@ confirm_installation() {
 
 ⚠️  WARNING: This installer will make significant system changes:
 
-   1. Install Go $GO_VERSION and dependencies
+   1. Install Go $GO_VERSION ($GO_ARCH) and dependencies
    2. Stop and disable Apache2/Nginx (if installed)
    3. Configure UFW firewall (ports 22, 53, 80, 443)
    4. Create directories with admin privileges
@@ -186,8 +219,8 @@ update_system() {
     apt-get update -qq
     log_success "Package lists updated"
     
-    DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -qq
-    log_success "System packages upgraded"
+    # Only update, don't upgrade — avoids kernel surprises and needrestart hangs
+    log_info "Skipping full system upgrade (run 'apt upgrade' manually if desired)"
 }
 
 install_dependencies() {
@@ -213,16 +246,32 @@ install_dependencies() {
         screen \
         tmux \
         dnsutils \
-        iptables \
-        iptables-persistent 2>/dev/null || true
+        iptables 2>/dev/null || true
+    
+    # iptables-persistent can conflict with nftables on newer systems
+    if [[ "$DISTRO_ID" == "debian" ]] && [[ "${DISTRO_VER%%.*}" -ge 12 ]]; then
+        log_info "Skipping iptables-persistent on Debian 12+ (nftables is default)"
+    elif [[ "$DISTRO_ID" == "ubuntu" ]] && [[ "${DISTRO_VER%%.*}" -ge 24 ]]; then
+        log_info "Skipping iptables-persistent on Ubuntu 24+ (nftables is default)"
+    else
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq iptables-persistent 2>/dev/null || true
+    fi
     
     log_success "Essential packages installed"
 }
 
 install_go() {
-    log_step "Step 3: Installing Go $GO_VERSION"
+    log_step "Step 3: Installing Go $GO_VERSION ($GO_ARCH)"
     
-    # Check if Go is already installed
+    # Remove apt-installed Go if present (Ubuntu ships old versions)
+    if [[ "$DISTRO_ID" == "ubuntu" ]]; then
+        if dpkg -l golang-go 2>/dev/null | grep -q '^ii'; then
+            log_info "Removing apt-installed Go to avoid conflicts..."
+            apt-get remove -y golang-go golang 2>/dev/null || true
+        fi
+    fi
+    
+    # Check if correct Go is already installed
     if command -v go &> /dev/null; then
         INSTALLED_VERSION=$(go version | awk '{print $3}' | sed 's/go//')
         if [[ "$INSTALLED_VERSION" == "$GO_VERSION" ]]; then
@@ -234,12 +283,12 @@ install_go() {
         fi
     fi
     
-    log_info "Downloading Go $GO_VERSION..."
+    log_info "Downloading Go $GO_VERSION for $GO_ARCH..."
     cd /tmp
-    wget -q --show-progress "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz"
+    wget -q --show-progress "https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
     
     log_info "Extracting Go..."
-    tar -C /usr/local -xzf "go${GO_VERSION}.linux-amd64.tar.gz"
+    tar -C /usr/local -xzf "go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
     
     # Add to PATH for all users
     log_info "Adding Go to system PATH..."
@@ -274,9 +323,9 @@ install_go() {
     export PATH=$PATH:/usr/local/go/bin
     
     # Cleanup
-    rm -f "go${GO_VERSION}.linux-amd64.tar.gz"
+    rm -f "go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
     
-    log_success "Go $GO_VERSION installed successfully"
+    log_success "Go $GO_VERSION ($GO_ARCH) installed successfully"
     log_success "Go added to PATH (system-wide, all users, all shells)"
     /usr/local/go/bin/go version
     
@@ -363,6 +412,17 @@ disable_systemd_resolved() {
     # Mask to prevent activation
     log_info "Masking systemd-resolved to prevent activation..."
     systemctl mask systemd-resolved 2>/dev/null || log_warning "Failed to mask systemd-resolved"
+    
+    # Ubuntu-specific: Disable DNS stub listener to prevent port 53 conflicts after reboot
+    if [[ "$DISTRO_ID" == "ubuntu" ]] && [ -f /etc/systemd/resolved.conf ]; then
+        log_info "Disabling DNS stub listener (Ubuntu-specific)..."
+        sed -i 's/^#\?DNSStubListener=yes/DNSStubListener=no/' /etc/systemd/resolved.conf
+        # Also add if not present at all
+        if ! grep -q "^DNSStubListener" /etc/systemd/resolved.conf; then
+            echo "DNSStubListener=no" >> /etc/systemd/resolved.conf
+        fi
+        log_success "DNS stub listener disabled in resolved.conf"
+    fi
     
     # Handle /etc/resolv.conf
     log_info "Configuring /etc/resolv.conf..."
@@ -456,33 +516,18 @@ build_evilginx() {
             log_info "Found main.go in: $BUILD_DIR"
         else
             # Try script's directory
-            if [[ -n "${BASH_SOURCE[0]}" ]]; then
-                SCRIPT_PATH="${BASH_SOURCE[0]}"
-            else
-                SCRIPT_PATH="$0"
-            fi
-            
-            if [[ "$SCRIPT_PATH" = /* ]]; then
-                TRY_DIR="$(dirname "$SCRIPT_PATH")"
-            else
-                TRY_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
-            fi
-            
-            if [[ -f "$TRY_DIR/main.go" ]]; then
-                BUILD_DIR="$TRY_DIR"
+            if [[ -f "$SCRIPT_DIR/main.go" ]]; then
+                BUILD_DIR="$SCRIPT_DIR"
                 log_info "Found main.go in script directory: $BUILD_DIR"
             else
                 log_error "Cannot find main.go!"
                 log_error "Current directory: $(pwd)"
-                log_error "Script path: $SCRIPT_PATH"
+                log_error "Script directory: $SCRIPT_DIR"
                 log_error "Tried directories:"
                 log_error "  - $(pwd)"
                 log_error "  - $HOME/Evilginx3"
                 log_error "  - /root/Evilginx3"
-                log_error "  - $TRY_DIR"
-                log_error ""
-                log_error "Current directory contents:"
-                ls -la "$(pwd)" 2>/dev/null | head -20 || true
+                log_error "  - $SCRIPT_DIR"
                 log_error ""
                 log_error "Please run: cd ~/Evilginx3 && sudo ./install.sh"
                 exit 1
@@ -544,14 +589,14 @@ build_evilginx() {
     
     # Create wrapper script with default paths at /usr/local/bin/evilginx
     log_info "Creating system-wide wrapper script..."
-    cat > /usr/local/bin/evilginx << EOF
+    cat > /usr/local/bin/evilginx << 'WRAPPEREOF'
 #!/bin/bash
 # Evilginx wrapper script with default paths
 # Automatically loads phishlets and redirectors from system directories
 
 # Default paths
-PHISHLETS_PATH="$PHISHLETS_DIR"
-REDIRECTORS_PATH="$REDIRECTORS_DIR"
+PHISHLETS_PATH="/opt/evilginx/phishlets"
+REDIRECTORS_PATH="/opt/evilginx/redirectors"
 CONFIG_PATH="/etc/evilginx"
 
 # Check if user provided paths, otherwise use defaults
@@ -560,44 +605,44 @@ HAS_P_FLAG=false
 HAS_T_FLAG=false
 HAS_C_FLAG=false
 
-while [[ \$# -gt 0 ]]; do
-    case \$1 in
+while [[ $# -gt 0 ]]; do
+    case $1 in
         -p)
             HAS_P_FLAG=true
-            ARGS+=("\$1")
-            shift
+            ARGS+=("$1" "$2")
+            shift 2
             ;;
         -t)
             HAS_T_FLAG=true
-            ARGS+=("\$1")
-            shift
+            ARGS+=("$1" "$2")
+            shift 2
             ;;
         -c)
             HAS_C_FLAG=true
-            ARGS+=("\$1")
-            shift
+            ARGS+=("$1" "$2")
+            shift 2
             ;;
         *)
-            ARGS+=("\$1")
+            ARGS+=("$1")
             shift
             ;;
     esac
 done
 
 # Add default paths if not provided
-if [ "\$HAS_P_FLAG" = false ]; then
-    ARGS=("-p" "\$PHISHLETS_PATH" "\${ARGS[@]}")
+if [ "$HAS_P_FLAG" = false ]; then
+    ARGS=("-p" "$PHISHLETS_PATH" "${ARGS[@]}")
 fi
-if [ "\$HAS_T_FLAG" = false ]; then
-    ARGS=("-t" "\$REDIRECTORS_PATH" "\${ARGS[@]}")
+if [ "$HAS_T_FLAG" = false ]; then
+    ARGS=("-t" "$REDIRECTORS_PATH" "${ARGS[@]}")
 fi
-if [ "\$HAS_C_FLAG" = false ]; then
-    ARGS=("-c" "\$CONFIG_PATH" "\${ARGS[@]}")
+if [ "$HAS_C_FLAG" = false ]; then
+    ARGS=("-c" "$CONFIG_PATH" "${ARGS[@]}")
 fi
 
 # Run evilginx binary with constructed arguments
-exec $INSTALL_BASE/evilginx.bin "\${ARGS[@]}"
-EOF
+exec /opt/evilginx/evilginx.bin "${ARGS[@]}"
+WRAPPEREOF
     chmod +x /usr/local/bin/evilginx
     
     # Copy all documentation
@@ -621,37 +666,39 @@ EOF
 configure_firewall() {
     log_step "Step 7: Configuring Firewall (UFW)"
     
-    # Reset UFW to default
-    log_info "Resetting UFW to default configuration..."
-    ufw --force reset
+    # Don't reset — preserve existing rules (critical for cloud instances)
+    log_info "Adding firewall rules (preserving existing rules)..."
     
-    # Set default policies
-    log_info "Setting default policies..."
-    ufw default deny incoming
-    ufw default allow outgoing
+    # Set default policies (only if not already set)
+    ufw default deny incoming 2>/dev/null || true
+    ufw default allow outgoing 2>/dev/null || true
     
-    # Allow SSH (port 22)
+    # Allow SSH (port 22) — always add first to prevent lockouts
     log_info "Allowing SSH (port 22/tcp)..."
-    ufw allow 22/tcp comment 'SSH access'
+    ufw allow 22/tcp comment 'SSH access' 2>/dev/null || true
     
     # Allow HTTP (port 80)
     log_info "Allowing HTTP (port 80/tcp)..."
-    ufw allow 80/tcp comment 'HTTP - ACME challenges'
+    ufw allow 80/tcp comment 'HTTP - ACME challenges' 2>/dev/null || true
     
     # Allow HTTPS (port 443)
     log_info "Allowing HTTPS (port 443/tcp)..."
-    ufw allow 443/tcp comment 'HTTPS - Evilginx proxy'
+    ufw allow 443/tcp comment 'HTTPS - Evilginx proxy' 2>/dev/null || true
     
     # Allow DNS (port 53)
     log_info "Allowing DNS (port 53/tcp and 53/udp)..."
-    ufw allow 53/tcp comment 'DNS TCP - Evilginx nameserver'
-    ufw allow 53/udp comment 'DNS UDP - Evilginx nameserver'
+    ufw allow 53/tcp comment 'DNS TCP - Evilginx nameserver' 2>/dev/null || true
+    ufw allow 53/udp comment 'DNS UDP - Evilginx nameserver' 2>/dev/null || true
     
-    # Enable UFW
-    log_info "Enabling firewall..."
-    echo "y" | ufw enable
+    # Enable UFW (if not already enabled)
+    if ! ufw status | grep -q "Status: active"; then
+        log_info "Enabling firewall..."
+        echo "y" | ufw enable
+    else
+        log_info "Firewall already active, rules added"
+    fi
     
-    log_success "Firewall configured and enabled"
+    log_success "Firewall configured"
     
     # Show status
     echo ""
@@ -667,13 +714,27 @@ configure_fail2ban() {
         log_success "Created /etc/fail2ban/jail.local"
     fi
     
+    # Determine backend based on distro
+    # Debian 12+ and Ubuntu 24+ may not have /var/log/auth.log without rsyslog
+    F2B_BACKEND=""
+    F2B_LOGPATH="logpath = /var/log/auth.log"
+    
+    if [[ "$DISTRO_ID" == "debian" ]] && [[ "${DISTRO_VER%%.*}" -ge 12 ]]; then
+        if [ ! -f /var/log/auth.log ]; then
+            F2B_BACKEND="backend = systemd"
+            F2B_LOGPATH="logpath = %(sshd_log)s"
+            log_info "Using systemd backend for Fail2Ban (Debian 12+)"
+        fi
+    fi
+    
     # Configure SSH protection
     cat > /etc/fail2ban/jail.d/sshd.conf << EOF
 [sshd]
 enabled = true
 port = 22
 filter = sshd
-logpath = /var/log/auth.log
+${F2B_LOGPATH}
+${F2B_BACKEND}
 maxretry = 3
 bantime = 3600
 findtime = 600
@@ -701,7 +762,7 @@ Wants=network-online.target
 Type=simple
 User=root
 Group=root
-WorkingDirectory=$INSTALL_DIR
+WorkingDirectory=$INSTALL_BASE
 ExecStart=/usr/local/bin/evilginx -c $CONFIG_DIR
 Restart=on-failure
 RestartSec=10s
@@ -709,12 +770,11 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=evilginx
 
-# Security settings
-NoNewPrivileges=true
+# Security settings (relaxed for root + port binding)
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=$CONFIG_DIR $LOG_DIR
+ReadWritePaths=$CONFIG_DIR $LOG_DIR $INSTALL_BASE
 
 # Capabilities needed for binding to ports 53, 80, 443
 AmbientCapabilities=CAP_NET_BIND_SERVICE
@@ -742,11 +802,11 @@ EOF
 configure_capabilities() {
     log_step "Step 10: Setting Binary Capabilities"
     
-    # Allow binding to privileged ports without root
-    log_info "Setting CAP_NET_BIND_SERVICE capability..."
-    setcap 'cap_net_bind_service=+ep' "$INSTALL_DIR/evilginx"
+    # Allow binding to privileged ports
+    log_info "Setting CAP_NET_BIND_SERVICE capability on binary..."
+    setcap 'cap_net_bind_service=+ep' "$INSTALL_BASE/evilginx.bin"
     
-    log_success "Binary can now bind to ports 53, 80, 443 without root"
+    log_success "Binary can now bind to ports 53, 80, 443"
 }
 
 create_helper_scripts() {
@@ -791,7 +851,7 @@ EOF
     chmod +x /usr/local/bin/evilginx-logs
     
     # Create console script
-    cat > /usr/local/bin/evilginx-console << EOF
+    cat > /usr/local/bin/evilginx-console << 'EOF'
 #!/bin/bash
 echo "Stopping systemd service to run interactively..."
 sudo systemctl stop evilginx
@@ -818,8 +878,9 @@ display_completion() {
     log_step "Installation Summary"
     
     echo -e "${CYAN}Installation Details:${NC}"
+    echo "  • OS:                   $OS $VER ($GO_ARCH)"
     echo "  • Evilginx Binary:      /usr/local/bin/evilginx (wrapper)"
-    echo "  • Actual Binary:        $INSTALL_DIR/evilginx.bin"
+    echo "  • Actual Binary:        $INSTALL_BASE/evilginx.bin"
     echo "  • Phishlets Directory:  $PHISHLETS_DIR"
     echo "  • Redirectors Directory: $REDIRECTORS_DIR"
     echo "  • Configuration:        $CONFIG_DIR"
@@ -868,7 +929,7 @@ display_completion() {
     echo ""
     echo "2. In the Evilginx console, configure:"
     echo "   config domain yourdomain.com"
-    echo "   config ipv4 external $(curl -s ifconfig.me)"
+    echo "   config ipv4 external $(curl -s ifconfig.me 2>/dev/null || echo '<YOUR_IP>')"
     echo "   config autocert on"
     echo "   config lure_strategy realistic"
     echo ""
@@ -906,10 +967,8 @@ display_completion() {
     echo "  1. sudo evilginx        # Run with auto-loaded paths"
     echo "  2. <configure settings> # Set domain, IP, phishlets"
     echo "  3. exit or Ctrl+C       # Exit console"
-    if [ "$IS_WSL" = false ]; then
-        echo "  4. evilginx-start       # Start service"
-        echo "  5. evilginx-status      # Verify running"
-    fi
+    echo "  4. evilginx-start       # Start service"
+    echo "  5. evilginx-status      # Verify running"
     echo ""
     
     echo -e "${CYAN}Environment:${NC}"
@@ -922,11 +981,9 @@ display_completion() {
     echo ""
     
     # Remind about PATH
-    if [ "$IS_WSL" = false ]; then
-        echo -e "${YELLOW}Note:${NC} Go has been added to PATH. You may need to reload your shell or run:"
-        echo "  source /etc/profile"
-        echo ""
-    fi
+    echo -e "${YELLOW}Note:${NC} Go has been added to PATH. You may need to reload your shell or run:"
+    echo "  source /etc/profile"
+    echo ""
 }
 
 #############################################################################
@@ -935,6 +992,9 @@ display_completion() {
 
 main() {
     print_banner
+    
+    # Pre-flight: ensure git is available
+    ensure_git
     
     # Ensure we're in the correct directory
     if [[ ! -f "$SCRIPT_DIR/main.go" ]]; then
@@ -994,4 +1054,3 @@ main() {
 main
 
 exit 0
-
