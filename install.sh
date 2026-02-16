@@ -508,6 +508,94 @@ create_service_user() {
     log_success "Created service user '$SERVICE_USER' (no login shell)"
 }
 
+create_admin_user() {
+    log_step "Admin User Setup (Optional)"
+    
+    echo ""
+    log_info "You are currently logged in as root."
+    log_info "It is recommended to create a separate admin user for VPS management."
+    echo ""
+    read -r -p "$(echo -e "${CYAN}Create an admin user for SSH/management? [y/N]: ${NC}")" CREATE_ADMIN
+    
+    if [[ ! "$CREATE_ADMIN" =~ ^[Yy]$ ]]; then
+        log_info "Skipping admin user creation (you can do this later)"
+        return 0
+    fi
+    
+    # Get username
+    read -r -p "$(echo -e "${CYAN}Enter admin username [evilginx-admin]: ${NC}")" ADMIN_USER
+    ADMIN_USER="${ADMIN_USER:-evilginx-admin}"
+    
+    # Check if user already exists
+    if id "$ADMIN_USER" &>/dev/null; then
+        log_warning "User '$ADMIN_USER' already exists"
+        # Ensure sudo group membership
+        usermod -aG sudo "$ADMIN_USER" 2>/dev/null || true
+        log_success "Ensured '$ADMIN_USER' is in sudo group"
+        return 0
+    fi
+    
+    # Create user with home directory and bash shell
+    useradd --create-home \
+        --shell /bin/bash \
+        --groups sudo \
+        --comment "Evilginx admin operator" \
+        "$ADMIN_USER"
+    
+    log_success "Created admin user '$ADMIN_USER'"
+    
+    # SSH key setup
+    echo ""
+    read -r -p "$(echo -e "${CYAN}Set up SSH key authentication? [Y/n]: ${NC}")" SETUP_SSH_KEY
+    
+    if [[ ! "$SETUP_SSH_KEY" =~ ^[Nn]$ ]]; then
+        ADMIN_SSH_DIR="/home/$ADMIN_USER/.ssh"
+        mkdir -p "$ADMIN_SSH_DIR"
+        chmod 700 "$ADMIN_SSH_DIR"
+        
+        # Check if root has authorized_keys to copy
+        if [[ -f /root/.ssh/authorized_keys ]] && [[ -s /root/.ssh/authorized_keys ]]; then
+            cp /root/.ssh/authorized_keys "$ADMIN_SSH_DIR/authorized_keys"
+            log_success "Copied root's SSH keys to $ADMIN_USER"
+        else
+            echo ""
+            log_info "Paste your SSH public key (or press Enter to skip):"
+            read -r SSH_PUB_KEY
+            if [[ -n "$SSH_PUB_KEY" ]]; then
+                echo "$SSH_PUB_KEY" > "$ADMIN_SSH_DIR/authorized_keys"
+                log_success "SSH key added"
+            else
+                log_warning "No SSH key added — you'll need to set a password"
+            fi
+        fi
+        
+        chmod 600 "$ADMIN_SSH_DIR/authorized_keys" 2>/dev/null || true
+        chown -R "$ADMIN_USER:$ADMIN_USER" "$ADMIN_SSH_DIR"
+    fi
+    
+    # Set password (as fallback or primary auth)
+    echo ""
+    read -r -p "$(echo -e "${CYAN}Set a password for '$ADMIN_USER'? [y/N]: ${NC}")" SET_PASSWD
+    if [[ "$SET_PASSWD" =~ ^[Yy]$ ]]; then
+        passwd "$ADMIN_USER"
+    fi
+    
+    # Offer to disable root SSH login
+    echo ""
+    read -r -p "$(echo -e "${CYAN}Disable root SSH login for security? [y/N]: ${NC}")" DISABLE_ROOT
+    if [[ "$DISABLE_ROOT" =~ ^[Yy]$ ]]; then
+        sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+        systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null || true
+        log_success "Root SSH login disabled"
+        log_warning "From now on, SSH in as: ssh $ADMIN_USER@$(hostname -I | awk '{print $1}')"
+    fi
+    
+    echo ""
+    log_success "Admin user '$ADMIN_USER' is ready"
+    log_info "Login: ssh $ADMIN_USER@$(hostname -I | awk '{print $1}')"
+    log_info "Use 'sudo' for privileged operations"
+}
+
 setup_directories() {
     log_step "Step 4: Creating Directories"
     
@@ -1214,6 +1302,7 @@ main() {
     create_systemd_service
     configure_capabilities
     create_helper_scripts
+    create_admin_user
     
     # Completion
     display_completion

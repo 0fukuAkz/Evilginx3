@@ -160,6 +160,7 @@ sudo ./install.sh
 - ✅ Configures Firewall (UFW)
 - ✅ Creates `evilginx` systemd service (runs as non-root with `CAP_NET_BIND_SERVICE`)
 - ✅ Creates helper aliases (`evilginx-start`, `evilginx-console`)
+- ✅ Optionally creates an admin user for SSH/management (so you can stop using root)
 
 **Post-install commands:**
 ```bash
@@ -376,8 +377,9 @@ config polymorphic on
 ## 11. Operational Security
 
 1. **Infrastructure Isolation**: Never reuse campaign infrastructure. Use fresh VPS and Domains for each engagement.
-2. **Access Control**: whitelist your IP for SSH access using `ufw`.
-3. **Data Handling**: Exfiltrate captured session tokens securely and destroy data on the VPS after the engagement.
+2. **Access Control**: The installer offers to create a dedicated admin user and disable root SSH login. Use it.
+3. **Least Privilege**: The Evilginx service runs as a restricted `evilginx` user, not root. If exploited, the blast radius is limited.
+4. **Data Handling**: Exfiltrate captured session tokens securely and destroy data on the VPS after the engagement.
 
 ---
 
