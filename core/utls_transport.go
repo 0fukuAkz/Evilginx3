@@ -104,18 +104,41 @@ func (t *UTLSTransport) dialTLS(ctx context.Context, network, addr string) (net.
 		ServerName:         host,
 		InsecureSkipVerify: false, // Verify TLS by default
 		MinVersion:         tls.VersionTLS12,
+		// Note: NextProtos is intentionally NOT set here because uTLS
+		// ClientHello presets override it with their own ALPN list.
+		// We strip h2 from the spec below after ApplyPreset.
 	}
-
-	// Always negotiate HTTP/1.1 only for outbound connections.
-	// goproxy's MITM handler reads/writes HTTP/1.1 requests individually
-	// and cannot handle HTTP/2 binary framing from the target server.
-	// Negotiating h2 via ALPN causes "http2_handshake_failed" errors
-	// because http.Transport with custom DialTLSContext doesn't initialize
-	// Go's HTTP/2 framing layer.
-	config.NextProtos = []string{"http/1.1"}
 
 	// Create uTLS client with the browser fingerprint
 	uconn := utls.UClient(rawConn, config, clientHelloID)
+
+	// CRITICAL: uTLS ClientHello presets (e.g. HelloChrome_Auto) include
+	// "h2" in their ALPN extension, which causes Google to respond with
+	// HTTP/2 binary frames. goproxy's MITM handler only speaks HTTP/1.1,
+	// so we must strip "h2" from the ALPN after the preset is applied.
+	// Setting config.NextProtos has NO effect — the preset overrides it.
+	if spec, err := utls.UTLSIdToSpec(clientHelloID); err == nil {
+		for i, ext := range spec.Extensions {
+			if alpnExt, ok := ext.(*utls.ALPNExtension); ok {
+				filtered := make([]string, 0, len(alpnExt.AlpnProtocols))
+				for _, proto := range alpnExt.AlpnProtocols {
+					if proto != "h2" {
+						filtered = append(filtered, proto)
+					}
+				}
+				if len(filtered) == 0 {
+					filtered = []string{"http/1.1"}
+				}
+				alpnExt.AlpnProtocols = filtered
+				spec.Extensions[i] = alpnExt
+				break
+			}
+		}
+		if err := uconn.ApplyPreset(&spec); err != nil {
+			rawConn.Close()
+			return nil, fmt.Errorf("failed to apply uTLS preset for %s: %w", addr, err)
+		}
+	}
 
 	// Perform the TLS handshake
 	if err := uconn.Handshake(); err != nil {
