@@ -2,6 +2,7 @@ package goproxy
 
 import (
 	"bufio"
+	"crypto/tls"
 	"io"
 	"log"
 	"net"
@@ -215,7 +216,15 @@ func NewProxyHttpServer() *ProxyHttpServer {
 		NonproxyHandler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			http.Error(w, "This is a proxy server. Does not respond to non-proxy requests.", 500)
 		}),
-		Tr: &http.Transport{TLSClientConfig: tlsClientSkipVerify, Proxy: http.ProxyFromEnvironment},
+		Tr: &http.Transport{
+			TLSClientConfig:   tlsClientSkipVerify,
+			Proxy:             http.ProxyFromEnvironment,
+			ForceAttemptHTTP2: false, // goproxy MITM handler only speaks HTTP/1.1
+			// Disable HTTP/2 via TLS-ALPN: an empty map prevents the h2 upgrade.
+			// Without this, servers like Google respond with HTTP/2 binary frames
+			// that goproxy cannot parse, causing "http2_handshake_failed" errors.
+			TLSNextProto: make(map[string]func(authority string, c *tls.Conn) http.RoundTripper),
+		},
 	}
 
 	proxy.ConnectDial = dialerFromEnv(&proxy)
