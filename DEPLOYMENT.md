@@ -156,8 +156,9 @@ sudo ./install.sh
 **The installer automatically:**
 - ✅ Installs dependencies (Go, git, etc.)
 - ✅ Builds Evilginx from source
+- ✅ Creates a dedicated `evilginx` service user (least-privilege)
 - ✅ Configures Firewall (UFW)
-- ✅ Creates `evilginx` systemd service
+- ✅ Creates `evilginx` systemd service (runs as non-root with `CAP_NET_BIND_SERVICE`)
 - ✅ Creates helper aliases (`evilginx-start`, `evilginx-console`)
 
 **Post-install commands:**
@@ -212,6 +213,9 @@ go build -o build/evilginx main.go
 sudo cp build/evilginx /usr/local/bin/
 sudo chmod +x /usr/local/bin/evilginx
 
+# Allow binding to privileged ports without root
+sudo setcap 'cap_net_bind_service=+ep' /usr/local/bin/evilginx
+
 # Create config dirs
 mkdir -p ~/.evilginx/phishlets
 mkdir -p ~/.evilginx/redirectors
@@ -241,7 +245,7 @@ Evilginx3 uses **CertMagic** for automatic certificate management via Let's Encr
 
 1. **Start Evilginx:**
    ```bash
-   sudo evilginx
+   evilginx
    ```
 
 2. **Configure Domain & IP:**
@@ -395,6 +399,12 @@ sudo lsof -i :443
 
 **Issue: Sessions not capturing**
 - Run in debug mode: `./build/evilginx -debug -p ./phishlets` to see raw traffic logs.
+
+**Issue: "port check failed: bind: permission denied"**
+- This means the process cannot bind to a privileged port (53, 80, or 443).
+- **Fix 1**: Grant port-binding capability: `sudo setcap 'cap_net_bind_service=+ep' /usr/local/bin/evilginx`
+- **Fix 2**: Run the automated installer (`sudo ./install.sh`), which sets capabilities automatically.
+- **Fix 3**: Use high ports via config: `config https_port 8443`, `config dns_port 5353`.
 
 ---
 

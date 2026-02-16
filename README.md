@@ -54,13 +54,13 @@ For comprehensive instructions on installation, detailed configuration, enterpri
 ### Brief Setup Guide
 
 1.  **Install**:
-    - **Linux**: Run `sudo ./install.sh` for an automated setup.
+    - **Linux**: Run `sudo ./install.sh` for automated setup (creates dedicated `evilginx` service user).
     - **Windows**: Run `.\install-windows.ps1` in PowerShell as Admin.
-    - **Manual**: Build with `make` or `go build`.
+    - **Manual**: Build with `make` or `go build`, then `sudo setcap 'cap_net_bind_service=+ep' <binary>`.
 
 2.  **Start**:
     ```bash
-    sudo ./build/evilginx -p ./phishlets -t ./redirectors
+    evilginx
     ```
 
 3.  **Configure**:
