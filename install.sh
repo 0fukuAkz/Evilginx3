@@ -18,10 +18,14 @@
 # - Sets up automatic startup
 #
 # Usage:
-#   sudo ./install.sh
+#   sudo ./install.sh              # Full installation
+#   sudo ./install.sh --upgrade    # Rebuild + reinstall only
+#   sudo ./install.sh --uninstall  # Remove Evilginx
+#   sudo ./install.sh --dry-run    # Show what would be done
+#   ./install.sh --help            # Show usage
 #
 # Author: AKaZA (Akz0fuku)
-# Version: 2.0.0
+# Version: 3.0.0
 #############################################################################
 
 set -e  # Exit on error
@@ -35,6 +39,36 @@ BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
+
+#############################################################################
+# Helper Functions (defined early so they are available during setup)
+#############################################################################
+
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+log_success() {
+    echo -e "${GREEN}[✓]${NC} $1"
+}
+
+log_warning() {
+    echo -e "${YELLOW}[!]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[✗]${NC} $1"
+}
+
+log_step() {
+    echo -e "\n${CYAN}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}▶ $1${NC}"
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}\n"
+}
+
+#############################################################################
+# Script Directory & Configuration
+#############################################################################
 
 # Get script directory - handle both direct execution and sudo execution
 if [[ -n "${BASH_SOURCE[0]}" ]]; then
@@ -61,13 +95,14 @@ fi
 GO_VERSION="1.24.0"
 INSTALL_DIR="/usr/local/bin"
 INSTALL_BASE="/opt/evilginx"
-SERVICE_USER="root"  # Run as admin
+SERVICE_USER="evilginx"  # Dedicated service user (least-privilege)
 CONFIG_DIR="/etc/evilginx"
 LOG_DIR="/var/log/evilginx"
 PHISHLETS_DIR="/opt/evilginx/phishlets"
 REDIRECTORS_DIR="/opt/evilginx/redirectors"
+INSTALL_LOG=""
 
-# Detect architecture early
+# Detect architecture early (log_warning is now defined above)
 ARCH=$(dpkg --print-architecture 2>/dev/null || echo "amd64")
 case "$ARCH" in
     amd64|x86_64) GO_ARCH="amd64" ;;
@@ -81,8 +116,21 @@ DISTRO_ID=""
 DISTRO_VER=""
 
 #############################################################################
-# Helper Functions
+# Utility Functions
 #############################################################################
+
+# Consolidated function to find the Evilginx root directory
+# Replaces duplicate search logic that was in both main() and build_evilginx()
+find_evilginx_root() {
+    local search_dirs=("$SCRIPT_DIR" "$(pwd)" "$HOME/Evilginx3" "/root/Evilginx3")
+    for dir in "${search_dirs[@]}"; do
+        if [[ -n "$dir" ]] && [[ -d "$dir" ]] && [[ -f "$dir/main.go" ]]; then
+            echo "$dir"
+            return 0
+        fi
+    done
+    return 1
+}
 
 print_banner() {
     echo -e "${PURPLE}"
@@ -102,28 +150,6 @@ print_banner() {
 ╚═══════════════════════════════════════════════════════════════════╝
 EOF
     echo -e "${NC}"
-}
-
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-log_success() {
-    echo -e "${GREEN}[✓]${NC} $1"
-}
-
-log_warning() {
-    echo -e "${YELLOW}[!]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[✗]${NC} $1"
-}
-
-log_step() {
-    echo -e "\n${CYAN}═══════════════════════════════════════════════════════════${NC}"
-    echo -e "${CYAN}▶ $1${NC}"
-    echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}\n"
 }
 
 check_root() {
@@ -209,6 +235,128 @@ EOF
     fi
 }
 
+# Pre-flight connectivity and resource checks
+preflight_check() {
+    log_step "Pre-flight Checks"
+    
+    # Test internet connectivity
+    if ! curl -s --max-time 10 https://go.dev > /dev/null 2>&1; then
+        log_error "Cannot reach go.dev — check internet connectivity"
+        log_error "Go download will fail without internet access"
+        exit 1
+    fi
+    log_success "Internet connectivity OK (go.dev reachable)"
+    
+    # Test DNS resolution
+    if command -v host &>/dev/null; then
+        if ! host go.dev > /dev/null 2>&1; then
+            log_warning "DNS resolution may be impaired — installation may have issues"
+        else
+            log_success "DNS resolution OK"
+        fi
+    fi
+    
+    # Check disk space (need at least 2GB free)
+    local free_space_mb
+    free_space_mb=$(df / --output=avail -BM 2>/dev/null | tail -1 | tr -d 'M ' || echo "0")
+    if [[ "$free_space_mb" -lt 2048 ]]; then
+        log_warning "Low disk space: ${free_space_mb}MB free (recommended: 2048MB+)"
+    else
+        log_success "Disk space OK (${free_space_mb}MB free)"
+    fi
+}
+
+#############################################################################
+# Uninstall Function
+#############################################################################
+
+uninstall_evilginx() {
+    log_step "Uninstalling Evilginx"
+    
+    # Stop and disable service
+    if systemctl is-active --quiet evilginx 2>/dev/null; then
+        log_info "Stopping Evilginx service..."
+        systemctl stop evilginx
+        log_success "Service stopped"
+    fi
+    
+    if systemctl is-enabled --quiet evilginx 2>/dev/null; then
+        log_info "Disabling Evilginx service..."
+        systemctl disable evilginx
+        log_success "Service disabled"
+    fi
+    
+    # Kill any running processes
+    if pgrep -x evilginx >/dev/null 2>&1; then
+        log_info "Killing running Evilginx processes..."
+        pkill -9 evilginx
+        sleep 1
+        log_success "Processes terminated"
+    fi
+    
+    # Remove service file
+    if [ -f /etc/systemd/system/evilginx.service ]; then
+        log_info "Removing systemd service file..."
+        rm -f /etc/systemd/system/evilginx.service
+        systemctl daemon-reload
+        log_success "Service file removed"
+    fi
+    
+    # Remove installation directory
+    if [ -d "$INSTALL_BASE" ]; then
+        log_info "Removing $INSTALL_BASE..."
+        rm -rf "$INSTALL_BASE"
+        log_success "Installation directory removed"
+    fi
+    
+    # Remove wrapper and helper scripts
+    log_info "Removing scripts from /usr/local/bin/..."
+    rm -f /usr/local/bin/evilginx
+    rm -f /usr/local/bin/evilginx-start
+    rm -f /usr/local/bin/evilginx-stop
+    rm -f /usr/local/bin/evilginx-restart
+    rm -f /usr/local/bin/evilginx-status
+    rm -f /usr/local/bin/evilginx-logs
+    rm -f /usr/local/bin/evilginx-console
+    log_success "Scripts removed"
+    
+    # Remove config directory (prompt user)
+    if [ -d "$CONFIG_DIR" ]; then
+        read -p "Remove configuration directory $CONFIG_DIR? This includes certs and DB. (y/N): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            rm -rf "$CONFIG_DIR"
+            log_success "Configuration directory removed"
+        else
+            log_info "Configuration directory preserved"
+        fi
+    fi
+    
+    # Remove log directory
+    if [ -d "$LOG_DIR" ]; then
+        rm -rf "$LOG_DIR"
+        log_success "Log directory removed"
+    fi
+    
+    # Remove Go PATH drop-in (if created by us)
+    if [ -f /etc/profile.d/golang.sh ]; then
+        read -p "Remove Go PATH configuration (/etc/profile.d/golang.sh)? (y/N): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            rm -f /etc/profile.d/golang.sh
+            log_success "Go PATH drop-in removed"
+        else
+            log_info "Go PATH drop-in preserved"
+        fi
+    fi
+    
+    echo ""
+    log_success "Evilginx uninstalled successfully"
+    echo ""
+    log_info "Note: Go runtime, UFW rules, and Fail2Ban config were NOT removed"
+    log_info "Note: systemd-resolved was NOT re-enabled (run 'systemctl unmask systemd-resolved' if needed)"
+}
+
 #############################################################################
 # Installation Steps
 #############################################################################
@@ -283,69 +431,97 @@ install_go() {
         fi
     fi
     
+    local GO_TARBALL="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
+    
     log_info "Downloading Go $GO_VERSION for $GO_ARCH..."
     cd /tmp
-    wget -q --show-progress "https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
+    wget -q --show-progress "https://go.dev/dl/${GO_TARBALL}"
+    
+    # Verify download integrity
+    log_info "Verifying download integrity..."
+    
+    if [[ ! -f "$GO_TARBALL" ]]; then
+        log_error "Go download failed — file not found!"
+        exit 1
+    fi
+    
+    local actual_size
+    actual_size=$(stat -c%s "$GO_TARBALL" 2>/dev/null || stat -f%z "$GO_TARBALL" 2>/dev/null || echo "0")
+    if [[ "$actual_size" -lt 50000000 ]]; then
+        log_error "Downloaded Go tarball is too small (${actual_size} bytes, expected 50MB+)"
+        log_error "Download may be corrupted or intercepted"
+        rm -f "$GO_TARBALL"
+        exit 1
+    fi
+    
+    if ! gzip -t "$GO_TARBALL" 2>/dev/null; then
+        log_error "Downloaded file is not a valid gzip archive — possibly corrupted"
+        rm -f "$GO_TARBALL"
+        exit 1
+    fi
+    
+    log_success "Download verified (${actual_size} bytes, valid gzip)"
     
     log_info "Extracting Go..."
-    tar -C /usr/local -xzf "go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
+    tar -C /usr/local -xzf "$GO_TARBALL"
     
-    # Add to PATH for all users
-    log_info "Adding Go to system PATH..."
+    # Add to PATH using /etc/profile.d/ drop-in (clean, single-location approach)
+    # This replaces the old method of writing to /etc/profile, /etc/environment,
+    # /root/.bashrc, and $HOME/.bashrc — all of which is unnecessary
+    log_info "Adding Go to system PATH via /etc/profile.d/..."
     
-    # Add to /etc/profile for all users
-    if ! grep -q "/usr/local/go/bin" /etc/profile; then
-        echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile
-    fi
-    
-    # Add to /etc/environment for system-wide availability
-    if ! grep -q "/usr/local/go/bin" /etc/environment 2>/dev/null; then
-        if [ -f /etc/environment ]; then
-            sed -i 's|PATH="\(.*\)"|PATH="\1:/usr/local/go/bin"|' /etc/environment
-        else
-            echo 'PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/go/bin"' > /etc/environment
-        fi
-    fi
-    
-    # Add to .bashrc for root
-    if ! grep -q "/usr/local/go/bin" /root/.bashrc 2>/dev/null; then
-        echo 'export PATH=$PATH:/usr/local/go/bin' >> /root/.bashrc
-    fi
-    
-    # Add to .bashrc for current user (if not root)
-    if [ "$HOME" != "/root" ] && [ -f "$HOME/.bashrc" ]; then
-        if ! grep -q "/usr/local/go/bin" "$HOME/.bashrc"; then
-            echo 'export PATH=$PATH:/usr/local/go/bin' >> "$HOME/.bashrc"
-        fi
-    fi
+    cat > /etc/profile.d/golang.sh << 'GOEOF'
+# Go language PATH configuration (managed by Evilginx installer)
+export PATH=$PATH:/usr/local/go/bin
+GOEOF
+    chmod +x /etc/profile.d/golang.sh
     
     # Export for current session
     export PATH=$PATH:/usr/local/go/bin
     
     # Cleanup
-    rm -f "go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
+    rm -f "$GO_TARBALL"
     
     log_success "Go $GO_VERSION ($GO_ARCH) installed successfully"
-    log_success "Go added to PATH (system-wide, all users, all shells)"
+    log_success "Go added to PATH via /etc/profile.d/golang.sh (all users, all login shells)"
     /usr/local/go/bin/go version
     
     # Return to original directory
     cd - > /dev/null
 }
 
-setup_directories() {
-    log_step "Step 4: Creating Directories (Admin Mode)"
+create_service_user() {
+    log_step "Creating Dedicated Service User"
     
-    # Running as admin, no need to create a separate user
-    log_info "Running installation with admin privileges"
+    if id "$SERVICE_USER" &>/dev/null; then
+        log_success "Service user '$SERVICE_USER' already exists"
+        return 0
+    fi
+    
+    useradd --system \
+        --shell /usr/sbin/nologin \
+        --home-dir "$INSTALL_BASE" \
+        --no-create-home \
+        --comment "Evilginx service account" \
+        "$SERVICE_USER"
+    
+    log_success "Created service user '$SERVICE_USER' (no login shell)"
+}
+
+setup_directories() {
+    log_step "Step 4: Creating Directories"
     
     # Create necessary directories
+    mkdir -p "$INSTALL_BASE"
     mkdir -p "$CONFIG_DIR"
     mkdir -p "$LOG_DIR"
     
-    # No need to change ownership when running as admin/root
+    # Set ownership to dedicated service user
+    chown -R "$SERVICE_USER:$SERVICE_USER" "$CONFIG_DIR"
+    chown -R "$SERVICE_USER:$SERVICE_USER" "$LOG_DIR"
+    chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_BASE"
     
-    log_success "Directories created with admin privileges"
+    log_success "Directories created and owned by $SERVICE_USER"
 }
 
 stop_conflicting_services() {
@@ -447,8 +623,8 @@ disable_systemd_resolved() {
         rm -f /etc/resolv.conf 2>/dev/null || true
     fi
     
-    # Try to create static resolv.conf with public DNS servers
-    cat > /etc/resolv.conf 2>/dev/null << RESOLVEOF
+    # Create static resolv.conf — use proper error handling (not dead $? check)
+    if ! cat > /etc/resolv.conf 2>/dev/null << RESOLVEOF
 # Static DNS configuration for Evilginx
 # systemd-resolved disabled to free port 53
 
@@ -465,13 +641,12 @@ nameserver 1.1.1.1
 options timeout:2
 options attempts:3
 RESOLVEOF
-    
-    if [ $? -eq 0 ]; then
-        log_success "Static /etc/resolv.conf created with public DNS servers"
-    else
+    then
         log_warning "Failed to create /etc/resolv.conf - file may be protected"
         log_info "DNS resolution should still work via existing configuration"
         log_info "If DNS issues occur, manually configure /etc/resolv.conf after installation"
+    else
+        log_success "Static /etc/resolv.conf created with public DNS servers"
     fi
     
     log_success "systemd-resolved disabled - Port 53 available for Evilginx"
@@ -499,55 +674,26 @@ RESOLVEOF
 build_evilginx() {
     log_step "Step 6: Building and Installing Evilginx"
     
-    # Find the Evilginx root directory (where main.go is located)
-    # Start with current directory
-    BUILD_DIR="$(pwd)"
-    
-    # Check if main.go is in current directory
-    if [[ -f "$BUILD_DIR/main.go" ]]; then
-        log_info "Found main.go in current directory: $BUILD_DIR"
-    else
-        # Try to find it in common locations
-        if [[ -f "$HOME/Evilginx3/main.go" ]]; then
-            BUILD_DIR="$HOME/Evilginx3"
-            log_info "Found main.go in: $BUILD_DIR"
-        elif [[ -f "/root/Evilginx3/main.go" ]]; then
-            BUILD_DIR="/root/Evilginx3"
-            log_info "Found main.go in: $BUILD_DIR"
-        else
-            # Try script's directory
-            if [[ -f "$SCRIPT_DIR/main.go" ]]; then
-                BUILD_DIR="$SCRIPT_DIR"
-                log_info "Found main.go in script directory: $BUILD_DIR"
-            else
-                log_error "Cannot find main.go!"
-                log_error "Current directory: $(pwd)"
-                log_error "Script directory: $SCRIPT_DIR"
-                log_error "Tried directories:"
-                log_error "  - $(pwd)"
-                log_error "  - $HOME/Evilginx3"
-                log_error "  - /root/Evilginx3"
-                log_error "  - $SCRIPT_DIR"
-                log_error ""
-                log_error "Please run: cd ~/Evilginx3 && sudo ./install.sh"
-                exit 1
-            fi
-        fi
-    fi
+    # Use consolidated find_evilginx_root() instead of duplicated search logic
+    local BUILD_DIR
+    BUILD_DIR=$(find_evilginx_root) || {
+        log_error "Cannot find main.go!"
+        log_error "Searched directories:"
+        log_error "  - $SCRIPT_DIR"
+        log_error "  - $(pwd)"
+        log_error "  - $HOME/Evilginx3"
+        log_error "  - /root/Evilginx3"
+        log_error ""
+        log_error "Please run: cd ~/Evilginx3 && sudo ./install.sh"
+        exit 1
+    }
     
     # Change to build directory
     cd "$BUILD_DIR"
     log_info "Building from: $(pwd)"
     
-    # Verify main.go exists
-    if [[ ! -f "main.go" ]]; then
-        log_error "main.go not found in $BUILD_DIR after changing directory!"
-        exit 1
-    fi
-    
     # Build
     log_info "Downloading Go dependencies..."
-    cd "$BUILD_DIR"
     /usr/local/go/bin/go mod download
     
     log_info "Compiling Evilginx..."
@@ -578,12 +724,12 @@ build_evilginx() {
     
     # Copy binary to /opt/evilginx (actual binary location)
     log_info "Installing binary to $INSTALL_BASE..."
-    mkdir -p "$INSTALL_BASE"
     cp "$BUILD_DIR/build/evilginx" "$INSTALL_BASE/evilginx.bin"
     chmod +x "$INSTALL_BASE/evilginx.bin"
     
-    # Copy phishlets and redirectors to /opt/evilginx
-    log_info "Installing phishlets and redirectors..."
+    # Clean and copy phishlets and redirectors (prevents stale files from prior installs)
+    log_info "Installing phishlets and redirectors (clean copy)..."
+    rm -rf "$INSTALL_BASE/phishlets" "$INSTALL_BASE/redirectors"
     cp -r "$BUILD_DIR/phishlets" "$INSTALL_BASE/"
     cp -r "$BUILD_DIR/redirectors" "$INSTALL_BASE/"
     
@@ -657,9 +803,9 @@ WRAPPEREOF
     cp "$BUILD_DIR/PATH_AUTO_DETECTION.md" "$INSTALL_BASE/" 2>/dev/null || true
     chmod -R 755 "$PHISHLETS_DIR"
     chmod -R 755 "$REDIRECTORS_DIR"
-    # No need to change ownership when running as admin
+    chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_BASE"
     
-    log_success "Files installed to $INSTALL_DIR (admin mode)"
+    log_success "Files installed to $INSTALL_DIR"
     log_success "System-wide command 'evilginx' is now available"
 }
 
@@ -760,8 +906,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=root
-Group=root
+User=$SERVICE_USER
+Group=$SERVICE_USER
 WorkingDirectory=$INSTALL_BASE
 ExecStart=/usr/local/bin/evilginx -c $CONFIG_DIR
 Restart=on-failure
@@ -770,11 +916,12 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=evilginx
 
-# Security settings (relaxed for root + port binding)
+# Security hardening (non-root service user)
 PrivateTmp=true
 ProtectSystem=strict
-ProtectHome=true
+ProtectHome=read-only
 ReadWritePaths=$CONFIG_DIR $LOG_DIR $INSTALL_BASE
+NoNewPrivileges=false
 
 # Capabilities needed for binding to ports 53, 80, 443
 AmbientCapabilities=CAP_NET_BIND_SERVICE
@@ -812,18 +959,20 @@ configure_capabilities() {
 create_helper_scripts() {
     log_step "Step 11: Creating Helper Scripts"
     
-    # Create start script
+    # Create start script (root check instead of redundant sudo)
     cat > /usr/local/bin/evilginx-start << 'EOF'
 #!/bin/bash
-sudo systemctl start evilginx
-sudo systemctl status evilginx --no-pager
+if [[ $EUID -ne 0 ]]; then echo "Run as root: sudo $0"; exit 1; fi
+systemctl start evilginx
+systemctl status evilginx --no-pager
 EOF
     chmod +x /usr/local/bin/evilginx-start
     
     # Create stop script
     cat > /usr/local/bin/evilginx-stop << 'EOF'
 #!/bin/bash
-sudo systemctl stop evilginx
+if [[ $EUID -ne 0 ]]; then echo "Run as root: sudo $0"; exit 1; fi
+systemctl stop evilginx
 echo "Evilginx stopped"
 EOF
     chmod +x /usr/local/bin/evilginx-stop
@@ -831,30 +980,34 @@ EOF
     # Create restart script
     cat > /usr/local/bin/evilginx-restart << 'EOF'
 #!/bin/bash
-sudo systemctl restart evilginx
-sudo systemctl status evilginx --no-pager
+if [[ $EUID -ne 0 ]]; then echo "Run as root: sudo $0"; exit 1; fi
+systemctl restart evilginx
+systemctl status evilginx --no-pager
 EOF
     chmod +x /usr/local/bin/evilginx-restart
     
     # Create status script
     cat > /usr/local/bin/evilginx-status << 'EOF'
 #!/bin/bash
-sudo systemctl status evilginx --no-pager -l
+if [[ $EUID -ne 0 ]]; then echo "Run as root: sudo $0"; exit 1; fi
+systemctl status evilginx --no-pager -l
 EOF
     chmod +x /usr/local/bin/evilginx-status
     
     # Create logs script
     cat > /usr/local/bin/evilginx-logs << 'EOF'
 #!/bin/bash
-sudo journalctl -u evilginx -f
+if [[ $EUID -ne 0 ]]; then echo "Run as root: sudo $0"; exit 1; fi
+journalctl -u evilginx -f
 EOF
     chmod +x /usr/local/bin/evilginx-logs
     
     # Create console script
     cat > /usr/local/bin/evilginx-console << 'EOF'
 #!/bin/bash
+if [[ $EUID -ne 0 ]]; then echo "Run as root: sudo $0"; exit 1; fi
 echo "Stopping systemd service to run interactively..."
-sudo systemctl stop evilginx
+systemctl stop evilginx
 echo ""
 echo "Starting Evilginx in interactive mode..."
 echo "Press Ctrl+C to stop, then run 'evilginx-start' to resume service mode"
@@ -887,6 +1040,9 @@ display_completion() {
     echo "  • Logs:                 $LOG_DIR"
     echo "  • Running as:           Admin (root)"
     echo "  • Systemd Service:      evilginx.service"
+    if [[ -n "$INSTALL_LOG" ]]; then
+        echo "  • Install Log:          $INSTALL_LOG"
+    fi
     echo ""
     
     echo -e "${CYAN}Firewall Rules (UFW):${NC}"
@@ -973,7 +1129,7 @@ display_completion() {
     
     echo -e "${CYAN}Environment:${NC}"
     echo "  • Go installed at:      /usr/local/go"
-    echo "  • Go added to PATH for all users and shells"
+    echo "  • Go PATH via:          /etc/profile.d/golang.sh"
     echo "  • Verify with:          go version"
     echo ""
     
@@ -982,7 +1138,31 @@ display_completion() {
     
     # Remind about PATH
     echo -e "${YELLOW}Note:${NC} Go has been added to PATH. You may need to reload your shell or run:"
-    echo "  source /etc/profile"
+    echo "  source /etc/profile.d/golang.sh"
+    echo ""
+}
+
+#############################################################################
+# Usage / Help
+#############################################################################
+
+show_usage() {
+    echo "Evilginx 3.3.1 - One-Click Installer (v3.0.0)"
+    echo ""
+    echo "Usage: sudo $0 [OPTION]"
+    echo ""
+    echo "Options:"
+    echo "  (none)       Full installation (default)"
+    echo "  --upgrade    Rebuild and reinstall binary only (skip deps/firewall/service)"
+    echo "  --uninstall  Remove Evilginx (binary, service, scripts, optionally config)"
+    echo "  --dry-run    Show what would be done without making changes"
+    echo "  --help, -h   Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  sudo ./install.sh              # Full install on fresh server"
+    echo "  sudo ./install.sh --upgrade    # Quick rebuild after code changes"
+    echo "  sudo ./install.sh --uninstall  # Clean removal"
+    echo "  ./install.sh --dry-run         # Preview (no root needed)"
     echo ""
 }
 
@@ -991,37 +1171,24 @@ display_completion() {
 #############################################################################
 
 main() {
+    # Set up install logging — tee all output to a log file
+    INSTALL_LOG="/tmp/evilginx-install-$(date +%Y%m%d_%H%M%S).log"
+    exec > >(tee -a "$INSTALL_LOG") 2>&1
+    log_info "Installation log: $INSTALL_LOG"
+    
     print_banner
     
     # Pre-flight: ensure git is available
     ensure_git
     
-    # Ensure we're in the correct directory
-    if [[ ! -f "$SCRIPT_DIR/main.go" ]]; then
-        # Try to find main.go in current directory
-        if [[ -f "$(pwd)/main.go" ]]; then
-            SCRIPT_DIR="$(pwd)"
-            log_info "Using current directory: $SCRIPT_DIR"
-        else
-            # Try common locations
-            if [[ -f "$HOME/Evilginx3/main.go" ]]; then
-                SCRIPT_DIR="$HOME/Evilginx3"
-                log_info "Found Evilginx3 in home directory: $SCRIPT_DIR"
-            elif [[ -f "/root/Evilginx3/main.go" ]]; then
-                SCRIPT_DIR="/root/Evilginx3"
-                log_info "Found Evilginx3 in /root: $SCRIPT_DIR"
-            fi
-        fi
-    fi
-    
-    # Change to script directory to ensure we're in the right place
-    if [[ -d "$SCRIPT_DIR" ]] && [[ -f "$SCRIPT_DIR/main.go" ]]; then
-        cd "$SCRIPT_DIR"
-        log_info "Changed to directory: $(pwd)"
+    # Find Evilginx root directory using consolidated search
+    EVILGINX_ROOT=$(find_evilginx_root) || true
+    if [[ -n "$EVILGINX_ROOT" ]]; then
+        cd "$EVILGINX_ROOT"
+        log_info "Working directory: $(pwd)"
     else
         log_error "Cannot find Evilginx root directory with main.go"
-        log_error "SCRIPT_DIR: $SCRIPT_DIR"
-        log_error "Current directory: $(pwd)"
+        log_error "Searched: $SCRIPT_DIR, $(pwd), $HOME/Evilginx3, /root/Evilginx3"
         exit 1
     fi
     
@@ -1030,10 +1197,14 @@ main() {
     detect_os
     confirm_installation
     
+    # Pre-flight connectivity and resource checks
+    preflight_check
+    
     # Installation steps
     update_system
     install_dependencies
     install_go
+    create_service_user
     setup_directories
     stop_conflicting_services
     disable_systemd_resolved
@@ -1048,9 +1219,98 @@ main() {
     display_completion
     
     log_success "Installation complete! Review the information above."
+    log_success "Full log saved to: $INSTALL_LOG"
 }
 
-# Run main installation
-main
+#############################################################################
+# Argument Parsing & Entry Point
+#############################################################################
+
+case "${1:-}" in
+    --help|-h)
+        show_usage
+        exit 0
+        ;;
+    --uninstall)
+        check_root
+        print_banner
+        uninstall_evilginx
+        exit 0
+        ;;
+    --upgrade)
+        check_root
+        print_banner
+        detect_os
+
+        log_step "Upgrade Mode — Rebuilding and reinstalling binary only"
+
+        INSTALL_LOG="/tmp/evilginx-upgrade-$(date +%Y%m%d_%H%M%S).log"
+        exec > >(tee -a "$INSTALL_LOG") 2>&1
+        log_info "Upgrade log: $INSTALL_LOG"
+
+        EVILGINX_ROOT=$(find_evilginx_root) || true
+        if [[ -z "$EVILGINX_ROOT" ]]; then
+            log_error "Cannot find Evilginx root directory with main.go"
+            log_error "Searched: $SCRIPT_DIR, $(pwd), $HOME/Evilginx3, /root/Evilginx3"
+            exit 1
+        fi
+        cd "$EVILGINX_ROOT"
+        log_info "Working directory: $(pwd)"
+
+        stop_conflicting_services
+        build_evilginx
+        configure_capabilities
+
+        log_info "Restarting Evilginx service..."
+        systemctl restart evilginx 2>/dev/null || log_warning "Service not started (run 'evilginx-console' to configure first)"
+
+        log_success "Upgrade complete!"
+        log_success "Full log saved to: $INSTALL_LOG"
+        exit 0
+        ;;
+    --dry-run)
+        print_banner
+
+        # Detect OS for display (doesn't require root)
+        if [ -f /etc/os-release ]; then
+            . /etc/os-release
+            OS=$NAME
+            VER=$VERSION_ID
+        fi
+
+        echo ""
+        log_info "DRY RUN — The following steps would be executed:"
+        echo ""
+        echo "   1.  Update system packages (apt-get update)"
+        echo "   2.  Install dependencies (~20 packages: curl, wget, ufw, fail2ban, etc.)"
+        echo "   3.  Install Go $GO_VERSION ($GO_ARCH) from go.dev"
+        echo "   4.  Create directories: $CONFIG_DIR, $LOG_DIR"
+        echo "   5.  Stop conflicting services (apache2, nginx, bind9, systemd-resolved)"
+        echo "   6.  Disable systemd-resolved (free port 53)"
+        echo "   7.  Build Evilginx from source"
+        echo "   8.  Install binary + phishlets to: $INSTALL_BASE"
+        echo "   9.  Configure UFW firewall (ports 22, 53, 80, 443)"
+        echo "  10.  Configure Fail2Ban (SSH protection)"
+        echo "  11.  Create systemd service: evilginx.service"
+        echo "  12.  Set binary capabilities (CAP_NET_BIND_SERVICE)"
+        echo "  13.  Create helper scripts (evilginx-{start,stop,restart,status,logs,console})"
+        echo ""
+        log_info "No changes were made."
+        echo ""
+        echo "To perform actual installation, run:"
+        echo "  sudo ./install.sh"
+        echo ""
+        exit 0
+        ;;
+    "")
+        # Default: full installation
+        main
+        ;;
+    *)
+        log_error "Unknown option: $1"
+        show_usage
+        exit 1
+        ;;
+esac
 
 exit 0

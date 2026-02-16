@@ -106,11 +106,13 @@ func (t *UTLSTransport) dialTLS(ctx context.Context, network, addr string) (net.
 		MinVersion:         tls.VersionTLS12,
 	}
 
-	if t.http2Enabled {
-		config.NextProtos = []string{"h2", "http/1.1"}
-	} else {
-		config.NextProtos = []string{"http/1.1"}
-	}
+	// Always negotiate HTTP/1.1 only for outbound connections.
+	// goproxy's MITM handler reads/writes HTTP/1.1 requests individually
+	// and cannot handle HTTP/2 binary framing from the target server.
+	// Negotiating h2 via ALPN causes "http2_handshake_failed" errors
+	// because http.Transport with custom DialTLSContext doesn't initialize
+	// Go's HTTP/2 framing layer.
+	config.NextProtos = []string{"http/1.1"}
 
 	// Create uTLS client with the browser fingerprint
 	uconn := utls.UClient(rawConn, config, clientHelloID)
@@ -147,7 +149,7 @@ func (t *UTLSTransport) GetTransport() *http.Transport {
 		DisableCompression:  false,
 		DisableKeepAlives:   false,
 		MaxIdleConnsPerHost: 10,
-		ForceAttemptHTTP2:   t.http2Enabled,
+		ForceAttemptHTTP2:   false, // Must be false: goproxy MITM handler only supports HTTP/1.1 proxying
 		// Non-TLS connections use standard dial
 		DialContext: t.dialer.DialContext,
 	}

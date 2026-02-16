@@ -2,7 +2,9 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	_log "log"
+	"net"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -30,6 +32,21 @@ func joinPath(base_path string, rel_path string) string {
 		ret = filepath.Join(base_path, rel_path)
 	}
 	return ret
+}
+
+// checkPortAccess tests whether the process can bind to a given port.
+// Returns nil if binding succeeds, or an error with an actionable message.
+func checkPortAccess(bindIP string, port int, name string) error {
+	addr := fmt.Sprintf("%s:%d", bindIP, port)
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		if port < 1024 {
+			return fmt.Errorf("%s port %d: %v\n  Fix: run as root, use 'setcap cap_net_bind_service=+ep <binary>', or configure a port >= 1024", name, port, err)
+		}
+		return fmt.Errorf("%s port %d: %v", name, port, err)
+	}
+	ln.Close()
+	return nil
 }
 
 func main() {
@@ -177,6 +194,23 @@ func main() {
 	}
 	cfg.LoadSubPhishlets()
 	cfg.CleanUp()
+
+	// Pre-flight: check that we can bind to all required ports
+	bindIP := cfg.GetServerBindIP()
+	portChecks := []struct {
+		port int
+		name string
+	}{
+		{cfg.GetHttpPort(), "HTTP"},
+		{cfg.GetHttpsPort(), "HTTPS"},
+		{cfg.GetDnsPort(), "DNS"},
+	}
+	for _, pc := range portChecks {
+		if err := checkPortAccess(bindIP, pc.port, pc.name); err != nil {
+			log.Fatal("port check failed: %v", err)
+			return
+		}
+	}
 
 	ns, _ := core.NewNameserver(cfg)
 	ns.Start()

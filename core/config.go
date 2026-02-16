@@ -130,6 +130,7 @@ type GeneralConfig struct {
 	ExternalIpv4     string       `mapstructure:"external_ipv4" json:"external_ipv4" yaml:"external_ipv4"`
 	BindIpv4         string       `mapstructure:"bind_ipv4" json:"bind_ipv4" yaml:"bind_ipv4"`
 	UnauthUrl        string       `mapstructure:"unauth_url" json:"unauth_url" yaml:"unauth_url"`
+	HttpPort         int          `mapstructure:"http_port" json:"http_port" yaml:"http_port"`
 	HttpsPort        int          `mapstructure:"https_port" json:"https_port" yaml:"https_port"`
 	DnsPort          int          `mapstructure:"dns_port" json:"dns_port" yaml:"dns_port"`
 	Autocert         bool         `mapstructure:"autocert" json:"autocert" yaml:"autocert"`
@@ -316,6 +317,9 @@ func NewConfig(cfg_dir string, path string) (*Config, error) {
 
 	if c.general.UnauthUrl == "" && created_cfg {
 		c.SetUnauthUrl(DEFAULT_UNAUTH_URL)
+	}
+	if c.general.HttpPort == 0 {
+		c.SetHttpPort(80)
 	}
 	if c.general.HttpsPort == 0 {
 		c.SetHttpsPort(443)
@@ -684,6 +688,13 @@ func (c *Config) SetDnsPort(port int) {
 	c.general.DnsPort = port
 	c.cfg.Set(CFG_GENERAL, c.general)
 	log.Info("dns port set to: %d", port)
+	c.cfg.WriteConfig()
+}
+
+func (c *Config) SetHttpPort(port int) {
+	c.general.HttpPort = port
+	c.cfg.Set(CFG_GENERAL, c.general)
+	log.Info("http port set to: %d", port)
 	c.cfg.WriteConfig()
 }
 
@@ -1265,6 +1276,10 @@ func (c *Config) GetHttpsPort() int {
 
 func (c *Config) GetDnsPort() int {
 	return c.general.DnsPort
+}
+
+func (c *Config) GetHttpPort() int {
+	return c.general.HttpPort
 }
 
 func (c *Config) GetRedirectorsDir() string {
