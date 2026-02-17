@@ -59,18 +59,29 @@ type BotMiddleware struct{}
 
 func (m *BotMiddleware) Handle(req *http.Request, ctx *goproxy.ProxyCtx, p *HttpProxy) (*http.Request, *http.Response, bool) {
 	from_ip := ctx.UserData.(*ProxySession).RemoteIP
+	antibotConfig := p.cfg.GetAntibotConfig()
+
+	// 1. Whitelist Check (Override IPs)
+	if antibotConfig != nil {
+		for _, allowedIP := range antibotConfig.OverrideIPs {
+			if from_ip == allowedIP {
+				return req, nil, true
+			}
+		}
+	}
+
+	isBot := false
 
 	// Sandbox
 	if p.sandboxDetector != nil {
 		detection := p.sandboxDetector.Detect(req, from_ip)
 		if detection.IsSandbox {
-			r, resp := p.blockRequest(req)
-			return r, resp, false
+			isBot = true
 		}
 	}
 
 	// ML Bot Detection
-	if p.mlDetector != nil && !p.developer {
+	if !isBot && p.mlDetector != nil && !p.developer {
 		var tlsState *tls.ConnectionState
 		if ctx.Resp != nil && ctx.Resp.TLS != nil {
 			tlsState = ctx.Resp.TLS
@@ -81,9 +92,18 @@ func (m *BotMiddleware) Handle(req *http.Request, ctx *goproxy.ProxyCtx, p *Http
 		features := p.mlDetector.featureExtractor.ExtractRequestFeatures(req, tlsState, clientID)
 		res, err := p.mlDetector.Detect(features, clientID)
 		if err == nil && res.IsBot {
-			r, resp := p.blockRequest(req)
+			isBot = true
+		}
+	}
+
+	if isBot {
+		if antibotConfig != nil && antibotConfig.Action == "spoof" {
+			r, resp := p.serveSpoofResponse(req)
 			return r, resp, false
 		}
+		// Default to block
+		r, resp := p.blockRequest(req)
+		return r, resp, false
 	}
 
 	return req, nil, true

@@ -14,23 +14,24 @@ import (
 // FeatureExtractor extracts ML features from HTTP requests and client behavior
 type FeatureExtractor struct {
 	clientProfiles map[string]*ClientProfile
+	tlsInterceptor *TLSInterceptor
 	mu             sync.RWMutex
 }
 
 // ClientProfile tracks client behavior over time
 type ClientProfile struct {
-	ClientID          string
-	FirstSeen         time.Time
-	LastSeen          time.Time
-	RequestCount      int
-	RequestTimes      []time.Time
-	UniquePages       map[string]bool
-	UserAgents        map[string]int
-	MouseEvents       []MouseEvent
-	KeyboardEvents    []KeyboardEvent
-	ScrollEvents      []ScrollEvent
-	FocusEvents       []FocusEvent
-	NetworkInfo       *NetworkInfo
+	ClientID       string
+	FirstSeen      time.Time
+	LastSeen       time.Time
+	RequestCount   int
+	RequestTimes   []time.Time
+	UniquePages    map[string]bool
+	UserAgents     map[string]int
+	MouseEvents    []MouseEvent
+	KeyboardEvents []KeyboardEvent
+	ScrollEvents   []ScrollEvent
+	FocusEvents    []FocusEvent
+	NetworkInfo    *NetworkInfo
 }
 
 // MouseEvent represents a mouse interaction
@@ -71,14 +72,15 @@ type NetworkInfo struct {
 }
 
 // NewFeatureExtractor creates a new feature extractor
-func NewFeatureExtractor() *FeatureExtractor {
+func NewFeatureExtractor(tlsInterceptor *TLSInterceptor) *FeatureExtractor {
 	fe := &FeatureExtractor{
 		clientProfiles: make(map[string]*ClientProfile),
+		tlsInterceptor: tlsInterceptor,
 	}
-	
+
 	// Start cleanup routine
 	go fe.cleanupProfiles()
-	
+
 	return fe
 }
 
@@ -86,7 +88,7 @@ func NewFeatureExtractor() *FeatureExtractor {
 func (fe *FeatureExtractor) ExtractRequestFeatures(req *http.Request, tlsState *tls.ConnectionState, clientID string) *RequestFeatures {
 	fe.mu.Lock()
 	defer fe.mu.Unlock()
-	
+
 	// Get or create client profile
 	profile, exists := fe.clientProfiles[clientID]
 	if !exists {
@@ -98,19 +100,19 @@ func (fe *FeatureExtractor) ExtractRequestFeatures(req *http.Request, tlsState *
 		}
 		fe.clientProfiles[clientID] = profile
 	}
-	
+
 	// Update profile
 	profile.LastSeen = time.Now()
 	profile.RequestCount++
 	profile.RequestTimes = append(profile.RequestTimes, time.Now())
 	profile.UniquePages[req.URL.Path] = true
 	profile.UserAgents[req.UserAgent()]++
-	
+
 	// Extract network info if not already done
 	if profile.NetworkInfo == nil && tlsState != nil {
 		profile.NetworkInfo = fe.extractNetworkInfo(req, tlsState)
 	}
-	
+
 	// Build features
 	features := &RequestFeatures{
 		// HTTP features
@@ -119,30 +121,30 @@ func (fe *FeatureExtractor) ExtractRequestFeatures(req *http.Request, tlsState *
 		AcceptHeaderPresent: req.Header.Get("Accept") != "",
 		RefererPresent:      req.Header.Get("Referer") != "",
 		CookiesPresent:      len(req.Cookies()) > 0,
-		
+
 		// Timing features
-		RequestInterval:    fe.calculateRequestInterval(profile),
-		TimeOnSite:         time.Since(profile.FirstSeen).Seconds(),
-		PagesVisited:       len(profile.UniquePages),
-		RequestsPerMinute:  fe.calculateRequestRate(profile),
-		
+		RequestInterval:   fe.calculateRequestInterval(profile),
+		TimeOnSite:        time.Since(profile.FirstSeen).Seconds(),
+		PagesVisited:      len(profile.UniquePages),
+		RequestsPerMinute: fe.calculateRequestRate(profile),
+
 		// Behavioral features (will be updated via JavaScript)
-		MouseMovements:     len(profile.MouseEvents),
-		KeystrokeCount:     len(profile.KeyboardEvents),
-		ScrollDepth:        fe.calculateMaxScrollDepth(profile),
-		FocusEvents:        len(profile.FocusEvents),
-		
+		MouseMovements: len(profile.MouseEvents),
+		KeystrokeCount: len(profile.KeyboardEvents),
+		ScrollDepth:    fe.calculateMaxScrollDepth(profile),
+		FocusEvents:    len(profile.FocusEvents),
+
 		// Network features
-		ConnectionReuse:     false, // TODO: implement connection tracking
-		HTTP2Enabled:        req.ProtoMajor == 2,
-		TLSVersion:          0,
-		CipherStrength:      0,
-		
+		ConnectionReuse: false, // TODO: implement connection tracking
+		HTTP2Enabled:    req.ProtoMajor == 2,
+		TLSVersion:      0,
+		CipherStrength:  0,
+
 		// Advanced features
 		AcceptLanguageCount: fe.countAcceptLanguages(req),
 		EncodingTypes:       fe.countEncodingTypes(req),
 	}
-	
+
 	// Add network features if available
 	if profile.NetworkInfo != nil {
 		features.TLSVersion = float64(profile.NetworkInfo.TLSVersion) / 10.0 // Normalize
@@ -151,7 +153,16 @@ func (fe *FeatureExtractor) ExtractRequestFeatures(req *http.Request, tlsState *
 		features.HeaderOrder = strings.Join(profile.NetworkInfo.HeaderOrder, ",")
 		features.HTTP2Enabled = profile.NetworkInfo.HTTP2Supported
 	}
-	
+
+	// Try to get accurate JA3 from interceptor if available
+	if fe.tlsInterceptor != nil {
+		// Try to match by remote address (IP:Port)
+		if fp := fe.tlsInterceptor.GetConnectionJA3(req.RemoteAddr); fp != nil {
+			features.JA3Hash = fp.JA3Hash
+			// optionally log debug mismatch if needed
+		}
+	}
+
 	return features
 }
 
@@ -159,12 +170,12 @@ func (fe *FeatureExtractor) ExtractRequestFeatures(req *http.Request, tlsState *
 func (fe *FeatureExtractor) UpdateClientBehavior(clientID string, behaviorData map[string]interface{}) error {
 	fe.mu.Lock()
 	defer fe.mu.Unlock()
-	
+
 	profile, exists := fe.clientProfiles[clientID]
 	if !exists {
 		return fmt.Errorf("client profile not found: %s", clientID)
 	}
-	
+
 	// Update mouse events
 	if mouseData, ok := behaviorData["mouse"].([]interface{}); ok {
 		for _, event := range mouseData {
@@ -179,7 +190,7 @@ func (fe *FeatureExtractor) UpdateClientBehavior(clientID string, behaviorData m
 			}
 		}
 	}
-	
+
 	// Update keyboard events
 	if keyData, ok := behaviorData["keyboard"].([]interface{}); ok {
 		for _, event := range keyData {
@@ -193,7 +204,7 @@ func (fe *FeatureExtractor) UpdateClientBehavior(clientID string, behaviorData m
 			}
 		}
 	}
-	
+
 	// Update scroll events
 	if scrollData, ok := behaviorData["scroll"].([]interface{}); ok {
 		for _, event := range scrollData {
@@ -206,7 +217,7 @@ func (fe *FeatureExtractor) UpdateClientBehavior(clientID string, behaviorData m
 			}
 		}
 	}
-	
+
 	// Update focus events
 	if focusData, ok := behaviorData["focus"].([]interface{}); ok {
 		for _, event := range focusData {
@@ -220,10 +231,10 @@ func (fe *FeatureExtractor) UpdateClientBehavior(clientID string, behaviorData m
 			}
 		}
 	}
-	
+
 	log.Debug("[Feature Extractor] Updated behavior for client %s: %d mouse, %d keyboard, %d scroll events",
 		clientID, len(profile.MouseEvents), len(profile.KeyboardEvents), len(profile.ScrollEvents))
-	
+
 	return nil
 }
 
@@ -233,13 +244,13 @@ func (fe *FeatureExtractor) extractNetworkInfo(req *http.Request, tlsState *tls.
 		HeaderOrder:    fe.getHeaderOrder(req),
 		HTTP2Supported: req.ProtoMajor == 2,
 	}
-	
+
 	if tlsState != nil {
 		info.TLSVersion = tlsState.Version
 		info.CipherSuite = tlsState.CipherSuite
 		info.JA3Hash = fe.calculateJA3(tlsState)
 	}
-	
+
 	return info
 }
 
@@ -248,24 +259,24 @@ func (fe *FeatureExtractor) calculateRequestInterval(profile *ClientProfile) flo
 	if len(profile.RequestTimes) < 2 {
 		return 999.0 // High value for first request
 	}
-	
+
 	// Calculate average interval for last 10 requests
 	start := len(profile.RequestTimes) - 10
 	if start < 0 {
 		start = 0
 	}
-	
+
 	times := profile.RequestTimes[start:]
 	if len(times) < 2 {
 		return 999.0
 	}
-	
+
 	totalInterval := float64(0)
 	for i := 1; i < len(times); i++ {
 		interval := times[i].Sub(times[i-1]).Seconds()
 		totalInterval += interval
 	}
-	
+
 	return totalInterval / float64(len(times)-1)
 }
 
@@ -274,22 +285,22 @@ func (fe *FeatureExtractor) calculateRequestRate(profile *ClientProfile) float64
 	if len(profile.RequestTimes) < 2 {
 		return 0.0
 	}
-	
+
 	// Calculate rate over last 5 minutes
 	cutoff := time.Now().Add(-5 * time.Minute)
 	recentCount := 0
-	
+
 	for _, t := range profile.RequestTimes {
 		if t.After(cutoff) {
 			recentCount++
 		}
 	}
-	
+
 	duration := time.Since(cutoff).Minutes()
 	if duration > 0 {
 		return float64(recentCount) / duration
 	}
-	
+
 	return 0.0
 }
 
@@ -309,19 +320,19 @@ func (fe *FeatureExtractor) getHeaderOrder(req *http.Request) []string {
 	// This would require access to raw request headers
 	// For now, return common headers in the order they appear
 	var order []string
-	
+
 	commonHeaders := []string{
-		"Host", "Connection", "Accept", "User-Agent", 
+		"Host", "Connection", "Accept", "User-Agent",
 		"Accept-Encoding", "Accept-Language", "Cookie",
 		"Referer", "Cache-Control",
 	}
-	
+
 	for _, header := range commonHeaders {
 		if req.Header.Get(header) != "" {
 			order = append(order, strings.ToLower(header))
 		}
 	}
-	
+
 	return order
 }
 
@@ -336,23 +347,23 @@ func (fe *FeatureExtractor) calculateJA3(tlsState *tls.ConnectionState) string {
 func (fe *FeatureExtractor) getCipherStrength(suite uint16) int {
 	// Map of cipher suites to key strengths
 	cipherStrengths := map[uint16]int{
-		tls.TLS_RSA_WITH_RC4_128_SHA:                128,
-		tls.TLS_RSA_WITH_AES_128_CBC_SHA:            128,
-		tls.TLS_RSA_WITH_AES_256_CBC_SHA:            256,
-		tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA:      128,
-		tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:      256,
-		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256:   128,
-		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384:   256,
-		tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305:    256,
-		tls.TLS_AES_128_GCM_SHA256:                  128,
-		tls.TLS_AES_256_GCM_SHA384:                  256,
-		tls.TLS_CHACHA20_POLY1305_SHA256:            256,
+		tls.TLS_RSA_WITH_RC4_128_SHA:              128,
+		tls.TLS_RSA_WITH_AES_128_CBC_SHA:          128,
+		tls.TLS_RSA_WITH_AES_256_CBC_SHA:          256,
+		tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA:    128,
+		tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:    256,
+		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256: 128,
+		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384: 256,
+		tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305:  256,
+		tls.TLS_AES_128_GCM_SHA256:                128,
+		tls.TLS_AES_256_GCM_SHA384:                256,
+		tls.TLS_CHACHA20_POLY1305_SHA256:          256,
 	}
-	
+
 	if strength, ok := cipherStrengths[suite]; ok {
 		return strength
 	}
-	
+
 	// Default to 128 if unknown
 	return 128
 }
@@ -363,7 +374,7 @@ func (fe *FeatureExtractor) countAcceptLanguages(req *http.Request) int {
 	if acceptLang == "" {
 		return 0
 	}
-	
+
 	// Count comma-separated languages
 	languages := strings.Split(acceptLang, ",")
 	return len(languages)
@@ -375,7 +386,7 @@ func (fe *FeatureExtractor) countEncodingTypes(req *http.Request) int {
 	if acceptEnc == "" {
 		return 0
 	}
-	
+
 	// Count comma-separated encodings
 	encodings := strings.Split(acceptEnc, ",")
 	return len(encodings)
@@ -385,7 +396,7 @@ func (fe *FeatureExtractor) countEncodingTypes(req *http.Request) int {
 func (fe *FeatureExtractor) GetClientProfile(clientID string) (*ClientProfile, bool) {
 	fe.mu.RLock()
 	defer fe.mu.RUnlock()
-	
+
 	profile, exists := fe.clientProfiles[clientID]
 	return profile, exists
 }
@@ -394,7 +405,7 @@ func (fe *FeatureExtractor) GetClientProfile(clientID string) (*ClientProfile, b
 func (fe *FeatureExtractor) cleanupProfiles() {
 	ticker := time.NewTicker(30 * time.Minute)
 	defer ticker.Stop()
-	
+
 	for range ticker.C {
 		fe.mu.Lock()
 		now := time.Now()

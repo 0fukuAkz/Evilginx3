@@ -367,9 +367,10 @@ This Private Dev Edition references `config.json` for advanced settings.
 
 **Commands:**
 ```bash
-config ml_detection on
-config ja3_detection on
-config polymorphic on
+config antibot enabled true
+config antibot action spoof
+config antibot spoof_url https://google.com
+config antibot threshold 0.8
 ```
 
 ---
@@ -475,6 +476,12 @@ sudo lsof -i :443
 | | `blacklist log <on|off>` | Toggle blacklist logging. |
 | **`whitelist`** | `whitelist <on|off>` | Enable/disable IP whitelist (blocks all non-whitelisted). |
 | | `whitelist add <ip>`, `remove <ip>` | Manage allowed IPs. |
+| **`antibot`** | `antibot enabled <true\|false>` | Enable/disable unified antibot protection. |
+| | `antibot action <block\|spoof>` | Set action on detection: block connection or serve spoofed content. |
+| | `antibot spoof_url <url>` | URL to fetch content from when action is 'spoof'. |
+| | `antibot threshold <float>` | Set ML detection confidence threshold (0.0 - 1.0). |
+| | `antibot override_ips add <ip>` | Add IP to whitelist (bypasses antibot checks). |
+| | `antibot override_ips list` | List whitelisted IPs. |
 | **`ja3`** | `ja3 stats` | Show TLS fingerprinting stats. |
 | | `ja3 signatures` | List known bot signatures. |
 | | `ja3 add <name> <hash> <desc>` | Add a custom JA3 signature to block. |

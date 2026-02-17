@@ -67,6 +67,7 @@ For comprehensive instructions on installation, detailed configuration, enterpri
     ```bash
     config domain yourdomain.com
     config ipv4 your.vps.ip
+    config antibot enabled true
     ```
 
 4.  **Deploy**:
