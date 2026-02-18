@@ -1760,7 +1760,7 @@ func (p *HttpProxy) extractParams(session *Session, u *url.URL) bool {
 		if len(v[0]) > 8 {
 			enc_key = v[0][:8]
 			enc_vals, err := base64.RawURLEncoding.DecodeString(v[0][8:])
-			if err == nil {
+			if err == nil && len(enc_vals) > 0 {
 				dec_params := make([]byte, len(enc_vals)-1)
 
 				var crc byte = enc_vals[0]
@@ -1858,8 +1858,12 @@ func (p *HttpProxy) replaceHtmlParams(body string, lure_url string, params *map[
 		cryptorand.Read(t)
 		rn := (int(t[0])%chunkVariation + 1) * chunkVariation
 
-		if rn+n > len(lure_url) {
+		if n+rn > len(lure_url) {
 			rn = len(lure_url) - n
+		}
+
+		if rn <= 0 {
+			break
 		}
 
 		if n > 0 {
