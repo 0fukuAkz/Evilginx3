@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #############################################################################
-# Evilginx 3.3.1 - Private Dev Edition - One-Click Installer
+# Evilginx - Private Dev Edition - One-Click Installer
 #############################################################################
 # This script automates the complete installation and configuration process
 # Based on: DEPLOYMENT_GUIDE.md
@@ -28,7 +28,7 @@
 # Version: 3.0.0
 #############################################################################
 
-set -e  # Exit on error
+set -euo pipefail  # Exit on error, undefined vars, pipe failures
 trap 'log_error "Installation failed at line $LINENO (exit code $?)"; exit 1' ERR
 
 # Colors for output
@@ -92,14 +92,15 @@ if [[ -z "$SCRIPT_DIR" ]] || [[ ! -d "$SCRIPT_DIR" ]]; then
 fi
 
 # Configuration
+EVILGINX_VERSION="3.3.1"
 GO_VERSION="1.24.0"
 INSTALL_DIR="/usr/local/bin"
 INSTALL_BASE="/opt/evilginx"
 SERVICE_USER="evilginx"  # Dedicated service user (least-privilege)
 CONFIG_DIR="/etc/evilginx"
 LOG_DIR="/var/log/evilginx"
-PHISHLETS_DIR="/opt/evilginx/phishlets"
-REDIRECTORS_DIR="/opt/evilginx/redirectors"
+PHISHLETS_DIR="$INSTALL_BASE/phishlets"
+REDIRECTORS_DIR="$INSTALL_BASE/redirectors"
 INSTALL_LOG=""
 
 # Detect architecture early (log_warning is now defined above)
@@ -122,7 +123,7 @@ DISTRO_VER=""
 # Consolidated function to find the Evilginx root directory
 # Replaces duplicate search logic that was in both main() and build_evilginx()
 find_evilginx_root() {
-    local search_dirs=("$SCRIPT_DIR" "$(pwd)" "$HOME/Evilginx3" "/root/Evilginx3")
+    local search_dirs=("$SCRIPT_DIR" "$(pwd)" "${HOME:-/root}/Evilginx3" "/root/Evilginx3")
     for dir in "${search_dirs[@]}"; do
         if [[ -n "$dir" ]] && [[ -d "$dir" ]] && [[ -f "$dir/main.go" ]]; then
             echo "$dir"
@@ -134,7 +135,7 @@ find_evilginx_root() {
 
 print_banner() {
     echo -e "${PURPLE}"
-    cat << "EOF"
+    cat << EOF
 ╔═══════════════════════════════════════════════════════════════════╗
 ║                                                                   ║
 ║     ███████╗██╗   ██╗██╗██╗      ██████╗ ██╗███╗   ██╗██╗  ██╗  ║
@@ -145,7 +146,7 @@ print_banner() {
 ║     ╚══════╝  ╚═══╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝  ║
 ║                                                                   ║
 ║              One-Click Installer - Private Dev Edition           ║
-║                         Version 3.3.1                             ║
+║                         Version ${EVILGINX_VERSION}                             ║
 ║                                                                   ║
 ╚═══════════════════════════════════════════════════════════════════╝
 EOF
@@ -204,7 +205,7 @@ confirm_installation() {
     echo -e "${YELLOW}"
     cat << EOF
 
-⚠️  WARNING: This installer will make significant system changes:
+WARNING: This installer will make significant system changes:
 
    1. Install Go $GO_VERSION ($GO_ARCH) and dependencies
    2. Stop and disable Apache2/Nginx (if installed)
@@ -214,7 +215,7 @@ confirm_installation() {
    6. Create systemd service: evilginx.service
    7. Enable automatic startup
 
-⚠️  LEGAL NOTICE:
+LEGAL NOTICE:
    This tool is for AUTHORIZED SECURITY TESTING ONLY.
    Unauthorized use is ILLEGAL and UNETHICAL.
    You are responsible for compliance with all applicable laws.
@@ -286,11 +287,16 @@ uninstall_evilginx() {
         log_success "Service disabled"
     fi
     
-    # Kill any running processes
+    # Kill any running processes (graceful first, then force)
     if pgrep -x evilginx >/dev/null 2>&1; then
-        log_info "Killing running Evilginx processes..."
-        pkill -9 evilginx
-        sleep 1
+        log_info "Sending SIGTERM to Evilginx processes..."
+        pkill evilginx 2>/dev/null || true
+        sleep 3
+        if pgrep -x evilginx >/dev/null 2>&1; then
+            log_warning "Processes still running, sending SIGKILL..."
+            pkill -9 evilginx 2>/dev/null || true
+            sleep 1
+        fi
         log_success "Processes terminated"
     fi
     
@@ -432,62 +438,88 @@ install_go() {
     fi
     
     local GO_TARBALL="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
-    
-    log_info "Downloading Go $GO_VERSION for $GO_ARCH..."
-    cd /tmp
-    wget -q --show-progress "https://go.dev/dl/${GO_TARBALL}"
-    
-    # Verify download integrity
-    log_info "Verifying download integrity..."
-    
-    if [[ ! -f "$GO_TARBALL" ]]; then
-        log_error "Go download failed — file not found!"
-        exit 1
-    fi
-    
-    local actual_size
-    actual_size=$(stat -c%s "$GO_TARBALL" 2>/dev/null || stat -f%z "$GO_TARBALL" 2>/dev/null || echo "0")
-    if [[ "$actual_size" -lt 50000000 ]]; then
-        log_error "Downloaded Go tarball is too small (${actual_size} bytes, expected 50MB+)"
-        log_error "Download may be corrupted or intercepted"
+
+    # Download and verify in a subshell to avoid changing the working directory
+    (
+        cd /tmp
+
+        log_info "Downloading Go $GO_VERSION for $GO_ARCH..."
+        wget -q --show-progress "https://go.dev/dl/${GO_TARBALL}"
+
+        # Verify download integrity
+        log_info "Verifying download integrity..."
+
+        if [[ ! -f "$GO_TARBALL" ]]; then
+            log_error "Go download failed — file not found!"
+            exit 1
+        fi
+
+        local actual_size
+        actual_size=$(stat -c%s "$GO_TARBALL" 2>/dev/null || stat -f%z "$GO_TARBALL" 2>/dev/null || echo "0")
+        if [[ "$actual_size" -lt 50000000 ]]; then
+            log_error "Downloaded Go tarball is too small (${actual_size} bytes, expected 50MB+)"
+            log_error "Download may be corrupted or intercepted"
+            rm -f "$GO_TARBALL"
+            exit 1
+        fi
+
+        if ! gzip -t "$GO_TARBALL" 2>/dev/null; then
+            log_error "Downloaded file is not a valid gzip archive — possibly corrupted"
+            rm -f "$GO_TARBALL"
+            exit 1
+        fi
+
+        log_success "Download verified (${actual_size} bytes, valid gzip)"
+
+        # SHA256 checksum verification against go.dev
+        log_info "Verifying SHA256 checksum against go.dev..."
+        local expected_sha256
+        expected_sha256=$(curl -sL "https://go.dev/dl/?mode=json&include=all" \
+            | grep -A 5 "\"filename\": \"${GO_TARBALL}\"" \
+            | grep '"sha256"' \
+            | head -1 \
+            | sed 's/.*"sha256": "\([a-f0-9]*\)".*/\1/')
+
+        if [[ -n "$expected_sha256" ]]; then
+            local actual_sha256
+            actual_sha256=$(sha256sum "$GO_TARBALL" | awk '{print $1}')
+            if [[ "$actual_sha256" != "$expected_sha256" ]]; then
+                log_error "SHA256 checksum mismatch!"
+                log_error "  Expected: $expected_sha256"
+                log_error "  Got:      $actual_sha256"
+                rm -f "$GO_TARBALL"
+                exit 1
+            fi
+            log_success "SHA256 checksum verified"
+        else
+            log_warning "Could not fetch expected SHA256 from go.dev — skipping checksum verification"
+            log_warning "Proceeding with size + gzip validation only"
+        fi
+
+        log_info "Extracting Go..."
+        tar -C /usr/local -xzf "$GO_TARBALL"
+
+        # Cleanup
         rm -f "$GO_TARBALL"
-        exit 1
-    fi
-    
-    if ! gzip -t "$GO_TARBALL" 2>/dev/null; then
-        log_error "Downloaded file is not a valid gzip archive — possibly corrupted"
-        rm -f "$GO_TARBALL"
-        exit 1
-    fi
-    
-    log_success "Download verified (${actual_size} bytes, valid gzip)"
-    
-    log_info "Extracting Go..."
-    tar -C /usr/local -xzf "$GO_TARBALL"
-    
+    )
+
     # Add to PATH using /etc/profile.d/ drop-in (clean, single-location approach)
     # This replaces the old method of writing to /etc/profile, /etc/environment,
     # /root/.bashrc, and $HOME/.bashrc — all of which is unnecessary
     log_info "Adding Go to system PATH via /etc/profile.d/..."
-    
+
     cat > /etc/profile.d/golang.sh << 'GOEOF'
 # Go language PATH configuration (managed by Evilginx installer)
 export PATH=$PATH:/usr/local/go/bin
 GOEOF
-    chmod +x /etc/profile.d/golang.sh
-    
+    chmod 644 /etc/profile.d/golang.sh
+
     # Export for current session
     export PATH=$PATH:/usr/local/go/bin
-    
-    # Cleanup
-    rm -f "$GO_TARBALL"
-    
+
     log_success "Go $GO_VERSION ($GO_ARCH) installed successfully"
     log_success "Go added to PATH via /etc/profile.d/golang.sh (all users, all login shells)"
     /usr/local/go/bin/go version
-    
-    # Return to original directory
-    cd - > /dev/null
 }
 
 create_service_user() {
@@ -624,11 +656,16 @@ stop_conflicting_services() {
         log_success "Evilginx service stopped"
     fi
     
-    # Kill any running evilginx processes
+    # Kill any running evilginx processes (graceful first, then force)
     if pgrep -x evilginx >/dev/null; then
-        log_info "Killing running Evilginx processes..."
-        pkill -9 evilginx
-        sleep 2
+        log_info "Sending SIGTERM to Evilginx processes..."
+        pkill evilginx 2>/dev/null || true
+        sleep 3
+        if pgrep -x evilginx >/dev/null; then
+            log_warning "Processes still running, sending SIGKILL..."
+            pkill -9 evilginx 2>/dev/null || true
+            sleep 1
+        fi
         log_success "Evilginx processes terminated"
     fi
     
@@ -761,7 +798,7 @@ RESOLVEOF
 
 build_evilginx() {
     log_step "Step 6: Building and Installing Evilginx"
-    
+
     # Use consolidated find_evilginx_root() instead of duplicated search logic
     local BUILD_DIR
     BUILD_DIR=$(find_evilginx_root) || {
@@ -769,37 +806,35 @@ build_evilginx() {
         log_error "Searched directories:"
         log_error "  - $SCRIPT_DIR"
         log_error "  - $(pwd)"
-        log_error "  - $HOME/Evilginx3"
+        log_error "  - ${HOME:-/root}/Evilginx3"
         log_error "  - /root/Evilginx3"
         log_error ""
         log_error "Please run: cd ~/Evilginx3 && sudo ./install.sh"
         exit 1
     }
-    
-    # Change to build directory
-    cd "$BUILD_DIR"
-    log_info "Building from: $(pwd)"
-    
-    # Build
-    log_info "Downloading Go dependencies..."
-    /usr/local/go/bin/go mod download
-    
-    log_info "Compiling Evilginx..."
-    /usr/local/go/bin/go build -o build/evilginx main.go
-    
-    if [[ ! -f "$BUILD_DIR/build/evilginx" ]]; then
-        log_error "Build failed - binary not created"
-        exit 1
-    fi
-    
-    log_success "Evilginx compiled successfully"
-    
-    # Create installation directories
+
+    # Build in a subshell to avoid changing the working directory
+    (
+        cd "$BUILD_DIR"
+        log_info "Building from: $(pwd)"
+
+        log_info "Downloading Go dependencies..."
+        /usr/local/go/bin/go mod download
+
+        log_info "Compiling Evilginx..."
+        /usr/local/go/bin/go build -o build/evilginx main.go
+
+        if [[ ! -f "$BUILD_DIR/build/evilginx" ]]; then
+            log_error "Build failed - binary not created"
+            exit 1
+        fi
+
+        log_success "Evilginx compiled successfully"
+    )
+
+    # Install artifacts (directories already created by setup_directories)
     log_info "Installing to system directories..."
-    mkdir -p "$INSTALL_BASE"
-    mkdir -p "$LOG_DIR"
-    mkdir -p "$CONFIG_DIR"
-    
+
     # Remove old binaries if they exist (after stopping services)
     if [ -f "$INSTALL_BASE/evilginx.bin" ]; then
         log_info "Removing old binary..."
@@ -809,7 +844,7 @@ build_evilginx() {
         log_info "Removing old wrapper script..."
         rm -f "/usr/local/bin/evilginx"
     fi
-    
+
     # Copy binary to /opt/evilginx (actual binary location)
     log_info "Installing binary to $INSTALL_BASE..."
     cp "$BUILD_DIR/build/evilginx" "$INSTALL_BASE/evilginx.bin"
@@ -987,7 +1022,7 @@ create_systemd_service() {
     
     cat > /etc/systemd/system/evilginx.service << EOF
 [Unit]
-Description=Evilginx 3.3.1 - Private Dev Edition
+Description=Evilginx $EVILGINX_VERSION - Private Dev Edition
 Documentation=https://github.com/kgretzky/evilginx2
 After=network-online.target
 Wants=network-online.target
@@ -1009,7 +1044,7 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=$CONFIG_DIR $LOG_DIR $INSTALL_BASE
-NoNewPrivileges=false
+NoNewPrivileges=true
 
 # Capabilities needed for binding to ports 53, 80, 443
 AmbientCapabilities=CAP_NET_BIND_SERVICE
@@ -1166,14 +1201,14 @@ display_completion() {
     echo "  • journalctl -u evilginx -f   - View logs"
     echo ""
     
-    echo -e "${YELLOW}⚠️  IMPORTANT: Next Steps${NC}"
+    echo -e "${YELLOW}[!] IMPORTANT: Next Steps${NC}"
     echo ""
     echo "1. Configure Evilginx before starting:"
     echo "   Run: evilginx-console"
     echo ""
     echo "2. In the Evilginx console, configure:"
     echo "   config domain yourdomain.com"
-    echo "   config ipv4 external $(curl -s ifconfig.me 2>/dev/null || echo '<YOUR_IP>')"
+    echo "   config ipv4 external <YOUR_SERVER_IP>"
     echo "   config autocert on"
     echo "   config lure_strategy realistic"
     echo ""
@@ -1189,7 +1224,7 @@ display_completion() {
     echo "   evilginx-start"
     echo ""
     
-    echo -e "${YELLOW}⚠️  SECURITY REMINDERS${NC}"
+    echo -e "${YELLOW}[!] SECURITY REMINDERS${NC}"
     echo ""
     echo "  • Ensure you have WRITTEN AUTHORIZATION"
     echo "  • Configure Cloudflare DNS for your domain"
@@ -1235,7 +1270,7 @@ display_completion() {
 #############################################################################
 
 show_usage() {
-    echo "Evilginx 3.3.1 - One-Click Installer (v3.0.0)"
+    echo "Evilginx $EVILGINX_VERSION - One-Click Installer"
     echo ""
     echo "Usage: sudo $0 [OPTION]"
     echo ""
@@ -1276,7 +1311,7 @@ main() {
         log_info "Working directory: $(pwd)"
     else
         log_error "Cannot find Evilginx root directory with main.go"
-        log_error "Searched: $SCRIPT_DIR, $(pwd), $HOME/Evilginx3, /root/Evilginx3"
+        log_error "Searched: $SCRIPT_DIR, $(pwd), ${HOME:-/root}/Evilginx3, /root/Evilginx3"
         exit 1
     fi
     
@@ -1328,23 +1363,24 @@ case "${1:-}" in
         ;;
     --upgrade)
         check_root
+
+        # Set up logging first so all output is captured
+        INSTALL_LOG="/tmp/evilginx-upgrade-$(date +%Y%m%d_%H%M%S).log"
+        exec > >(tee -a "$INSTALL_LOG") 2>&1
+        log_info "Upgrade log: $INSTALL_LOG"
+
         print_banner
         detect_os
 
         log_step "Upgrade Mode — Rebuilding and reinstalling binary only"
 
-        INSTALL_LOG="/tmp/evilginx-upgrade-$(date +%Y%m%d_%H%M%S).log"
-        exec > >(tee -a "$INSTALL_LOG") 2>&1
-        log_info "Upgrade log: $INSTALL_LOG"
-
         EVILGINX_ROOT=$(find_evilginx_root) || true
         if [[ -z "$EVILGINX_ROOT" ]]; then
             log_error "Cannot find Evilginx root directory with main.go"
-            log_error "Searched: $SCRIPT_DIR, $(pwd), $HOME/Evilginx3, /root/Evilginx3"
+            log_error "Searched: $SCRIPT_DIR, $(pwd), ${HOME:-/root}/Evilginx3, /root/Evilginx3"
             exit 1
         fi
-        cd "$EVILGINX_ROOT"
-        log_info "Working directory: $(pwd)"
+        log_info "Working directory: $EVILGINX_ROOT"
 
         stop_conflicting_services
         build_evilginx
