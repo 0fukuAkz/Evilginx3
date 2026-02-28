@@ -422,7 +422,6 @@ sudo lsof -i :443
 | | `config ipv4 <ipv4_address>` | Set IPv4 external address of the server. |
 | | `config unauth_url <url>` | Set redirect URL for unauthorized requests. |
 | | `config autocert <on|off>` | Enable/disable automatic Let's Encrypt certificates. |
-| | `config http2 <on|off>` | Enable/disable HTTP/2 support (h2) to mimic legitimate server behavior. |
 | | `config lure_strategy <strategy>` | Set lure URL strategy (`short`, `medium`, `long`, `realistic`, `hex`, `base64`, `mixed`). |
 | | `config gophish <args...>` | Configure Gophish integration (`admin_url`, `api_key`, `test`). |
 | | `config telegram <args...>` | Configure Telegram notifications (`bot_token`, `chat_id`, `enabled`, `test`). |
