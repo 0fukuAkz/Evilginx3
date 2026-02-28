@@ -214,7 +214,7 @@ func NewConfig(cfg_dir string, path string) (*Config, error) {
 		antibotConfig:     &AntibotConfig{Enabled: true, Action: "block", MLThreshold: 0.85},
 
 		jsObfuscationConfig:    &JSObfuscationConfig{},
-		mlDetectorConfig:       &MLDetectorConfig{Enabled: true, Threshold: 0.85, CollectBehavior: true, LogPredictions: true},
+		mlDetectorConfig:       &MLDetectorConfig{Enabled: false, Threshold: 0.85, CollectBehavior: true, LogPredictions: true},
 		captchaConfig:          &CaptchaConfig{Enabled: false, Provider: "", RequireForLures: false, Providers: make(map[string]ProviderConfig)},
 		domainRotationConfig:   &DomainRotationConfig{Enabled: false, Strategy: "round-robin", RotationInterval: 60, MaxDomains: 10, AutoGenerate: false},
 		trafficShapingConfig:   &TrafficShapingConfig{Enabled: false, Mode: "adaptive", GlobalRateLimit: 1000, GlobalBurstSize: 2000, PerIPRateLimit: 60, PerIPBurstSize: 120, CleanupInterval: 30},

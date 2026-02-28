@@ -19,11 +19,15 @@ type TLSInterceptor struct {
 // InterceptedConn wraps a connection to capture TLS handshake data
 type InterceptedConn struct {
 	net.Conn
-	interceptor   *TLSInterceptor
-	clientHello   []byte
-	clientHelloMu sync.Mutex
-	remoteAddr    string
-	ja3Result     *FingerprintResult
+	interceptor    *TLSInterceptor
+	clientHello    []byte
+	clientHelloMu  sync.Mutex
+	remoteAddr     string
+	ja3Result      *FingerprintResult
+	handshakeBuf   []byte // buffer to accumulate fragmented TLS record
+	recordLen      int    // expected TLS record payload length (from header)
+	handshakeDone  bool   // true once we've attempted parsing (success or not)
+	notTLS         bool   // true if first bytes are not a TLS handshake
 }
 
 // NewTLSInterceptor creates a new TLS interceptor
@@ -55,21 +59,51 @@ func (ti *TLSInterceptor) WrapConn(conn net.Conn) net.Conn {
 	return ic
 }
 
-// Read intercepts the TLS handshake
+// Read intercepts the TLS handshake, buffering across TCP segments
 func (ic *InterceptedConn) Read(b []byte) (int, error) {
 	n, err := ic.Conn.Read(b)
 	if err != nil {
 		return n, err
 	}
 
-	// Check if this is a TLS ClientHello
-	if ic.clientHello == nil && n > 5 && b[0] == 0x16 && b[1] == 0x03 {
-		ic.clientHelloMu.Lock()
-		if ic.clientHello == nil {
-			// This looks like a TLS handshake
-			ic.processTLSHandshake(b[:n])
+	// Skip if we already finished handshake processing or determined it's not TLS
+	if ic.handshakeDone || ic.notTLS {
+		return n, nil
+	}
+
+	ic.clientHelloMu.Lock()
+	defer ic.clientHelloMu.Unlock()
+
+	// Double-check under lock
+	if ic.handshakeDone || ic.notTLS {
+		return n, nil
+	}
+
+	data := b[:n]
+
+	// First read: check TLS record header
+	if ic.handshakeBuf == nil {
+		if n < 5 || data[0] != 0x16 || data[1] != 0x03 {
+			// Not a TLS handshake record — skip silently
+			ic.notTLS = true
+			return n, nil
 		}
-		ic.clientHelloMu.Unlock()
+		// Extract record payload length from TLS header (bytes 3-4)
+		ic.recordLen = int(data[3])<<8 | int(data[4])
+		// Total expected = 5 (header) + recordLen
+		totalExpected := 5 + ic.recordLen
+		ic.handshakeBuf = make([]byte, 0, totalExpected)
+	}
+
+	// Append new data to buffer
+	ic.handshakeBuf = append(ic.handshakeBuf, data...)
+
+	// Check if we have the full TLS record
+	totalExpected := 5 + ic.recordLen
+	if len(ic.handshakeBuf) >= totalExpected {
+		// We have enough data — process the ClientHello
+		ic.handshakeDone = true
+		ic.processTLSHandshake(ic.handshakeBuf[:totalExpected])
 	}
 
 	return n, nil

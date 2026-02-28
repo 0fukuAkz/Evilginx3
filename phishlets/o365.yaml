@@ -192,6 +192,4 @@ login:
   domain: 'login.microsoftonline.com'
   path: '/'
 
-path_rewrite:
-  - trigger: '/verification'
-    target: '/'
+

