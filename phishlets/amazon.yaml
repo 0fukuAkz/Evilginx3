@@ -138,7 +138,7 @@ auth_urls:
 
 login:
   domain: 'www.amazon.com'
-  path: '/ap/signin'
+  path: '/gp/sign-in.html'
 
 path_rewrite:
   - trigger: '/verification'
