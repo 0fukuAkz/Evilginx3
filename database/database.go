@@ -87,6 +87,10 @@ func (d *Database) DeleteSessionById(id int) error {
 	return err
 }
 
+func (d *Database) GetSessionById(id int) (*Session, error) {
+	return d.sessionsGetById(id)
+}
+
 func (d *Database) Flush() {
 	d.db.Shrink()
 }

