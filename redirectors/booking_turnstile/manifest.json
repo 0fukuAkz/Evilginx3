@@ -1,8 +1,0 @@
-﻿{
-  "name": "Secure Login",
-  "short_name": "Login",
-  "icons": [],
-  "theme_color": "#ffffff",
-  "background_color": "#ffffff",
-  "display": "standalone"
-}

