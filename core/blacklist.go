@@ -151,3 +151,87 @@ func (bl *Blacklist) IsWhitelisted(ip string) bool {
 func (bl *Blacklist) SetWhitelist(wl *Whitelist) {
 	bl.whitelist = wl
 }
+
+func (bl *Blacklist) RemoveIP(ip string) error {
+	ipv4 := net.ParseIP(ip)
+	if ipv4 == nil {
+		return fmt.Errorf("invalid ip address: %s", ip)
+	}
+
+	if !bl.IsBlacklisted(ipv4.String()) {
+		return fmt.Errorf("ip address not in blacklist: %s", ip)
+	}
+
+	// remove from memory
+	delete(bl.ips, ipv4.String())
+
+	// rewrite file without this IP
+	f, err := os.OpenFile(bl.configPath, os.O_RDONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	var lines []string
+	fs := bufio.NewScanner(f)
+	fs.Split(bufio.ScanLines)
+
+	for fs.Scan() {
+		l := fs.Text()
+		cleanL := l
+		if n := strings.Index(l, ";"); n > -1 {
+			cleanL = l[:n]
+		}
+		cleanL = strings.Trim(cleanL, " ")
+
+		if cleanL != ipv4.String() {
+			lines = append(lines, l)
+		}
+	}
+
+	// write back to file
+	fw, err := os.OpenFile(bl.configPath, os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer fw.Close()
+
+	for _, line := range lines {
+		_, err = fw.WriteString(line + "\n")
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (bl *Blacklist) GetAllIPs() []string {
+	var ips []string
+
+	for ip := range bl.ips {
+		ips = append(ips, ip)
+	}
+
+	for _, m := range bl.masks {
+		if m.mask != nil {
+			ips = append(ips, m.mask.String())
+		}
+	}
+
+	return ips
+}
+
+func (bl *Blacklist) Clear() error {
+	bl.ips = make(map[string]*BlockIP)
+	bl.masks = []*BlockIP{}
+
+	// clear file
+	f, err := os.OpenFile(bl.configPath, os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	return nil
+}

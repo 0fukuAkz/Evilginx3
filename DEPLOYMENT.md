@@ -251,7 +251,7 @@ Evilginx3 uses **CertMagic** for automatic certificate management via Let's Encr
 
 2. **Configure Domain & IP:**
    ```bash
-   config domain yourdomain.com
+   domains set yourdomain.com
    config ipv4 YOUR_VPS_IP
    ```
 
@@ -362,9 +362,9 @@ This Private Dev Edition references `config.json` for advanced settings.
 
 **Commands:**
 ```bash
-config antibot enabled true
-config antibot action spoof
-config antibot spoof_url https://google.com
+antibot enabled true
+antibot action spoof
+antibot spoof_url https://google.com
 ```
 
 ---
@@ -412,14 +412,12 @@ sudo lsof -i :443
 | Command | Usage | Description |
 | :--- | :--- | :--- |
 | **`config`** | `config` | Show all configuration variables. |
-| | `config domain <domain>` | Set base domain for all phishlets (e.g. `evilsite.com`). |
 | | `config ipv4 <ipv4_address>` | Set IPv4 external address of the server. |
 | | `config unauth_url <url>` | Set redirect URL for unauthorized requests. |
 | | `config autocert <on|off>` | Enable/disable automatic Let's Encrypt certificates. |
 | | `config lure_strategy <strategy>` | Set lure URL strategy (`short`, `medium`, `long`, `realistic`, `hex`, `base64`, `mixed`). |
 | | `config gophish <args...>` | Configure Gophish integration (`admin_url`, `api_key`, `test`). |
 | | `config telegram <args...>` | Configure Telegram notifications (`bot_token`, `chat_id`, `enabled`, `test`). |
-| | `config cloudflare_worker <args...>` | Configure Cloudflare Worker settings (`account_id`, `api_token`, `enabled`, `test`). |
 | **`proxy`** | `proxy` | Show proxy configuration. |
 | | `proxy enable`, `proxy disable` | Enable/disable upstream proxy. |
 | | `proxy type <http|https|socks5>` | Set proxy type. |
@@ -461,12 +459,36 @@ sudo lsof -i :443
 | | `c2 server add <id> <url> <priority>` | Add a C2 coordination server. |
 | | `c2 key generate`, `c2 key export` | Manage encryption keys. |
 
+### Domain Management
+
+| Command | Usage | Description |
+| :--- | :--- | :--- |
+| **`domains`** | `domains` | Show base domain, domain pool, and rotation status. |
+| | `domains set <domain>` | Set the base domain for all phishlets. |
+| | `domains list` | List all configured domains with status and primary flag. |
+| | `domains add <domain> [description]` | Add a new domain to the multi-domain pool. |
+| | `domains remove <domain>` | Remove a domain from the pool. |
+| | `domains set-primary <domain>` | Set which domain is the primary domain. |
+| | `domains enable <domain>` | Enable a domain for use. |
+| | `domains disable <domain>` | Disable a domain (keeps it in pool but inactive). |
+| | `domains rotation` | Show domain rotation configuration. |
+| | `domains rotation enable <on\|off>` | Enable or disable automatic domain rotation. |
+| | `domains rotation strategy <round-robin\|weighted\|health-based\|random>` | Set rotation strategy. |
+| | `domains rotation interval <minutes>` | Set rotation interval in minutes. |
+| | `domains rotation add-domain <domain> <subdomain> <provider>` | Add a domain to the rotation pool. |
+| | `domains rotation list` | List all domains in the rotation pool. |
+| | `domains rotation stats` | Show detailed rotation statistics. |
+
 ### Defense & Evasion
 
 | Command | Usage | Description |
 | :--- | :--- | :--- |
 | **`blacklist`** | `blacklist <mode>` | Set mode: `all` (block everything), `unauth` (block unauthorized), `noadd` (stop adding ips), `off`. |
 | | `blacklist log <on|off>` | Toggle blacklist logging. |
+| | `blacklist list` | List all blacklisted IP addresses. |
+| | `blacklist add <ip>` | Manually add an IP address to the blacklist. |
+| | `blacklist remove <ip>` | Remove an IP address from the blacklist. |
+| | `blacklist clear` | Remove all IP addresses from the blacklist. |
 | **`whitelist`** | `whitelist <on|off>` | Enable/disable IP whitelist (blocks all non-whitelisted). |
 | | `whitelist add <ip>`, `remove <ip>` | Manage allowed IPs. |
 | **`antibot`** | `antibot enabled <true\|false>` | Enable/disable unified antibot protection. |
@@ -559,6 +581,16 @@ sudo lsof -i :443
 
 | Command | Usage | Description |
 | :--- | :--- | :--- |
-| **`cloudflare`** | `cloudflare worker <type> ...` | Generate a Cloudflare Worker script (`simple`, `html`, `advanced`). |
-| | `cloudflare deploy ...` | Deploy a worker directly to Cloudflare. |
-| | `cloudflare list`, `cloudflare status` | Manage deployed workers. |
+| **`cloudflare`** | `cloudflare config` | Show current Cloudflare Worker configuration. |
+| | `cloudflare config account_id <id>` | Set the Cloudflare account ID. |
+| | `cloudflare config api_token <token>` | Set the Cloudflare API token. |
+| | `cloudflare config zone_id <id>` | Set the Cloudflare zone ID (optional). |
+| | `cloudflare config subdomain <subdomain>` | Set the workers.dev subdomain. |
+| | `cloudflare config enabled <true\|false>` | Enable or disable Cloudflare Worker deployment. |
+| | `cloudflare config test` | Test the Cloudflare API credentials. |
+| | `cloudflare worker <type> <redirect_url> [options]` | Generate a Cloudflare Worker script (`simple`, `html`, `advanced`). |
+| | `cloudflare deploy <name> <type> <url> [options]` | Deploy a worker directly to Cloudflare. |
+| | `cloudflare list` | List all deployed workers. |
+| | `cloudflare delete <worker_name>` | Delete a deployed worker. |
+| | `cloudflare update <worker_name> <url>` | Update a worker's redirect URL. |
+| | `cloudflare status <worker_name>` | Check a worker's deployment status. |

