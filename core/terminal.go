@@ -1918,6 +1918,10 @@ func (t *Terminal) handleAntibot(args []string) error {
 		return t.handlePolymorphic(args[1:])
 	case "ja3":
 		return t.handleJA3(args[1:])
+	case "captcha":
+		return t.handleCaptcha(args[1:])
+	case "domain-rotation":
+		return t.handleDomainRotation(args[1:])
 	default:
 		// Attempt to parse global antibot config (e.g. antibot enabled, antibot action)
 		if pn == 1 {

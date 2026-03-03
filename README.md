@@ -33,6 +33,12 @@ Evilginx should be used only in legitimate penetration testing assignments with 
 
 This private development edition extends the standard Evilginx 3.3 with enterprise-grade features for advanced red team operations:
 
+✅ **JA3/JA3S Fingerprinting** - TLS fingerprint analysis and blocking  
+✅ **Sandbox Detection** - VM, debugger, and automation tool detection  
+✅ **Polymorphic JavaScript Engine** - Dynamic code mutation  
+✅ **Domain Rotation** - Automated domain switching  
+✅ **Traffic Shaping** - Adaptive rate limiting and DDoS protection  
+✅ **CAPTCHA Protection** - Turnstile, reCAPTCHA v3, hCaptcha integration  
 ✅ **C2 Channel** - Encrypted command and control  
 ✅ **Cloudflare Worker Integration** - Proxy bypass capabilities  
 ✅ **Enhanced Telegram Integration** - Real-time notifications  

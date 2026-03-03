@@ -338,6 +338,25 @@ This Private Dev Edition references `config.json` for advanced settings.
 
 ```json
 {
+  "ja3_fingerprinting": {
+    "enabled": true,
+    "block_known_bots": true
+  },
+  "sandbox_detection": {
+    "enabled": true,
+    "mode": "active",
+    "action_on_detection": "redirect"
+  },
+  "polymorphic_engine": {
+    "enabled": true,
+    "mutation_level": "high",
+    "seed_rotation": 15
+  },
+  "traffic_shaping": {
+    "enabled": true,
+    "per_ip_rate_limit": 100,
+    "ddos_protection": true
+  }
 }
 ```
 
@@ -453,8 +472,88 @@ sudo lsof -i :443
 | **`antibot`** | `antibot enabled <true\|false>` | Enable/disable unified antibot protection. |
 | | `antibot action <block\|spoof>` | Set action on detection: block connection or serve spoofed content. |
 | | `antibot spoof_url <url>` | URL to fetch content from when action is 'spoof'. |
+| | `antibot threshold <0.0-9.9>` | Set ML detection confidence threshold. |
+| | `antibot override_ips list` | List IPs that bypass antibot detection. |
 | | `antibot override_ips add <ip>` | Add IP to whitelist (bypasses antibot checks). |
-| | `antibot override_ips list` | List whitelisted IPs. |
+| | `antibot override_ips remove <ip>` | Remove IP from antibot whitelist. |
+
+#### `antibot ja3` — JA3/JA3S TLS Fingerprinting
+
+| Usage | Description |
+| :--- | :--- |
+| `antibot ja3` | Show basic JA3 fingerprinting statistics. |
+| `antibot ja3 stats` | Show detailed JA3 capture and detection statistics. |
+| `antibot ja3 signatures` | List all known bot JA3 signatures with name, hash, confidence, and description. |
+| `antibot ja3 add <name> <ja3_hash> <description>` | Add a custom bot JA3 signature (hash must be 32-char MD5). |
+| `antibot ja3 export` | Export all JA3 signatures to a timestamped JSON file. |
+
+#### `antibot captcha` — CAPTCHA Protection
+
+| Usage | Description |
+| :--- | :--- |
+| `antibot captcha` | Show current CAPTCHA configuration and provider status. |
+| `antibot captcha enable <on\|off>` | Enable or disable CAPTCHA protection. |
+| `antibot captcha provider <name>` | Set active CAPTCHA provider (e.g. `turnstile`, `recaptcha_v3`, `hcaptcha`). |
+| `antibot captcha configure <provider> <site_key> <secret_key> [key=value...]` | Configure a CAPTCHA provider with site key, secret key, and optional parameters. |
+| `antibot captcha require <on\|off>` | Require CAPTCHA verification for all lures. |
+| `antibot captcha test` | Display test page URL for verifying CAPTCHA integration. |
+
+#### `antibot sandbox` — Sandbox / VM Detection
+
+| Usage | Description |
+| :--- | :--- |
+| `antibot sandbox` | Show current sandbox detection configuration and statistics. |
+| `antibot sandbox enable <on\|off>` | Enable or disable sandbox detection. |
+| `antibot sandbox mode <passive\|active\|aggressive>` | Set detection aggressiveness level. |
+| `antibot sandbox threshold <0.0-1.0>` | Set detection confidence threshold. |
+| `antibot sandbox action <block\|redirect\|honeypot>` | Set action upon detecting a sandbox or VM. |
+| `antibot sandbox redirect <url>` | Set redirect URL when action is 'redirect'. |
+| `antibot sandbox honeypot <html>` | Set honeypot HTML response when action is 'honeypot'. |
+| `antibot sandbox stats` | Show detailed sandbox detection statistics and detection methods. |
+
+#### `antibot domain-rotation` — Automatic Domain Rotation
+
+| Usage | Description |
+| :--- | :--- |
+| `antibot domain-rotation` | Show current domain rotation configuration and pool status. |
+| `antibot domain-rotation enable <on\|off>` | Enable or disable automatic domain rotation. |
+| `antibot domain-rotation strategy <round-robin\|weighted\|health-based\|random>` | Set rotation strategy. |
+| `antibot domain-rotation interval <minutes>` | Set rotation interval in minutes. |
+| `antibot domain-rotation max-domains <count>` | Set maximum number of domains in the pool. |
+| `antibot domain-rotation auto-generate <on\|off>` | Enable or disable automatic domain generation. |
+| `antibot domain-rotation add-domain <domain> <subdomain> <provider>` | Add a domain to the rotation pool. |
+| `antibot domain-rotation remove-domain <full_domain>` | Remove a domain from the rotation pool. |
+| `antibot domain-rotation list` | List all domains in the rotation pool with status, health, and request count. |
+| `antibot domain-rotation add-provider <name> <type> <api_key> <api_secret> <zone> [options]` | Add a DNS provider for domain rotation. |
+| `antibot domain-rotation mark-compromised <full_domain> <reason>` | Mark a domain as compromised and rotate it out. |
+| `antibot domain-rotation stats` | Show detailed rotation statistics including provider counts and rotation history. |
+
+#### `antibot traffic-shaping` — Traffic Shaping / Rate Limiting
+
+| Usage | Description |
+| :--- | :--- |
+| `antibot traffic-shaping` | Show current traffic shaping configuration and metrics. |
+| `antibot traffic-shaping enable <on\|off>` | Enable or disable traffic shaping. |
+| `antibot traffic-shaping mode <adaptive\|strict\|learning>` | Set shaping mode. |
+| `antibot traffic-shaping global-limit <rate> <burst>` | Set global request rate limit (requests/s) and burst size. |
+| `antibot traffic-shaping ip-limit <rate> <burst>` | Set per-IP request rate limit (requests/s) and burst size. |
+| `antibot traffic-shaping bandwidth-limit <bytes/sec>` | Set global bandwidth limit in bytes per second. |
+| `antibot traffic-shaping geo-rule <country> <rate> <burst> <priority> <block>` | Add geographic rate-limiting rule (country = 2-letter code, block = true/false). |
+| `antibot traffic-shaping stats` | Show detailed traffic statistics: requests, rate-limited, DDoS blocked, bandwidth, geographic blocks. |
+
+#### `antibot polymorphic` — Polymorphic JavaScript Engine
+
+| Usage | Description |
+| :--- | :--- |
+| `antibot polymorphic` | Show current polymorphic engine configuration and mutation statistics. |
+| `antibot polymorphic enable <on\|off>` | Enable or disable dynamic code mutation. |
+| `antibot polymorphic level <low\|medium\|high\|extreme>` | Set level of code obfuscation. |
+| `antibot polymorphic cache <on\|off\|clear>` | Enable, disable, or clear the mutation cache. |
+| `antibot polymorphic seed-rotation <minutes>` | Set seed rotation interval in minutes (0 = no rotation). |
+| `antibot polymorphic template-mode <on\|off>` | Enable or disable template-based mutations. |
+| `antibot polymorphic mutation <type> <on\|off>` | Toggle a specific mutation type: `variables`, `functions`, `deadcode`, `controlflow`, `strings`, `math`, `comments`, `whitespace`. |
+| `antibot polymorphic test [code]` | Test polymorphic mutations on sample JavaScript code (generates 3 variants). |
+| `antibot polymorphic stats` | Show detailed engine statistics: total mutations, unique variants, cache hits, and hit rate. |
 
 ### Infrastructure & Traffic
 
