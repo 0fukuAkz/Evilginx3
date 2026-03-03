@@ -23,6 +23,10 @@ type Whitelist struct {
 	verbose    bool
 }
 
+func (wl *Whitelist) GetPath() string {
+	return wl.configPath
+}
+
 func NewWhitelist(path string) (*Whitelist, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDONLY, 0644)
 	if err != nil {

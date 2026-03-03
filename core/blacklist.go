@@ -23,6 +23,10 @@ type Blacklist struct {
 	whitelist  *Whitelist
 }
 
+func (bl *Blacklist) GetPath() string {
+	return bl.configPath
+}
+
 func NewBlacklist(path string) (*Blacklist, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDONLY, 0644)
 	if err != nil {

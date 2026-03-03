@@ -338,30 +338,6 @@ This Private Dev Edition references `config.json` for advanced settings.
 
 ```json
 {
-  "ml_detection": {
-    "enabled": true,
-    "threshold": 0.75,
-    "learning_mode": true
-  },
-  "ja3_fingerprinting": {
-    "enabled": true,
-    "block_known_bots": true
-  },
-  "sandbox_detection": {
-    "enabled": true,
-    "mode": "active",
-    "action_on_detection": "redirect"
-  },
-  "polymorphic_engine": {
-    "enabled": true,
-    "mutation_level": "high",
-    "seed_rotation": 15
-  },
-  "traffic_shaping": {
-    "enabled": true,
-    "per_ip_rate_limit": 100,
-    "ddos_protection": true
-  }
 }
 ```
 
@@ -370,7 +346,6 @@ This Private Dev Edition references `config.json` for advanced settings.
 config antibot enabled true
 config antibot action spoof
 config antibot spoof_url https://google.com
-config antibot threshold 0.8
 ```
 
 ---
@@ -478,31 +453,13 @@ sudo lsof -i :443
 | **`antibot`** | `antibot enabled <true\|false>` | Enable/disable unified antibot protection. |
 | | `antibot action <block\|spoof>` | Set action on detection: block connection or serve spoofed content. |
 | | `antibot spoof_url <url>` | URL to fetch content from when action is 'spoof'. |
-| | `antibot threshold <float>` | Set ML detection confidence threshold (0.0 - 1.0). |
 | | `antibot override_ips add <ip>` | Add IP to whitelist (bypasses antibot checks). |
 | | `antibot override_ips list` | List whitelisted IPs. |
-| **`ja3`** | `ja3 stats` | Show TLS fingerprinting stats. |
-| | `ja3 signatures` | List known bot signatures. |
-| | `ja3 add <name> <hash> <desc>` | Add a custom JA3 signature to block. |
-| **`captcha`** | `captcha enable <on|off>` | Enable/disable CAPTCHA protection. |
-| | `captcha provider <name>` | Select provider (`turnstile`, `recaptcha_v3`, `hcaptcha`). |
-| | `captcha require <on|off>` | Force CAPTCHA on all lures. |
-| **`sandbox`** | `sandbox enable <on|off>` | Enable/disable anti-analysis/sandbox detection. |
-| | `sandbox mode <passive|active|aggressive>` | Set detection aggressiveness. |
-| | `sandbox action <block|redirect|honeypot>` | Set action upon detecting a bot/sandbox. |
-| **`polymorphic`** | `polymorphic enable <on|off>` | Enable/disable dynamic code mutation. |
-| | `polymorphic level <low|medium|high|extreme>` | Set level of code obfuscation. |
 
 ### Infrastructure & Traffic
 
 | Command | Usage | Description |
 | :--- | :--- | :--- |
-| **`domain-rotation`**| `domain-rotation enable <on|off>` | Enable automated domain rotation. |
-| | `domain-rotation strategy <type>` | Set strategy: `round-robin`, `weighted`, `health-based`, `random`. |
-| | `domain-rotation add-domain` | Add a domain to the rotation pool. |
-| **`traffic-shaping`**| `traffic-shaping enable <on|off>` | Enable traffic shaping/rate limiting. |
-| | `traffic-shaping global-limit <rate>` | Set global request rate limit. |
-| | `traffic-shaping geo-rule <country> ...` | Set geographic blocking or limiting rules. |
 | **`cloudflare`** | `cloudflare worker <type> ...` | Generate a Cloudflare Worker script (`simple`, `html`, `advanced`). |
 | | `cloudflare deploy ...` | Deploy a worker directly to Cloudflare. |
 | | `cloudflare list`, `cloudflare status` | Manage deployed workers. |
