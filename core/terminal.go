@@ -3123,9 +3123,20 @@ func (t *Terminal) handleCloudflare(args []string) error {
 		log.Info("redirect URL: %s", yellow.Sprint(config.RedirectUrl))
 
 		if enableSubdomain {
-			if cfConfig.WorkerSubdomain != "" {
-				workerURL := fmt.Sprintf("https://%s.%s.workers.dev", workerName, cfConfig.WorkerSubdomain)
+			subdomain, err := api.GetWorkerSubdomain()
+			if err != nil || subdomain == "" {
+				// Fallback to configured subdomain if API fails or returns empty
+				subdomain = cfConfig.WorkerSubdomain
+			}
+
+			if subdomain != "" {
+				workerURL := fmt.Sprintf("https://%s.%s.workers.dev", workerName, subdomain)
 				log.Info("worker URL: %s", higreen.Sprint(workerURL))
+				
+				// Update the config with the proper subdomain if it differed
+				if subdomain != cfConfig.WorkerSubdomain {
+					t.cfg.SetCloudflareWorkerSubdomain(subdomain)
+				}
 			} else {
 				log.Info("worker URL: %s", yellow.Sprint("Configure 'cloudflare_worker subdomain' to see URL"))
 			}
@@ -3160,9 +3171,14 @@ func (t *Terminal) handleCloudflare(args []string) error {
 
 			// Construct worker URL
 			var workerURL string
-			if cfConfig.WorkerSubdomain != "" {
-				// Use configured worker subdomain (this should be your Cloudflare account subdomain)
-				workerURL = fmt.Sprintf("https://%s.%s.workers.dev", worker.ID, cfConfig.WorkerSubdomain)
+			subdomain, err := api.GetWorkerSubdomain()
+			if err != nil || subdomain == "" {
+				subdomain = cfConfig.WorkerSubdomain
+			}
+
+			if subdomain != "" {
+				// Use authoritative worker subdomain
+				workerURL = fmt.Sprintf("https://%s.%s.workers.dev", worker.ID, subdomain)
 				log.Info("    url: %s", higreen.Sprint(workerURL))
 			} else {
 				// No subdomain configured - show instructions
