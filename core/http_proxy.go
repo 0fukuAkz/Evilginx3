@@ -82,7 +82,6 @@ type HttpProxy struct {
 	captchaManager    *response.CaptchaManager
 	spoofManager      *response.SpoofManager
 	domainRotation    *infra.DomainRotationManager
-	c2Channel         *C2Channel
 	polymorphicEngine *infra.PolymorphicEngine
 	sessionFormatter  *SessionFormatter
 	sniListener       net.Listener
@@ -138,7 +137,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 		captchaManager:    response.NewCaptchaManager(cfg.GetCaptchaConfig()),
 		spoofManager:      response.NewSpoofManager(cfg.GetAntibotConfig().SpoofUrl, cfg.GetSandboxDetectionConfig().HoneypotResponse),
 		domainRotation:    nil, // Will be initialized based on config
-		c2Channel:         nil, // Will be initialized based on config
 		polymorphicEngine: nil, // Will be initialized based on config
 		sessionFormatter:  NewSessionFormatter(),
 		isRunning:         false,
@@ -218,18 +216,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 	}
 
 	p.antibotEngine = antibot.NewAntibotEngine(ipSignal, rateSignal, tlsSignal, telemetrySignal)
-
-
-	// Initialize C2 channel if enabled
-	if cfg.GetC2ChannelConfig() != nil && cfg.GetC2ChannelConfig().Enabled {
-		c2, err := NewC2Channel(cfg.GetC2ChannelConfig(), db)
-		if err != nil {
-			log.Error("Failed to initialize C2 channel: %v", err)
-		} else {
-			p.c2Channel = c2
-			log.Info("C2 channel initialized with %s transport", cfg.GetC2ChannelConfig().Transport)
-		}
-	}
 
 	// Initialize domain rotation if enabled
 	if cfg.GetDomainRotationConfig() != nil && cfg.GetDomainRotationConfig().Enabled {
@@ -2307,14 +2293,6 @@ func (p *HttpProxy) Start() error {
 		err := p.antibotEngine.Rate.Start()
 		if err != nil {
 			log.Error("Failed to start traffic shaper: %v", err)
-		}
-	}
-
-	// Start C2 channel if enabled
-	if p.c2Channel != nil && p.cfg.GetC2ChannelConfig().Enabled {
-		err := p.c2Channel.Start()
-		if err != nil {
-			log.Error("Failed to start C2 channel: %v", err)
 		}
 	}
 

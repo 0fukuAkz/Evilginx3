@@ -265,7 +265,7 @@ If certs fail, ensure ports 80/443 are open and your DNS A records point to the 
 ## 7. Phishlet Configuration
 
 ### Available Phishlets
-Includes 13 debugged phishlets: `amazon`, `apple`, `booking`, `coinbase`, `facebook`, `instagram`, `linkedin`, `netflix`, `o365`, `okta`, `paypal`, `salesforce`, `spotify`.
+Includes 6 debugged phishlets: `amazon`, `apple`, `google`, `linkedin`, `o365`, `paypal`.
 
 ### Enabling a Phishlet
 
@@ -417,7 +417,11 @@ sudo lsof -i :443
 | | `config autocert <on|off>` | Enable/disable automatic Let's Encrypt certificates. |
 | | `config lure_strategy <strategy>` | Set lure URL strategy (`short`, `medium`, `long`, `realistic`, `hex`, `base64`, `mixed`). |
 | | `config gophish <args...>` | Configure Gophish integration (`admin_url`, `api_key`, `test`). |
-| | `config telegram <args...>` | Configure Telegram notifications (`bot_token`, `chat_id`, `enabled`, `test`). |
+| | `config test` | Test the general configuration. |
+| | `config http_port <port>` | Set the HTTP proxy port. |
+| | `config https_port <port>` | Set the HTTPS proxy port. |
+| | `config dns_port <port>` | Set the DNS server port. |
+| | `config redirectors_dir <path>` | Set directory where redirector files are stored. |
 | **`proxy`** | `proxy` | Show proxy configuration. |
 | | `proxy enable`, `proxy disable` | Enable/disable upstream proxy. |
 | | `proxy type <http|https|socks5>` | Set proxy type. |
@@ -433,7 +437,9 @@ sudo lsof -i :443
 | **`phishlets`** | `phishlets` | Show status of all available phishlets. |
 | | `phishlets <name>` | Show details of a specific phishlet. |
 | | `phishlets create <template> <name> <params...>` | Create a child phishlet from a template with custom params. |
+| | `phishlets delete <name>` | Delete a child phishlet. |
 | | `phishlets hostname <name> <host>` | Set hostname for a phishlet (e.g. `login.evilsite.com`). |
+| | `phishlets unauth_url <name> <url>` | Override global unauth_url just for this phishlet. |
 | | `phishlets enable <name>` | Enable phishlet and request SSL/TLS certificates. |
 | | `phishlets disable <name>` | Disable phishlet. |
 | | `phishlets hide <name>`, `unhide <name>` | Toggle visibility (hidden state logs requests but doesn't serve page). |
@@ -441,9 +447,10 @@ sudo lsof -i :443
 | **`lures`** | `lures` | Show all created lures. |
 | | `lures create <phishlet>` | Create a new lure for a phishlet. |
 | | `lures get-url <id> [params...]` | Generate a phishing URL for a lure. |
-| | `lures pause <id> <duration>` | Pause a lure for a specific duration (e.g., `1d2h`). |
+| | `lures get-url <id> import <params_file> export <urls_file> <text\|csv\|json>` | Generate bulk phishing URLs from an import text file and export them. |
+| | `lures pause <id> <duration>` | Pause a lure for a specific duration (e.g., `1d2h`) and redirect visitors to `unauth_url`. |
 | | `lures unpause <id>` | Unpause a lure. |
-| | `lures edit <id> <field> <value>` | Edit lure properties (`hostname`, `path`, `redirect_url`, `ua_filter`, `og_title`, `og_image`, `phishlet`). |
+| | `lures edit <id> <field> <value>` | Edit lure properties (`hostname`, `path`, `redirect_url`, `phishlet`, `info`, `og_title`, `og_desc`, `og_image`, `og_url`, `ua_filter`, `redirector`). |
 | | `lures delete <id>`, `lures delete all` | Delete one or more lures. |
 
 ### Sessions & Data
@@ -453,11 +460,7 @@ sudo lsof -i :443
 | **`sessions`** | `sessions` | Show history of captured sessions. |
 | | `sessions <id>` | Show detailed session info (tokens, credentials). |
 | | `sessions delete <id>`, `sessions delete all` | Delete captured session data. |
-| **`c2`** | `c2` | Show C2 channel status. |
-| | `c2 enable <on|off>` | Enable/disable C2 channel. |
-| | `c2 transport <https|dns>` | Set C2 transport method. |
-| | `c2 server add <id> <url> <priority>` | Add a C2 coordination server. |
-| | `c2 key generate`, `c2 key export` | Manage encryption keys. |
+| | `sessions export <id>` | Export captured session data to a JSON file. |
 
 ### Domain Management
 

@@ -160,7 +160,6 @@ type Config struct {
 	domainRotationConfig   *infra.DomainRotationConfig
 	trafficShapingConfig   *signals.TrafficShapingConfig
 	sandboxDetectionConfig *signals.SandboxDetectionConfig
-	c2ChannelConfig        *C2Config
 	polymorphicConfig      *infra.PolymorphicConfig
 	cloudflareWorkerConfig *CloudflareConfig
 	lureGenerationConfig   *LureGenerationConfig
@@ -195,7 +194,6 @@ const (
 	CFG_DOMAIN_ROTATION   = "domain_rotation"
 	CFG_TRAFFIC_SHAPING   = "traffic_shaping"
 	CFG_SANDBOX_DETECTION = "sandbox_detection"
-	CFG_C2_CHANNEL        = "c2_channel"
 	CFG_POLYMORPHIC       = "polymorphic_engine"
 	CFG_CLOUDFLARE_WORKER = "cloudflare_worker"
 	CFG_LURE_GENERATION   = "lure_generation"
@@ -222,7 +220,6 @@ func NewConfig(cfg_dir string, path string) (*Config, error) {
 		domainRotationConfig:   &infra.DomainRotationConfig{Enabled: false, Strategy: "round-robin", RotationInterval: 60, MaxDomains: 10, AutoGenerate: false},
 		trafficShapingConfig:   &signals.TrafficShapingConfig{Enabled: false, Mode: "adaptive", GlobalRateLimit: 1000, GlobalBurstSize: 2000, PerIPRateLimit: 60, PerIPBurstSize: 120, CleanupInterval: 30},
 		sandboxDetectionConfig: &signals.SandboxDetectionConfig{Enabled: false, Mode: "passive", ServerSideChecks: true, ClientSideChecks: true, CacheResults: true, CacheDuration: 30, DetectionThreshold: 0.6, ActionOnDetection: "block"},
-		c2ChannelConfig:        &C2Config{Enabled: false, Transport: "https", Servers: make([]C2Server, 0), HeartbeatInterval: 300, RetryInterval: 30, MaxRetries: 3, CertPinning: false, Compression: true, ChunkSize: 4096},
 		polymorphicConfig:      &infra.PolymorphicConfig{Enabled: false, MutationLevel: "medium", CacheEnabled: true, CacheDuration: 30, SeedRotation: 60, TemplateMode: false, PreserveSemantics: true},
 		cloudflareWorkerConfig: &CloudflareConfig{},
 		lureGenerationConfig:   &LureGenerationConfig{Strategy: "realistic"},
@@ -304,8 +301,6 @@ func NewConfig(cfg_dir string, path string) (*Config, error) {
 	c.cfg.UnmarshalKey(CFG_TRAFFIC_SHAPING, &c.trafficShapingConfig)
 
 	c.cfg.UnmarshalKey(CFG_SANDBOX_DETECTION, &c.sandboxDetectionConfig)
-
-	c.cfg.UnmarshalKey(CFG_C2_CHANNEL, &c.c2ChannelConfig)
 
 	c.cfg.UnmarshalKey(CFG_POLYMORPHIC, &c.polymorphicConfig)
 
@@ -1606,81 +1601,6 @@ func (c *Config) SetSandboxDetectionRedirect(url string) {
 	c.sandboxDetectionConfig.RedirectURL = url
 	c.cfg.Set(CFG_SANDBOX_DETECTION, c.sandboxDetectionConfig)
 	log.Info("sandbox redirect URL set to: %s", url)
-	c.cfg.WriteConfig()
-}
-
-func (c *Config) GetC2ChannelConfig() *C2Config {
-	return c.c2ChannelConfig
-}
-
-func (c *Config) SetC2ChannelEnabled(enabled bool) {
-	c.c2ChannelConfig.Enabled = enabled
-	c.cfg.Set(CFG_C2_CHANNEL, c.c2ChannelConfig)
-	log.Info("C2 channel enabled: %v", enabled)
-	c.cfg.WriteConfig()
-}
-
-func (c *Config) SetC2ChannelTransport(transport string) {
-	c.c2ChannelConfig.Transport = transport
-	c.cfg.Set(CFG_C2_CHANNEL, c.c2ChannelConfig)
-	log.Info("C2 channel transport set to: %s", transport)
-	c.cfg.WriteConfig()
-}
-
-func (c *Config) AddC2Server(id string, url string, priority int) error {
-	// Check if server already exists
-	for i, server := range c.c2ChannelConfig.Servers {
-		if server.ID == id {
-			// Update existing server
-			c.c2ChannelConfig.Servers[i].URL = url
-			c.c2ChannelConfig.Servers[i].Priority = priority
-			c.cfg.Set(CFG_C2_CHANNEL, c.c2ChannelConfig)
-			log.Info("C2 server %s updated", id)
-			c.cfg.WriteConfig()
-			return nil
-		}
-	}
-
-	// Add new server
-	server := C2Server{
-		ID:       id,
-		URL:      url,
-		Priority: priority,
-		Active:   true,
-	}
-
-	c.c2ChannelConfig.Servers = append(c.c2ChannelConfig.Servers, server)
-	c.cfg.Set(CFG_C2_CHANNEL, c.c2ChannelConfig)
-	log.Info("C2 server %s added", id)
-	c.cfg.WriteConfig()
-	return nil
-}
-
-func (c *Config) RemoveC2Server(id string) error {
-	for i, server := range c.c2ChannelConfig.Servers {
-		if server.ID == id {
-			c.c2ChannelConfig.Servers = append(c.c2ChannelConfig.Servers[:i], c.c2ChannelConfig.Servers[i+1:]...)
-			c.cfg.Set(CFG_C2_CHANNEL, c.c2ChannelConfig)
-			log.Info("C2 server %s removed", id)
-			c.cfg.WriteConfig()
-			return nil
-		}
-	}
-
-	return fmt.Errorf("server not found: %s", id)
-}
-
-func (c *Config) SetC2ChannelKey(key string) {
-	c.c2ChannelConfig.EncryptionKey = key
-	c.cfg.Set(CFG_C2_CHANNEL, c.c2ChannelConfig)
-	log.Info("C2 channel encryption key updated")
-	c.cfg.WriteConfig()
-}
-
-func (c *Config) SetC2ChannelAuthToken(token string) {
-	c.c2ChannelConfig.AuthToken = token
-	c.cfg.Set(CFG_C2_CHANNEL, c.c2ChannelConfig)
-	log.Info("C2 channel auth token updated")
 	c.cfg.WriteConfig()
 }
 
