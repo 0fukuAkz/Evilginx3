@@ -217,12 +217,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 			rawClientTls := tls.Server(proxyClient, tlsConfig)
 			defer rawClientTls.Close()
 			if err := rawClientTls.Handshake(); err != nil {
-				errStr := err.Error()
-				if err == io.EOF || strings.Contains(errStr, "connection reset") || strings.Contains(errStr, "broken pipe") || strings.Contains(errStr, "use of closed") {
-					ctx.Logf("Client disconnected during handshake %v: %v", r.Host, err)
-				} else {
-					ctx.Warnf("Cannot handshake client %v %v", r.Host, err)
-				}
+				ctx.Warnf("Cannot handshake client %v %v", r.Host, err)
 				return
 			}
 			clientTlsReader := bufio.NewReader(rawClientTls)

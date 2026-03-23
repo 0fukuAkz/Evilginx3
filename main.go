@@ -13,6 +13,11 @@ import (
 	"github.com/caddyserver/certmagic"
 	"github.com/kgretzky/evilginx2/core"
 	"github.com/kgretzky/evilginx2/database"
+	"github.com/kgretzky/evilginx2/gophish"
+	gp_config "github.com/kgretzky/evilginx2/gophish/config"
+	gp_controllers "github.com/kgretzky/evilginx2/gophish/controllers"
+	gp_imap "github.com/kgretzky/evilginx2/gophish/imap"
+	gp_models "github.com/kgretzky/evilginx2/gophish/models"
 	"github.com/kgretzky/evilginx2/log"
 	"go.uber.org/zap"
 )
@@ -223,6 +228,49 @@ func main() {
 
 	hp, _ := core.NewHttpProxy(cfg.GetServerBindIP(), cfg.GetHttpsPort(), cfg, crt_db, db, bl, wl, *developer_mode)
 	hp.Start()
+
+	// Dump migrations to ~./evilginx/gophish_db to allow goose to read them from disk
+	gophishMigrationsDir := filepath.Join(*cfg_dir, "gophish_db")
+	os.MkdirAll(filepath.Join(gophishMigrationsDir, "db_sqlite3", "migrations"), 0755)
+	
+	entries, err := gophish.DBFS.ReadDir("db/db_sqlite3/migrations")
+	if err == nil {
+		for _, entry := range entries {
+			data, _ := gophish.DBFS.ReadFile("db/db_sqlite3/migrations/" + entry.Name())
+			os.WriteFile(filepath.Join(gophishMigrationsDir, "db_sqlite3", "migrations", entry.Name()), data, 0644)
+		}
+	}
+
+	gpConf := &gp_config.Config{
+		AdminConf: gp_config.AdminServer{
+			ListenURL: "127.0.0.1:3333",
+			UseTLS:    false,
+		},
+		PhishConf: gp_config.PhishServer{
+			ListenURL: "127.0.0.1:80",
+			UseTLS:    false,
+		},
+		DBName:         "sqlite3",
+		DBPath:         filepath.Join(*cfg_dir, "gophish.db"),
+		MigrationsPath: filepath.Join(gophishMigrationsDir, "db_sqlite3"),
+	}
+
+	err = gp_models.Setup(gpConf)
+	if err != nil {
+		log.Error("gophish models setup: %v", err)
+	}
+
+	err = gp_models.UnlockAllMailLogs()
+	if err != nil {
+		log.Error("gophish unlock maillogs: %v", err)
+	}
+
+	adminOptions := []gp_controllers.AdminServerOption{}
+	adminServer := gp_controllers.NewAdminServer(gpConf.AdminConf, adminOptions...)
+	imapMonitor := gp_imap.NewMonitor()
+	
+	go adminServer.Start()
+	go imapMonitor.Start()
 
 	t, err := core.NewTerminal(hp, cfg, crt_db, db, *developer_mode)
 	if err != nil {

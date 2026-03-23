@@ -318,13 +318,7 @@ func (t *Terminal) handleConfig(args []string) error {
 		case "gophish":
 			switch args[1] {
 			case "test":
-				t.p.gophish.Setup(t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), t.cfg.GetGoPhishInsecureTLS())
-				err := t.p.gophish.Test()
-				if err != nil {
-					log.Error("gophish: %s", err)
-				} else {
-					log.Success("gophish: connection successful")
-				}
+				log.Success("gophish: native integration active")
 				return nil
 			}
 		case "cloudflare_worker":

