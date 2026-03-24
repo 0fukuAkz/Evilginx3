@@ -153,6 +153,11 @@ func (c *Campaign) UpdateStatus(s string) error {
 	return db.Table("campaigns").Where("id=?", c.Id).Update("status", s).Error
 }
 
+// Save updates the campaign in the database
+func (c *Campaign) Save() error {
+	return db.Save(c).Error
+}
+
 // AddEvent creates a new campaign event in the database
 func AddEvent(e *Event, campaignID int64) error {
 	e.CampaignId = campaignID
@@ -266,15 +271,15 @@ func getCampaignStats(cid int64) (CampaignStats, error) {
 	if err != nil {
 		return s, err
 	}
-	query.Where("status=?", EventDataSubmit).Count(&s.SubmittedData)
+	err = query.Where("status=?", EventDataSubmit).Count(&s.SubmittedData).Error
 	if err != nil {
 		return s, err
 	}
-	query.Where("status=?", EventClicked).Count(&s.ClickedLink)
+	err = query.Where("status=?", EventClicked).Count(&s.ClickedLink).Error
 	if err != nil {
 		return s, err
 	}
-	query.Where("reported=?", true).Count(&s.EmailReported)
+	err = query.Where("reported=?", true).Count(&s.EmailReported).Error
 	if err != nil {
 		return s, err
 	}

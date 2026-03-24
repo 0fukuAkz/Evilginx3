@@ -331,12 +331,6 @@ func insertTargetIntoGroup(tx *gorm.DB, t Target, gid int64) error {
 		log.Error(err)
 		return err
 	}
-	if err != nil {
-		log.WithFields(logrus.Fields{
-			"email": t.Email,
-		}).Error("Error adding many-many mapping")
-		return err
-	}
 	return nil
 }
 

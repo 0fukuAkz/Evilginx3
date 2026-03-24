@@ -87,7 +87,7 @@ func (im *IMAP) Validate() error {
 	}
 
 	// Make sure 1 >= port <= 65535
-	if im.Port < 1 || im.Port > 65535 {
+	if im.Port < 1 {
 		return ErrInvalidIMAPPort
 	}
 

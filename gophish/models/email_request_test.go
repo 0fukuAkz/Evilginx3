@@ -214,6 +214,8 @@ func (s *ModelsSuite) TestEmailRequestGenerateEmptySubject(ch *check.C) {
 	got, err := email.NewEmailFromReader(msgBuff)
 	ch.Assert(err, check.Equals, nil)
 	ch.Assert(got.Subject, check.Equals, expected.Subject)
+	ch.Assert(string(got.Text), check.Equals, string(expected.Text))
+	ch.Assert(string(got.HTML), check.Equals, string(expected.HTML))
 }
 
 func (s *ModelsSuite) TestPostSendTestEmailRequest(ch *check.C) {

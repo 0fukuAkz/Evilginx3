@@ -11,12 +11,12 @@ type PermissionCheck map[string]bool
 func (s *ModelsSuite) TestHasPermission(c *check.C) {
 
 	permissionTests := map[string]PermissionCheck{
-		RoleAdmin: PermissionCheck{
+		RoleAdmin: {
 			PermissionModifySystem:  true,
 			PermissionModifyObjects: true,
 			PermissionViewObjects:   true,
 		},
-		RoleUser: PermissionCheck{
+		RoleUser: {
 			PermissionModifySystem:  false,
 			PermissionModifyObjects: true,
 			PermissionViewObjects:   true,
