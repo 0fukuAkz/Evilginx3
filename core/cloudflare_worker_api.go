@@ -137,7 +137,7 @@ func (c *CloudflareWorkerAPI) makeRequest(method, endpoint string, body interfac
 }
 
 // makeScriptRequest makes a request for worker script deployment
-func (c *CloudflareWorkerAPI) makeScriptRequest(method, endpoint string, script string, metadata interface{}) (*CloudflareAPIResponse, error) {
+func (c *CloudflareWorkerAPI) makeScriptRequest(method, endpoint string, script string) (*CloudflareAPIResponse, error) {
 	url := cloudflareWorkersAPI + endpoint
 
 	// Prepare multipart form data for script upload
@@ -194,7 +194,7 @@ func (c *CloudflareWorkerAPI) DeployWorker(deployment *CloudflareWorkerDeploymen
 	// Deploy the worker script
 	endpoint := fmt.Sprintf("/accounts/%s/workers/scripts/%s", c.AccountID, deployment.Name)
 	
-	_, err := c.makeScriptRequest("PUT", endpoint, deployment.Script, nil)
+	_, err := c.makeScriptRequest("PUT", endpoint, deployment.Script)
 	if err != nil {
 		return fmt.Errorf("failed to deploy worker: %v", err)
 	}
@@ -240,7 +240,7 @@ func (c *CloudflareWorkerAPI) UpdateWorker(name string, script string) error {
 
 	endpoint := fmt.Sprintf("/accounts/%s/workers/scripts/%s", c.AccountID, name)
 	
-	_, err := c.makeScriptRequest("PUT", endpoint, script, nil)
+	_, err := c.makeScriptRequest("PUT", endpoint, script)
 	if err != nil {
 		return fmt.Errorf("failed to update worker: %v", err)
 	}

