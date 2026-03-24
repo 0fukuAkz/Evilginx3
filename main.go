@@ -183,7 +183,7 @@ func main() {
 		if !f.IsDir() {
 			pr := regexp.MustCompile(`([a-zA-Z0-9\-\.]*)\.yaml`)
 			rpname := pr.FindStringSubmatch(f.Name())
-			if rpname == nil || len(rpname) < 2 {
+			if len(rpname) < 2 {
 				continue
 			}
 			pname := rpname[1]
