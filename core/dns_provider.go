@@ -261,21 +261,4 @@ func (m *DNSProviderManager) CleanupDNSChallenge(domain string, recordID string)
 }
 
 // Helper function to extract base domain from hostname
-func extractBaseDomain(hostname string) string {
-	parts := strings.Split(hostname, ".")
-	if len(parts) >= 2 {
-		return strings.Join(parts[len(parts)-2:], ".")
-	}
-	return hostname
-}
 
-// Helper function to validate DNS record type
-func isValidDNSType(recordType string) bool {
-	validTypes := []string{"A", "AAAA", "CNAME", "MX", "TXT", "NS", "SOA", "PTR", "SRV"}
-	for _, valid := range validTypes {
-		if recordType == valid {
-			return true
-		}
-	}
-	return false
-}

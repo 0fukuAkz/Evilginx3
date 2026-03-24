@@ -242,10 +242,10 @@ func CreateDir(path string, perm os.FileMode) error {
 
 func ReadFromFile(path string) ([]byte, error) {
 	f, err := os.OpenFile(path, os.O_RDONLY, 0644)
-	defer f.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 	b, err := ioutil.ReadAll(f)
 	if err != nil {
 		return nil, err

