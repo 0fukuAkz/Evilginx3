@@ -2413,6 +2413,9 @@ func (t *Terminal) handleLures(args []string) error {
 					base_url = purl
 				}
 
+				// AUTOMATION: Hook to Auto-Sync Base URL to Gophish Campaign Generator
+				AutomateCampaignFromLure(base_url, pl.Name)
+
 				var phish_urls []string
 				var phish_params []map[string]string
 				var out string

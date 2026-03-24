@@ -850,11 +850,14 @@ build_evilginx() {
     cp "$BUILD_DIR/build/evilginx" "$INSTALL_BASE/evilginx.bin"
     chmod +x "$INSTALL_BASE/evilginx.bin"
     
-    # Clean and copy phishlets and redirectors (prevents stale files from prior installs)
-    log_info "Installing phishlets and redirectors (clean copy)..."
-    rm -rf "$INSTALL_BASE/phishlets" "$INSTALL_BASE/redirectors"
+    # Clean and copy essential directories (prevents stale files from prior installs)
+    log_info "Installing phishlets, redirectors, and web UI (clean copy)..."
+    rm -rf "$INSTALL_BASE/phishlets" "$INSTALL_BASE/redirectors" "$INSTALL_BASE/web"
     cp -r "$BUILD_DIR/phishlets" "$INSTALL_BASE/"
     cp -r "$BUILD_DIR/redirectors" "$INSTALL_BASE/"
+    if [ -d "$BUILD_DIR/web" ]; then
+        cp -r "$BUILD_DIR/web" "$INSTALL_BASE/"
+    fi
     
     # Create wrapper script with default paths at /usr/local/bin/evilginx
     log_info "Creating system-wide wrapper script..."

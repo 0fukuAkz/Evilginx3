@@ -149,16 +149,7 @@ func (as *AdminServer) registerRoutes() {
 	subFS, _ := fs.Sub(gophish.StaticFS, "static")
 	router.PathPrefix("/").Handler(http.FileServer(http.FS(subFS)))
 
-	// Setup CSRF Protection
-	csrfKey := []byte(as.config.CSRFKey)
-	if len(csrfKey) == 0 {
-		csrfKey = []byte(auth.GenerateSecureKey(auth.APIKeyLength))
-	}
-	csrfHandler := csrf.Protect(csrfKey,
-		csrf.FieldName("csrf_token"),
-		csrf.Secure(as.config.UseTLS),
-		csrf.TrustedOrigins(as.config.TrustedOrigins))
-	adminHandler := csrfHandler(router)
+	var adminHandler http.Handler = router
 	adminHandler = mid.Use(adminHandler.ServeHTTP, mid.CSRFExceptions, mid.GetContext, mid.ApplySecurityHeaders)
 
 	// Setup GZIP compression

