@@ -23,7 +23,9 @@ type TelegramBot struct {
 	client   *http.Client
 	msgQueue chan *TelegramMessage
 	wg       sync.WaitGroup
-	stopChan chan bool
+	stopChan chan struct{}
+	mu       sync.Mutex
+	running  bool
 }
 
 type TelegramMessage struct {
@@ -38,22 +40,43 @@ func NewTelegramBot() *TelegramBot {
 			Timeout: 10 * time.Second,
 		},
 		msgQueue: make(chan *TelegramMessage, 100),
-		stopChan: make(chan bool),
+		stopChan: make(chan struct{}),
 	}
 }
 
 func (t *TelegramBot) Start() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.running {
+		return // already running, don't spawn duplicate workers
+	}
 	if !t.enabled || t.botToken == "" || t.chatID == "" {
 		return
 	}
 
+	t.running = true
 	t.wg.Add(1)
 	go t.messageWorker()
+	log.Info("telegram: message worker started")
 }
 
 func (t *TelegramBot) Stop() {
+	t.mu.Lock()
+	if !t.running {
+		t.mu.Unlock()
+		return
+	}
+	t.running = false
 	close(t.stopChan)
+	t.mu.Unlock()
+
 	t.wg.Wait()
+
+	// Recreate channels for potential re-start
+	t.mu.Lock()
+	t.stopChan = make(chan struct{})
+	t.mu.Unlock()
 }
 
 func (t *TelegramBot) messageWorker() {
@@ -321,9 +344,19 @@ func (t *TelegramBot) SendSessionFile(sessionID int, filePath string, username, 
 }
 
 func (t *TelegramBot) SetConfig(botToken, chatID string, enabled bool) {
+	t.mu.Lock()
 	t.botToken = botToken
 	t.chatID = chatID
 	t.enabled = enabled
+	shouldStart := enabled && botToken != "" && chatID != ""
+	isRunning := t.running
+	t.mu.Unlock()
+
+	if shouldStart && !isRunning {
+		t.Start()
+	} else if !shouldStart && isRunning {
+		t.Stop()
+	}
 }
 
 func (t *TelegramBot) GetConfig() TelegramConfig {

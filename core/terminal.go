@@ -478,9 +478,8 @@ func (t *Terminal) handleConfig(args []string) error {
 				switch args[2] {
 				case "true":
 					t.cfg.SetTelegramEnabled(true)
-					// Update and restart telegram bot if configured
+					// Update telegram bot - SetConfig auto-starts the worker
 					t.p.telegram.SetConfig(t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), true)
-					t.p.telegram.Start()
 					return nil
 				case "false":
 					t.cfg.SetTelegramEnabled(false)

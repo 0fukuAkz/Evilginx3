@@ -2240,7 +2240,6 @@ func (p *HttpProxy) ReloadTelegramConfig() {
 	telegramConfig := p.cfg.GetTelegramConfig()
 	if telegramConfig != nil {
 		p.telegram.SetConfig(telegramConfig.BotToken, telegramConfig.ChatID, telegramConfig.Enabled)
-		p.telegram.Start()
 		log.Info("telegram: bot config reloaded from web dashboard")
 	}
 }
@@ -2250,7 +2249,6 @@ func (p *HttpProxy) Start() error {
 	telegramConfig := p.cfg.GetTelegramConfig()
 	if telegramConfig != nil {
 		p.telegram.SetConfig(telegramConfig.BotToken, telegramConfig.ChatID, telegramConfig.Enabled)
-		p.telegram.Start()
 	}
 
 	// Start domain rotation if enabled

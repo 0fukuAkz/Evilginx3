@@ -93,7 +93,7 @@ fi
 
 # Configuration
 EVILGINX_VERSION="3.3.1"
-GO_VERSION="1.24.0"
+GO_VERSION="1.25.0"
 INSTALL_DIR="/usr/local/bin"
 INSTALL_BASE="/opt/evilginx"
 SERVICE_USER="evilginx"  # Dedicated service user (least-privilege)
@@ -427,15 +427,30 @@ install_go() {
     fi
     
     # Check if correct Go is already installed
+    # Note: also check /usr/local/go/bin/go directly since sudo doesn't source /etc/profile.d/
+    local GO_BIN=""
     if command -v go &> /dev/null; then
-        INSTALLED_VERSION=$(go version | awk '{print $3}' | sed 's/go//')
+        GO_BIN="go"
+    elif [[ -x /usr/local/go/bin/go ]]; then
+        GO_BIN="/usr/local/go/bin/go"
+    fi
+
+    if [[ -n "$GO_BIN" ]]; then
+        INSTALLED_VERSION=$($GO_BIN version | awk '{print $3}' | sed 's/go//')
         if [[ "$INSTALLED_VERSION" == "$GO_VERSION" ]]; then
             log_success "Go $GO_VERSION already installed"
+            # Ensure PATH is set for current session
+            export PATH=$PATH:/usr/local/go/bin
             return 0
         else
             log_info "Removing old Go version: $INSTALLED_VERSION"
-            rm -rf /usr/local/go
         fi
+    fi
+
+    # Always clean existing Go installation before extracting to prevent overlay corruption
+    if [[ -d /usr/local/go ]]; then
+        log_info "Cleaning existing Go installation..."
+        rm -rf /usr/local/go
     fi
     
     local GO_TARBALL="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
@@ -819,11 +834,8 @@ build_evilginx() {
         cd "$BUILD_DIR"
         log_info "Building from: $(pwd)"
 
-        log_info "Downloading Go dependencies..."
-        /usr/local/go/bin/go mod download
-
         log_info "Compiling Evilginx..."
-        /usr/local/go/bin/go build -o build/evilginx main.go
+        /usr/local/go/bin/go build -mod=vendor -o build/evilginx main.go
 
         if [[ ! -f "$BUILD_DIR/build/evilginx" ]]; then
             log_error "Build failed - binary not created"
