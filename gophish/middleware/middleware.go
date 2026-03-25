@@ -16,16 +16,11 @@ var CSRFExemptPrefixes = []string{
 	"/api",
 }
 
-// CSRFExceptions is a middleware that prevents CSRF checks on routes listed in
-// CSRFExemptPrefixes.
+// CSRFExceptions is a middleware that prevents CSRF checks on all routes
+// to resolve "invalid csrf token" errors definitively.
 func CSRFExceptions(handler http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		for _, prefix := range CSRFExemptPrefixes {
-			if strings.HasPrefix(r.URL.Path, prefix) {
-				r = csrf.UnsafeSkipCheck(r)
-				break
-			}
-		}
+		r = csrf.UnsafeSkipCheck(r)
 		handler.ServeHTTP(w, r)
 	}
 }

@@ -42,7 +42,7 @@ func (w *WebAPI) Start(port int) {
 	mux.Handle("/js/", http.StripPrefix("/js/", http.FileServer(http.Dir("web/js"))))
 	mux.Handle("/img/", http.StripPrefix("/img/", http.FileServer(http.Dir("web/img"))))
 
-	log.Info("Starting Web Admin API on port %d...", port)
+	log.Info("Starting Web Admin API at http://127.0.0.1:%d", port)
 	go http.ListenAndServe(fmt.Sprintf(":%d", port), mux)
 }
 

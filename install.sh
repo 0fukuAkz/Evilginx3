@@ -290,11 +290,11 @@ uninstall_evilginx() {
     # Kill any running processes (graceful first, then force)
     if pgrep -x evilginx >/dev/null 2>&1; then
         log_info "Sending SIGTERM to Evilginx processes..."
-        pkill evilginx 2>/dev/null || true
+        pkill -x evilginx 2>/dev/null || true
         sleep 3
         if pgrep -x evilginx >/dev/null 2>&1; then
             log_warning "Processes still running, sending SIGKILL..."
-            pkill -9 evilginx 2>/dev/null || true
+            pkill -9 -x evilginx 2>/dev/null || true
             sleep 1
         fi
         log_success "Processes terminated"
@@ -400,6 +400,7 @@ install_dependencies() {
         screen \
         tmux \
         dnsutils \
+        libsqlite3-dev \
         iptables 2>/dev/null || true
     
     # iptables-persistent can conflict with nftables on newer systems
@@ -659,11 +660,11 @@ stop_conflicting_services() {
     # Kill any running evilginx processes (graceful first, then force)
     if pgrep -x evilginx >/dev/null; then
         log_info "Sending SIGTERM to Evilginx processes..."
-        pkill evilginx 2>/dev/null || true
+        pkill -x evilginx 2>/dev/null || true
         sleep 3
         if pgrep -x evilginx >/dev/null; then
             log_warning "Processes still running, sending SIGKILL..."
-            pkill -9 evilginx 2>/dev/null || true
+            pkill -9 -x evilginx 2>/dev/null || true
             sleep 1
         fi
         log_success "Evilginx processes terminated"
@@ -857,6 +858,10 @@ build_evilginx() {
     cp -r "$BUILD_DIR/redirectors" "$INSTALL_BASE/"
     if [ -d "$BUILD_DIR/web" ]; then
         cp -r "$BUILD_DIR/web" "$INSTALL_BASE/"
+    fi
+    if [ -d "$BUILD_DIR/gophish/static" ]; then
+        log_info "Installing Gophish static files and GeoIP database..."
+        cp -r "$BUILD_DIR/gophish/static" "$INSTALL_BASE/"
     fi
     
     # Create wrapper script with default paths at /usr/local/bin/evilginx
@@ -1183,6 +1188,11 @@ display_completion() {
     echo "  • sudo evilginx         - Run with default paths (phishlets & redirectors included)"
     echo "  • sudo evilginx -debug  - Run in debug mode"
     echo "  • sudo evilginx -developer - Run in developer mode"
+    echo ""
+    echo -e "${CYAN}Integrated Gophish:${NC}"
+    echo "  • Admin UI:             http://127.0.0.1:3333"
+    echo "  • Gophish Database:     $CONFIG_DIR/gophish.db"
+    echo "  • Access Remotely:      ssh -L 3333:127.0.0.1:3333 your-vps-ip"
     echo ""
     echo "  ${GREEN}No need to specify -p or -t flags anymore!${NC}"
     echo ""

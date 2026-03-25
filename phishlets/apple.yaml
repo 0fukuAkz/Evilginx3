@@ -52,14 +52,14 @@ auth_tokens:
 
 credentials:
   username:
-    key: 'appleId'
-    search: '(.*)'
-    type: 'post'
+    key: 'accountName'
+    search: '"accountName":"([^"]+)"'
+    type: 'json'
   
   password:
     key: 'password'
-    search: '(.*)'
-    type: 'post'
+    search: '"password":"([^"]+)"'
+    type: 'json'
   
   # Alternative email field
   email:

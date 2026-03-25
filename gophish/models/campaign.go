@@ -153,8 +153,8 @@ func (c *Campaign) UpdateStatus(s string) error {
 	return db.Table("campaigns").Where("id=?", c.Id).Update("status", s).Error
 }
 
-// Save updates the campaign in the database
-func (c *Campaign) Save() error {
+// UpdateCampaign updates a campaign in the database
+func UpdateCampaign(c *Campaign) error {
 	return db.Save(c).Error
 }
 

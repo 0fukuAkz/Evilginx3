@@ -31,27 +31,19 @@ func AutomateCampaignFromLure(baseUrl string, phishletName string) {
 
 			// Update the URL if it's different
 			if c.URL != baseUrl {
+				log.Info("automation: updating gophish campaign '%s' with new base URL: %s", c.Name, baseUrl)
 				c.URL = baseUrl
-				// We need to use gp_models.db directly or a save method.
-				// Looking at campaign.go, PostCampaign is for new ones.
-				// We'll use a direct DB save if possible, or simulate it.
-				// Since we are in the same package/project, we can access gp_models logic.
-				
-				// In Gophish models, 'db' is package-private but accessible if we were in 'models'.
-				// Since we are in 'core', we can't access 'db'.
-				// However, Gophish models usually have a way to update.
-				
-				// Let's check if there's an UpdateCampaign or similar.
-                // Looking at campaign.go, there is no public Update method except UpdateStatus.
-                
-                // WAIT: I can add a helper in gophish/models if needed, 
-                // but let's see if I can use existing ones.
+				err = gp_models.UpdateCampaign(&c)
+				if err != nil {
+					log.Error("automation: failed to update campaign %d: %v", c_sum.Id, err)
+				}
 			}
 			found = true
 		}
 	}
 
 	if !found {
-		log.Debug("automation: no matching gophish campaign found for phishlet '%s'", phishletName)
+		log.Debug("automation: no matching gophish campaign found for phishlet '%s' - creating scaffolding...", phishletName)
+		CreateScaffoldingFromLure(baseUrl, phishletName)
 	}
 }

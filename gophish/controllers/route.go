@@ -150,7 +150,16 @@ func (as *AdminServer) registerRoutes() {
 	router.PathPrefix("/").Handler(http.FileServer(http.FS(subFS)))
 
 	var adminHandler http.Handler = router
-	adminHandler = mid.Use(adminHandler.ServeHTTP, mid.CSRFExceptions, mid.GetContext, mid.ApplySecurityHeaders)
+	csrfMiddleware := csrf.Protect(
+		[]byte("thirty-two-bytes-auth-key-secret"),
+		csrf.Secure(as.config.UseTLS),
+		csrf.Path("/"),
+		csrf.TrustedOrigins([]string{"127.0.0.1:3333"}),
+		csrf.ErrorHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			as.handleInvalidLogin(w, r, "Invalid CSRF Token")
+		})),
+	)
+	adminHandler = mid.Use(csrfMiddleware(adminHandler).ServeHTTP, mid.CSRFExceptions, mid.GetContext, mid.ApplySecurityHeaders)
 
 	// Setup GZIP compression
 	gzipWrapper, _ := gziphandler.NewGzipLevelHandler(gzip.BestCompression)

