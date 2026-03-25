@@ -68,9 +68,10 @@ type CertificatesConfig struct {
 }
 
 type GoPhishConfig struct {
-	AdminUrl    string `mapstructure:"admin_url" json:"admin_url" yaml:"admin_url"`
-	ApiKey      string `mapstructure:"api_key" json:"api_key" yaml:"api_key"`
-	InsecureTLS bool   `mapstructure:"insecure" json:"insecure" yaml:"insecure"`
+	AdminUrl               string `mapstructure:"admin_url" json:"admin_url" yaml:"admin_url"`
+	ApiKey                 string `mapstructure:"api_key" json:"api_key" yaml:"api_key"`
+	InsecureTLS            bool   `mapstructure:"insecure" json:"insecure" yaml:"insecure"`
+	IntegratedAdminUrl     string `mapstructure:"integrated_admin_url" json:"integrated_admin_url" yaml:"integrated_admin_url"`
 }
 
 type TelegramConfig struct {
@@ -141,6 +142,7 @@ type GeneralConfig struct {
 	Autocert         bool         `mapstructure:"autocert" json:"autocert" yaml:"autocert"`
 	TrustedProxies   []string     `mapstructure:"trusted_proxies" json:"trusted_proxies" yaml:"trusted_proxies"`
 	ServerCookieName string       `mapstructure:"server_cookie_name" json:"server_cookie_name" yaml:"server_cookie_name"`
+	WebAdminPort     int          `mapstructure:"web_admin_port" json:"web_admin_port" yaml:"web_admin_port"`
 }
 
 type Config struct {
@@ -1277,6 +1279,14 @@ func (c *Config) GetRedirectorsDir() string {
 	return c.redirectorsDir
 }
 
+func (c *Config) GetWebAdminPort() int {
+	return c.general.WebAdminPort
+}
+
+func (c *Config) SetWebAdminPort(port int) {
+	c.general.WebAdminPort = port
+}
+
 func (c *Config) GetBlacklistMode() string {
 	return c.blacklistConfig.Mode
 }
@@ -1310,6 +1320,14 @@ func (c *Config) GetGoPhishApiKey() string {
 
 func (c *Config) GetGoPhishInsecureTLS() bool {
 	return c.gophishConfig.InsecureTLS
+}
+
+func (c *Config) GetGoPhishIntegratedAdminUrl() string {
+	return c.gophishConfig.IntegratedAdminUrl
+}
+
+func (c *Config) SetGoPhishIntegratedAdminUrl(url string) {
+	c.gophishConfig.IntegratedAdminUrl = url
 }
 
 func (c *Config) GetTelegramBotToken() string {

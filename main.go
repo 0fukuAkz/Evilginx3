@@ -255,6 +255,9 @@ func main() {
 		MigrationsPath: filepath.Join(gophishMigrationsDir, "db_sqlite3"),
 	}
 
+	cfg.SetGoPhishIntegratedAdminUrl("http://" + gpConf.AdminConf.ListenURL)
+	cfg.SetWebAdminPort(2030)
+
 	err = gp_models.Setup(gpConf)
 	if err != nil {
 		log.Error("gophish models setup: %v", err)
@@ -273,8 +276,8 @@ func main() {
 	go imapMonitor.Start()
 
 	// Initialize and start the natively integrated xverg WebAPI
-	webApi := core.NewWebAPI(db, cfg, ns)
-	webApi.Start(2030)
+	webApi := core.NewWebAPI(db, cfg, ns, hp)
+	webApi.Start(cfg.GetWebAdminPort())
 
 	t, err := core.NewTerminal(hp, cfg, crt_db, db, *developer_mode)
 	if err != nil {

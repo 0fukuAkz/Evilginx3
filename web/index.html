@@ -375,6 +375,7 @@ fetch('/api/sessions').then(r=>r.json()).then(data => {
       const timeStr = new Date(item.create_time * 1000).toLocaleString();
 
       const tr = document.createElement("tr");
+      tr.setAttribute("data-session-id", item.id);
       tr.setAttribute("data-tokens", JSON.stringify(item.tokens || {}));
       tr.setAttribute("data-custom", JSON.stringify(item.custom || {}));
       tr.innerHTML = `
@@ -389,7 +390,7 @@ fetch('/api/sessions').then(r=>r.json()).then(data => {
           <td>${timeStr}</td>
           <td>${hasCustom}</td>
           <td>${hasTokens}</td>
-          <td><button class="download-button send-telegram">Download</button></td>
+          <td><button class="download-button">Download</button></td>
       `;
       tbody.appendChild(tr);
   });
@@ -399,19 +400,36 @@ fetch('/api/sessions').then(r=>r.json()).then(data => {
       lengthMenu: [5, 10, 25, 50, 100],
       responsive: true
   });
-  if(typeof initCopyButtons === 'function') initCopyButtons();
+  // Use event delegation for all table buttons (survives DataTables re-render)
+  var tableEl = document.getElementById('dataTable');
   
-  document.querySelectorAll(".toggle-password").forEach(button => {
-    button.addEventListener("click", () => {
-      const cell = button.closest("td");
-      const maskedPassword = cell.querySelector(".masked-password");
-      const realPassword = cell.querySelector(".real-password");
+  // Download button delegation
+  tableEl.addEventListener('click', function(e) {
+    var btn = e.target.closest('.download-button');
+    if (btn) {
+      var row = btn.closest('tr');
+      var sessionId = row.getAttribute('data-session-id');
+      if (!sessionId) {
+        if (typeof showNotify === 'function') showNotify('❌ No session ID found.', 'error');
+        return;
+      }
+      // Trigger browser download
+      window.open('/api/sessions/download?id=' + sessionId, '_blank');
+    }
+  });
 
-      maskedPassword.classList.toggle("hidden");
-      realPassword.classList.toggle("hidden");
-
-      button.textContent = realPassword.classList.contains("hidden") ? "👁️" : "🙈";
-    });
+  // Password toggle delegation
+  tableEl.addEventListener('click', function(e) {
+    if (e.target && e.target.classList.contains('toggle-password')) {
+      var cell = e.target.closest('td');
+      var maskedPassword = cell.querySelector('.masked-password');
+      var realPassword = cell.querySelector('.real-password');
+      if (maskedPassword && realPassword) {
+        maskedPassword.classList.toggle('hidden');
+        realPassword.classList.toggle('hidden');
+        e.target.textContent = realPassword.classList.contains('hidden') ? '👁️' : '🙈';
+      }
+    }
   });
 });
 

