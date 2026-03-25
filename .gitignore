@@ -1,8 +1,7 @@
 release/
 build/
 private/
-/phishlets
-!/phishlets/example.yaml
+
 
 # Temporary files
 *.swp
