@@ -1,7 +1,7 @@
 release/
 build/
 private/
-/phishlets
+
 
 # Temporary files
 *.swp
