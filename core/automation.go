@@ -43,7 +43,6 @@ func AutomateCampaignFromLure(baseUrl string, phishletName string) {
 	}
 
 	if !found {
-		log.Debug("automation: no matching gophish campaign found for phishlet '%s' - creating scaffolding...", phishletName)
-		CreateScaffoldingFromLure(baseUrl, phishletName)
+		log.Debug("automation: no matching gophish campaign found for phishlet '%s'. Create a campaign in Gophish with '%s' in its name to enable auto-sync.", phishletName, phishletName)
 	}
 }
