@@ -216,6 +216,9 @@ func (dm *DomainManager) load() {
 // MigrateFromLegacy converts old GeneralConfig domain fields into managed domains.
 // Called once during startup from Config.NewConfig.
 func (dm *DomainManager) MigrateFromLegacy(legacyDomain string, legacyDomains []LegacyDomainInfo) {
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+
 	if len(dm.domains) > 0 {
 		return // already migrated
 	}
@@ -242,7 +245,7 @@ func (dm *DomainManager) MigrateFromLegacy(legacyDomain string, legacyDomains []
 
 	if migrated {
 		dm.rebuildActiveLocked()
-		dm.save()
+		dm.saveLocked()
 		log.Info("Migrated legacy domain configuration to unified DomainManager")
 	}
 }
@@ -255,7 +258,8 @@ type LegacyDomainInfo struct {
 	Description string
 }
 
-func (dm *DomainManager) save() {
+// saveLocked persists the current state. Caller MUST hold dm.mu.Lock().
+func (dm *DomainManager) saveLocked() {
 	dmc := DomainManagerConfig{
 		Domains:          make([]ManagedDomain, 0, len(dm.domains)),
 		RotationEnabled:  dm.rotationEnabled,
@@ -373,7 +377,7 @@ func (dm *DomainManager) AddDomain(domain, subdomain, dnsProvider, description s
 	md := dm.addDomainLocked(domain, subdomain, dnsProvider, description, primary)
 	_ = md
 	dm.rebuildActiveLocked()
-	dm.save()
+	dm.saveLocked()
 	dm.notifyChanged()
 	log.Success("Domain %s added", fullDomain)
 	return nil
@@ -422,7 +426,7 @@ func (dm *DomainManager) RemoveDomain(fullDomain string) error {
 
 	delete(dm.domains, fullDomain)
 	dm.rebuildActiveLocked()
-	dm.save()
+	dm.saveLocked()
 	dm.notifyChanged()
 	log.Info("Domain %s removed", fullDomain)
 	return nil
@@ -441,7 +445,7 @@ func (dm *DomainManager) SetPrimary(fullDomain string) error {
 		dd.IsPrimary = false
 	}
 	d.IsPrimary = true
-	dm.save()
+	dm.saveLocked()
 	log.Info("Primary domain set to: %s", fullDomain)
 	return nil
 }
@@ -457,7 +461,7 @@ func (dm *DomainManager) SetStatus(fullDomain string, status DomainStatus) error
 	}
 	d.Status = status
 	dm.rebuildActiveLocked()
-	dm.save()
+	dm.saveLocked()
 	dm.notifyChanged()
 	return nil
 }
@@ -474,12 +478,15 @@ func (dm *DomainManager) MarkCompromised(fullDomain string, reason string) error
 
 	d.Status = DomainCompromised
 	d.Health = 0
+	if d.Metadata == nil {
+		d.Metadata = make(map[string]string)
+	}
 	d.Metadata["compromised_reason"] = reason
 	d.Metadata["compromised_at"] = time.Now().Format(time.RFC3339)
 
 	dm.stats.CompromisedCount++
 	dm.rebuildActiveLocked()
-	dm.save()
+	dm.saveLocked()
 	dm.notifyChanged()
 
 	log.Warning("Domain %s marked as compromised: %s", fullDomain, reason)
@@ -500,7 +507,7 @@ func (dm *DomainManager) SetWeight(fullDomain string, weight int) error {
 		return fmt.Errorf("domain %s not found", fullDomain)
 	}
 	d.Weight = weight
-	dm.save()
+	dm.saveLocked()
 	return nil
 }
 
@@ -510,7 +517,7 @@ func (dm *DomainManager) SetRotationEnabled(enabled bool) {
 	dm.mu.Lock()
 	defer dm.mu.Unlock()
 	dm.rotationEnabled = enabled
-	dm.save()
+	dm.saveLocked()
 	log.Info("domain rotation enabled: %v", enabled)
 }
 
@@ -518,7 +525,7 @@ func (dm *DomainManager) SetStrategy(strategy string) {
 	dm.mu.Lock()
 	defer dm.mu.Unlock()
 	dm.strategy = strategy
-	dm.save()
+	dm.saveLocked()
 	log.Info("domain rotation strategy set to: %s", strategy)
 }
 
@@ -526,7 +533,7 @@ func (dm *DomainManager) SetRotationInterval(minutes int) {
 	dm.mu.Lock()
 	defer dm.mu.Unlock()
 	dm.rotationInterval = time.Duration(minutes) * time.Minute
-	dm.save()
+	dm.saveLocked()
 	log.Info("domain rotation interval set to: %d minutes", minutes)
 }
 
@@ -534,7 +541,7 @@ func (dm *DomainManager) SetMaxDomains(max int) {
 	dm.mu.Lock()
 	defer dm.mu.Unlock()
 	dm.maxDomains = max
-	dm.save()
+	dm.saveLocked()
 	log.Info("max domains set to: %d", max)
 }
 
@@ -542,7 +549,7 @@ func (dm *DomainManager) SetAutoGenerate(enabled bool) {
 	dm.mu.Lock()
 	defer dm.mu.Unlock()
 	dm.autoGenerate = enabled
-	dm.save()
+	dm.saveLocked()
 	log.Info("domain auto-generation: %v", enabled)
 }
 
@@ -556,7 +563,7 @@ func (dm *DomainManager) AddDNSProvider(name, provider, apiKey, apiSecret, zone 
 		Zone:      zone,
 		Options:   options,
 	}
-	dm.save()
+	dm.saveLocked()
 	log.Info("DNS provider %s configured", name)
 }
 
@@ -795,8 +802,7 @@ func (dm *DomainManager) performHealthChecks() {
 			toCheck = append(toCheck, &cpy)
 		}
 	}
-	dm.mu.RUnlock()
-
+	// Snapshot health config under the same RLock
 	endpoint := "/"
 	timeout := 10
 	maxFailures := 3
@@ -811,6 +817,7 @@ func (dm *DomainManager) performHealthChecks() {
 			maxFailures = dm.healthConfig.MaxFailures
 		}
 	}
+	dm.mu.RUnlock()
 
 	for _, checked := range toCheck {
 		health, err := dm.healthChecker.CheckDomain(checked.FullDomain, endpoint, timeout)
@@ -847,7 +854,8 @@ func (dm *DomainManager) autoGenerationWorker() {
 			activeCount := len(dm.activeDomains)
 			maxDomains := dm.maxDomains
 			dm.mu.RUnlock()
-			if activeCount < maxDomains/2 {
+			// Only generate if we have a meaningful max and are below half capacity
+			if maxDomains > 1 && activeCount < maxDomains/2 {
 				dm.generateReplacement()
 			}
 		case <-dm.stopChan:
@@ -895,7 +903,9 @@ func (dm *DomainManager) GenerateDomain() (string, string, error) {
 		}
 		if rules.RandomLength > 0 {
 			randomBytes := make([]byte, rules.RandomLength/2+1)
-			rand.Read(randomBytes)
+			if _, err := rand.Read(randomBytes); err != nil {
+				return "", "", fmt.Errorf("crypto/rand failed: %v", err)
+			}
 			subdomain += hex.EncodeToString(randomBytes)[:rules.RandomLength]
 		}
 		if len(rules.SubdomainSuffix) > 0 {

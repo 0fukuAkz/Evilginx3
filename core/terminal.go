@@ -260,10 +260,7 @@ func (t *Terminal) handleConfig(args []string) error {
 			log.Info("\nConfigured Domains:")
 			log.Info("─────────────────────────────────────────────────────────────")
 			for i, d := range domains {
-				status := "disabled"
-				if d.Status == DomainActive {
-					status = "enabled"
-				}
+				status := string(d.Status)
 				primary := ""
 				if d.IsPrimary {
 					primary = " [PRIMARY]"
@@ -703,10 +700,7 @@ func (t *Terminal) handleDomains(args []string) error {
 			log.Info("Domain Pool:")
 			log.Info("─────────────────────────────────────────────────────────────")
 			for i, d := range domains {
-				status := "disabled"
-				if d.Status == DomainActive {
-					status = "enabled"
-				}
+				status := string(d.Status)
 				primary := ""
 				if d.IsPrimary {
 					primary = " [PRIMARY]"
@@ -748,10 +742,7 @@ func (t *Terminal) handleDomains(args []string) error {
 		log.Info("\nConfigured Domains:")
 		log.Info("─────────────────────────────────────────────────────────────")
 		for i, d := range domains {
-			status := "disabled"
-			if d.Status == DomainActive {
-				status = "enabled"
-			}
+			status := string(d.Status)
 			primary := ""
 			if d.IsPrimary {
 				primary = " [PRIMARY]"
