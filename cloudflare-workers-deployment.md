@@ -12,7 +12,8 @@ The Cloudflare Workers module provides **worker script generation, API-based dep
 | [cloudflare_worker_api.go](file:///c:/Users/user/Desktop/Projects/git/Evilginx3/core/cloudflare_worker_api.go) | Cloudflare API client — deploy/update/delete/list/routes/status |
 | [cloudflare.go](file:///c:/Users/user/Desktop/Projects/git/Evilginx3/core/dns_providers/cloudflare.go) | DNS record management via Cloudflare API (A/CNAME/TXT records) |
 | [config.go](file:///c:/Users/user/Desktop/Projects/git/Evilginx3/core/config.go) | `CloudflareConfig` struct — persistent credential/state storage |
-| [terminal.go](file:///c:/Users/user/Desktop/Projects/git/Evilginx3/core/terminal.go) | CLI handler — `cloudflare` command (lines 3024–3537) |
+| [domain_manager.go](file:///c:/Users/user/Desktop/Projects/git/Evilginx3/core/domain_manager.go) | Unified `DomainManager` — multi-domain pool, rotation, health checks |
+| [terminal.go](file:///c:/Users/user/Desktop/Projects/git/Evilginx3/core/terminal.go) | CLI handler — `cloudflare` command (lines 2713–3243) |
 
 ---
 
@@ -227,6 +228,56 @@ These require a **Cloudflare Turnstile Site Key** (configured in the HTML). Depl
 
 ---
 
+## Domain Management Integration
+
+Workers redirect traffic to domains managed by the unified `DomainManager`. All domain operations are now handled through the `domains` command:
+
+### Managing Domains for Worker Targets
+
+```
+# Add domains to the pool
+domains add phish.example.com "Primary phishing domain"
+domains add backup.example.com "Backup domain"
+
+# Set primary (used as default worker redirect target)
+domains primary phish.example.com
+
+# View all domains with health/status
+domains health
+
+# Mark a burned domain as compromised (auto-generates replacement if enabled)
+domains compromise phish.example.com "flagged by Google Safe Browsing"
+```
+
+### Domain Rotation for Workers
+
+When domain rotation is enabled, the `DomainManager` cycles through active domains using the configured strategy. Workers should point to the current active domain:
+
+```
+# Enable rotation
+domains rotation on
+domains rotation strategy health-based
+domains rotation interval 30
+
+# Add DNS providers for auto-generation
+domains rotation add-provider cf cloudflare <api_key> <api_secret> <zone>
+
+# Enable automatic replacement of compromised domains
+domains rotation auto-generate on
+```
+
+**Rotation Strategies**: `round-robin`, `weighted`, `health-based`, `random`
+
+### Domain Status Values
+
+| Status | Meaning |
+|--------|---------|
+| `active` | Domain is healthy and serving traffic |
+| `inactive` | Domain is disabled (manual or health check failure) |
+| `compromised` | Domain is burned — removed from rotation, triggers auto-generation |
+
+---
+
 ## DNS Provider Integration
 
 The `dns_providers/cloudflare.go` module manages DNS records through the Cloudflare API:
@@ -235,6 +286,7 @@ The `dns_providers/cloudflare.go` module manages DNS records through the Cloudfl
 - **Zone lookup by domain** with caching
 - Authentication via API Token or API Key + Email
 - Used by the certificate system for automated DNS-01 challenges
+- DNS providers can be registered with `DomainManager` for automatic domain generation and rotation via `domains rotation add-provider`
 
 ---
 
