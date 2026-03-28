@@ -240,40 +240,41 @@ func (o *CertDb) initDNSProvider() error {
 
 // isWildcardDomain checks if the domain should use a wildcard certificate
 func (o *CertDb) isWildcardDomain(domain string) bool {
-	// Check if wildcard is enabled in config
 	if !o.cfg.IsWildcardEnabled() {
 		return false
 	}
-	
-	// Don't use wildcard for the base domain itself
-	baseDomain := o.cfg.GetBaseDomain()
-	if domain == baseDomain || domain == "*."+baseDomain {
+
+	// Check against all active managed domains
+	dm := o.cfg.GetDomainManager()
+	if dm == nil {
 		return false
 	}
-	
-	// Check if this is a subdomain of our base domain
-	if strings.HasSuffix(domain, "."+baseDomain) {
-		// Use wildcard for subdomains
-		return true
+	for _, baseDomain := range dm.GetActiveDomains() {
+		if domain == baseDomain || domain == "*."+baseDomain {
+			return false
+		}
+		if strings.HasSuffix(domain, "."+baseDomain) {
+			return true
+		}
 	}
-	
 	return false
 }
 
 // getWildcardDomain returns the wildcard domain for the given domain
 func (o *CertDb) getWildcardDomain(domain string) string {
-	baseDomain := o.cfg.GetBaseDomain()
-	
-	// If it's already a wildcard domain, return as-is
 	if strings.HasPrefix(domain, "*.") {
 		return domain
 	}
-	
-	// If it's a subdomain, return wildcard for base domain
-	if strings.HasSuffix(domain, "."+baseDomain) && domain != baseDomain {
-		return "*." + baseDomain
+
+	dm := o.cfg.GetDomainManager()
+	if dm == nil {
+		return domain
 	}
-	
+	for _, baseDomain := range dm.GetActiveDomains() {
+		if strings.HasSuffix(domain, "."+baseDomain) && domain != baseDomain {
+			return "*." + baseDomain
+		}
+	}
 	return domain
 }
 

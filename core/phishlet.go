@@ -2,7 +2,6 @@ package core
 
 import (
 	"fmt"
-	"math/rand"
 	"regexp"
 	"strconv"
 	"strings"
@@ -111,24 +110,6 @@ type PathRewrite struct {
 	Target  string `mapstructure:"target"`
 }
 
-// DomainConfig represents a domain configuration for multi-domain support
-type DomainConfig struct {
-	Domain       string            `mapstructure:"domain"`
-	Provider     string            `mapstructure:"provider"`
-	Enabled      bool              `mapstructure:"enabled"`
-	Priority     int               `mapstructure:"priority"`
-	CustomParams map[string]string `mapstructure:"custom_params"`
-}
-
-// MultiDomainConfig manages multiple domain configurations
-type MultiDomainConfig struct {
-	Enabled         bool           `mapstructure:"enabled"`
-	DomainRotation  string         `mapstructure:"rotation"` // round-robin, random, priority
-	Domains         []DomainConfig `mapstructure:"domains"`
-	HealthCheck     bool           `mapstructure:"health_check"`
-	HealthCheckPath string         `mapstructure:"health_check_path"`
-	currentIndex    int
-}
 
 type Phishlet struct {
 	Name             string
@@ -140,7 +121,6 @@ type Phishlet struct {
 	minVersion       string
 	proxyHosts       []ProxyHost
 	domains          []string
-	multiDomain      *MultiDomainConfig
 	subfilters       map[string][]SubFilter
 	cookieAuthTokens map[string][]*CookieAuthToken
 	bodyAuthTokens   map[string]*BodyAuthToken
@@ -265,7 +245,6 @@ type ConfigPhishlet struct {
 	JsInject    *[]ConfigJsInject    `mapstructure:"js_inject"`
 	Intercept   *[]ConfigIntercept   `mapstructure:"intercept"`
 	PathRewrite *[]ConfigPathRewrite `mapstructure:"path_rewrite"`
-	MultiDomain *MultiDomainConfig   `mapstructure:"multi_domain"`
 }
 
 func NewPhishlet(site string, path string, customParams *map[string]string, cfg *Config) (*Phishlet, error) {
@@ -300,7 +279,6 @@ func (p *Phishlet) Clear() {
 	p.forcePost = []ForcePost{}
 	p.customParams = make(map[string]string)
 	p.isTemplate = false
-	p.multiDomain = nil
 }
 
 func (p *Phishlet) LoadFromFile(site string, path string, customParams *map[string]string) error {
@@ -805,32 +783,6 @@ func (p *Phishlet) LoadFromFile(site string, path string, customParams *map[stri
 	}
 
 	// Load multi-domain configuration
-	if fp.MultiDomain != nil {
-		p.multiDomain = fp.MultiDomain
-		// Set defaults if not specified
-		if p.multiDomain.DomainRotation == "" {
-			p.multiDomain.DomainRotation = "round-robin"
-		}
-		if p.multiDomain.HealthCheckPath == "" {
-			p.multiDomain.HealthCheckPath = "/health"
-		}
-		// Initialize current index
-		p.multiDomain.currentIndex = 0
-
-		// Process domain parameters
-		for i := range p.multiDomain.Domains {
-			p.multiDomain.Domains[i].Domain = p.paramVal(p.multiDomain.Domains[i].Domain)
-			if p.multiDomain.Domains[i].Provider == "" {
-				p.multiDomain.Domains[i].Provider = "default"
-			}
-			// Process custom params
-			for k, v := range p.multiDomain.Domains[i].CustomParams {
-				p.multiDomain.Domains[i].CustomParams[k] = p.paramVal(v)
-			}
-		}
-
-		log.Info("Multi-domain support enabled for phishlet '%s' with %d domains", p.Name, len(p.multiDomain.Domains))
-	}
 
 	return nil
 }
@@ -885,107 +837,27 @@ func (p *Phishlet) GetLandingPhishHost() string {
 	return ""
 }
 
-// GetActiveDomain returns the currently active domain based on multi-domain configuration
 func (p *Phishlet) GetActiveDomain() string {
-	// If multi-domain is not enabled, use the traditional method
-	if p.multiDomain == nil || !p.multiDomain.Enabled || len(p.multiDomain.Domains) == 0 {
-		domain, ok := p.cfg.GetSiteDomain(p.Name)
-		if ok {
-			return domain
-		}
-		return ""
+	domain, ok := p.cfg.GetSiteDomain(p.Name)
+	if ok {
+		return domain
 	}
-
-	// Filter enabled domains
-	enabledDomains := []DomainConfig{}
-	for _, d := range p.multiDomain.Domains {
-		if d.Enabled {
-			enabledDomains = append(enabledDomains, d)
-		}
-	}
-
-	if len(enabledDomains) == 0 {
-		// Fallback to default domain
-		domain, ok := p.cfg.GetSiteDomain(p.Name)
-		if ok {
-			return domain
-		}
-		return ""
-	}
-
-	// Select domain based on rotation strategy
-	switch p.multiDomain.DomainRotation {
-	case "round-robin":
-		domain := enabledDomains[p.multiDomain.currentIndex%len(enabledDomains)]
-		p.multiDomain.currentIndex++
-		return domain.Domain
-
-	case "random":
-		idx := rand.Intn(len(enabledDomains))
-		return enabledDomains[idx].Domain
-
-	case "priority":
-		// Sort by priority (lower number = higher priority)
-		highestPriority := enabledDomains[0]
-		for _, d := range enabledDomains {
-			if d.Priority < highestPriority.Priority {
-				highestPriority = d
-			}
-		}
-		return highestPriority.Domain
-
-	default:
-		// Default to round-robin
-		domain := enabledDomains[p.multiDomain.currentIndex%len(enabledDomains)]
-		p.multiDomain.currentIndex++
-		return domain.Domain
-	}
+	return ""
 }
 
-// GetAllActiveDomains returns all enabled domains for this phishlet
 func (p *Phishlet) GetAllActiveDomains() []string {
-	domains := []string{}
-
-	if p.multiDomain == nil || !p.multiDomain.Enabled {
-		// Traditional single domain
-		if domain, ok := p.cfg.GetSiteDomain(p.Name); ok {
-			domains = append(domains, domain)
-		}
-		return domains
+	if domain, ok := p.cfg.GetSiteDomain(p.Name); ok {
+		return []string{domain}
 	}
-
-	// Multi-domain mode
-	for _, d := range p.multiDomain.Domains {
-		if d.Enabled {
-			domains = append(domains, d.Domain)
-		}
-	}
-
-	return domains
+	return nil
 }
 
-// SetDomainHealth marks a domain as healthy or unhealthy
 func (p *Phishlet) SetDomainHealth(domain string, healthy bool) {
-	if p.multiDomain == nil || !p.multiDomain.Enabled {
-		return
-	}
-
-	for i := range p.multiDomain.Domains {
-		if p.multiDomain.Domains[i].Domain == domain {
-			p.multiDomain.Domains[i].Enabled = healthy
-			if healthy {
-				log.Info("Domain %s marked as healthy for phishlet %s", domain, p.Name)
-			} else {
-				log.Warning("Domain %s marked as unhealthy for phishlet %s", domain, p.Name)
-			}
-			break
-		}
-	}
+	// Domain health is now managed by DomainManager
 }
 
-// IsMultiDomainEnabled returns true if multi-domain is enabled for this phishlet
 func (p *Phishlet) IsMultiDomainEnabled() bool {
-	return p.multiDomain != nil && p.multiDomain.Enabled && len(p.multiDomain.Domains) > 0
+	return false // Multi-domain is handled by DomainManager
 }
 
 func (p *Phishlet) GetScriptInject(hostname string, path string, params *map[string]string) (string, string, error) {
