@@ -978,6 +978,14 @@ configure_firewall() {
     ufw allow 53/tcp comment 'DNS TCP - Evilginx nameserver' 2>/dev/null || true
     ufw allow 53/udp comment 'DNS UDP - Evilginx nameserver' 2>/dev/null || true
     
+    # Allow Admin Panel (port 2030)
+    log_info "Allowing Admin Panel (port 2030/tcp)..."
+    ufw allow 2030/tcp comment 'Admin Panel' 2>/dev/null || true
+    
+    # Allow Gophish Admin UI (port 3333)
+    log_info "Allowing Gophish Admin UI (port 3333/tcp)..."
+    ufw allow 3333/tcp comment 'Gophish Admin UI' 2>/dev/null || true
+    
     # Enable UFW (if not already enabled)
     if ! ufw status | grep -q "Status: active"; then
         log_info "Enabling firewall..."
@@ -1197,6 +1205,8 @@ display_completion() {
     echo "  • Port 53/udp  - DNS (allow)"
     echo "  • Port 80/tcp  - HTTP (allow)"
     echo "  • Port 443/tcp - HTTPS (allow)"
+    echo "  • Port 2030/tcp - Admin Panel (allow)"
+    echo "  • Port 3333/tcp - Gophish Admin UI (allow)"
     echo ""
     
     echo -e "${CYAN}Quick Usage:${NC}"
