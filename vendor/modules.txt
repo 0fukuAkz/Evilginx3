@@ -1,5 +1,5 @@
-# bitbucket.org/liamstask/goose v0.0.0-20150115234039-8488cc47d90c
-## explicit
+# bitbucket.org/liamstask/goose v0.0.0-20150115234039-8488cc47d90c => ./pkg/goose
+## explicit; go 1.25.1
 bitbucket.org/liamstask/goose/lib/goose
 # filippo.io/edwards25519 v1.1.0
 ## explicit; go 1.20
@@ -124,10 +124,17 @@ github.com/kr/text
 # github.com/kylelemons/go-gypsy v1.0.0
 ## explicit; go 1.5
 github.com/kylelemons/go-gypsy/yaml
-# github.com/lib/pq v1.1.1
-## explicit
+# github.com/lib/pq v1.12.0
+## explicit; go 1.21
 github.com/lib/pq
+github.com/lib/pq/internal/pgpass
+github.com/lib/pq/internal/pgservice
+github.com/lib/pq/internal/pqsql
+github.com/lib/pq/internal/pqtime
+github.com/lib/pq/internal/pqutil
+github.com/lib/pq/internal/proto
 github.com/lib/pq/oid
+github.com/lib/pq/pqerror
 github.com/lib/pq/scram
 # github.com/libdns/libdns v0.2.1
 ## explicit; go 1.14
@@ -342,3 +349,4 @@ gopkg.in/square/go-jose.v2/json
 ## explicit; go 1.15
 gopkg.in/yaml.v2
 # github.com/elazarl/goproxy => github.com/kgretzky/goproxy v0.0.0-20220622134552-7d0e0c658440
+# bitbucket.org/liamstask/goose => ./pkg/goose

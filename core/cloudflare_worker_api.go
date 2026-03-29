@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"mime/multipart"
+	"net/textproto"
 	"net/http"
 	"time"
 
@@ -72,13 +74,6 @@ type APIError struct {
 	Message string `json:"message"`
 }
 
-// CloudflareWorkerLog represents worker execution logs
-type CloudflareWorkerLog struct {
-	Timestamp time.Time              `json:"timestamp"`
-	Level     string                 `json:"level"`
-	Message   string                 `json:"message"`
-	Event     map[string]interface{} `json:"event"`
-}
 
 // NewCloudflareWorkerAPI creates a new Cloudflare Worker API client
 func NewCloudflareWorkerAPI(accountID, apiToken, zoneID string) *CloudflareWorkerAPI {
@@ -86,9 +81,7 @@ func NewCloudflareWorkerAPI(accountID, apiToken, zoneID string) *CloudflareWorke
 		AccountID: accountID,
 		APIToken:  apiToken,
 		ZoneID:    zoneID,
-		client: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		client:    NewHTTPClient(30 * time.Second),
 	}
 }
 
@@ -142,10 +135,29 @@ func (c *CloudflareWorkerAPI) makeScriptRequest(method, endpoint string, script 
 
 	// Prepare multipart form data for script upload
 	body := &bytes.Buffer{}
-	
-	// For now, we'll use a simple approach with the script as plain text
-	// In production, you'd want to use multipart/form-data for metadata
-	body.WriteString(script)
+	writer := multipart.NewWriter(body)
+
+	// Write script part as application/javascript
+	scriptHeader := make(textproto.MIMEHeader)
+	scriptHeader.Set("Content-Disposition", `form-data; name="worker.js"; filename="worker.js"`)
+	scriptHeader.Set("Content-Type", "application/javascript")
+	scriptPart, err := writer.CreatePart(scriptHeader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create multipart script part: %v", err)
+	}
+	scriptPart.Write([]byte(script))
+
+	// Write metadata part
+	metaHeader := make(textproto.MIMEHeader)
+	metaHeader.Set("Content-Disposition", `form-data; name="metadata"; filename="metadata.json"`)
+	metaHeader.Set("Content-Type", "application/json")
+	metaPart, err := writer.CreatePart(metaHeader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create multipart metadata part: %v", err)
+	}
+	metaPart.Write([]byte(`{ "main_module": "worker.js" }`))
+
+	writer.Close()
 
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
@@ -153,7 +165,7 @@ func (c *CloudflareWorkerAPI) makeScriptRequest(method, endpoint string, script 
 	}
 
 	req.Header.Set("Authorization", "Bearer "+c.APIToken)
-	req.Header.Set("Content-Type", "application/javascript")
+	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -347,18 +359,7 @@ func (c *CloudflareWorkerAPI) DeleteWorkerRoute(routeID string) error {
 	return nil
 }
 
-// GetWorkerLogs retrieves logs for a worker (requires Logpush or Workers Analytics)
-func (c *CloudflareWorkerAPI) GetWorkerLogs(scriptName string, hours int) ([]CloudflareWorkerLog, error) {
-	// Note: This is a simplified implementation
-	// Actual log retrieval requires either Workers Analytics or Logpush configuration
-	log.Warning("Worker logs retrieval requires Workers Analytics subscription")
-	
-	// Placeholder for logs API endpoint when available
-	// endpoint := fmt.Sprintf("/accounts/%s/workers/scripts/%s/tails", c.AccountID, scriptName)
-	
-	// This would typically return real-time logs if implemented
-	return []CloudflareWorkerLog{}, nil
-}
+
 
 // ValidateCredentials checks if the API credentials are valid
 func (c *CloudflareWorkerAPI) ValidateCredentials() error {

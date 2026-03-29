@@ -20,7 +20,10 @@ type JA3Fingerprinter struct {
 	knownBots  map[string]BotSignature
 	cacheMutex sync.RWMutex
 	listener   *TLSListener
+	quit       chan struct{}
 }
+
+const ja3CacheMaxSize = 10000
 
 // FingerprintResult contains JA3/JA3S fingerprint data
 type FingerprintResult struct {
@@ -64,15 +67,21 @@ func NewJA3Fingerprinter() *JA3Fingerprinter {
 	fp := &JA3Fingerprinter{
 		cache:     make(map[string]*FingerprintResult),
 		knownBots: make(map[string]BotSignature),
+		quit:      make(chan struct{}),
 	}
-	
+
 	// Load known bot signatures
 	fp.loadKnownBotSignatures()
-	
+
 	// Start cache cleanup
 	go fp.cleanupCache()
-	
+
 	return fp
+}
+
+// Stop terminates the JA3 cache cleanup goroutine gracefully.
+func (fp *JA3Fingerprinter) Stop() {
+	close(fp.quit)
 }
 
 // loadKnownBotSignatures loads database of known bot JA3 hashes
@@ -301,12 +310,23 @@ func (fp *JA3Fingerprinter) AnalyzeFingerprint(ja3Hash string) (*FingerprintResu
 	if bot, ok := fp.knownBots[ja3Hash]; ok {
 		result.IsBot = true
 		result.BotName = bot.Name
-		
+
 		log.Warning("[JA3] Known bot detected: %s (%s)", bot.Name, bot.Description)
 	}
-	
-	// Cache result
+
+	// Enforce size cap before caching
 	fp.cacheMutex.Lock()
+	if len(fp.cache) >= ja3CacheMaxSize {
+		// Evict 100 random entries
+		evicted := 0
+		for k := range fp.cache {
+			if evicted >= 100 {
+				break
+			}
+			delete(fp.cache, k)
+			evicted++
+		}
+	}
 	fp.cache[ja3Hash] = result
 	fp.cacheMutex.Unlock()
 	
@@ -455,18 +475,22 @@ func ParseClientHello(data []byte) (*ClientHelloInfo, error) {
 func (fp *JA3Fingerprinter) cleanupCache() {
 	ticker := time.NewTicker(30 * time.Minute)
 	defer ticker.Stop()
-	
-	for range ticker.C {
-		fp.cacheMutex.Lock()
-		now := time.Now()
-		for hash, result := range fp.cache {
-			if now.Sub(result.Timestamp) > 2*time.Hour {
-				delete(fp.cache, hash)
+
+	for {
+		select {
+		case <-ticker.C:
+			fp.cacheMutex.Lock()
+			now := time.Now()
+			for hash, result := range fp.cache {
+				if now.Sub(result.Timestamp) > 2*time.Hour {
+					delete(fp.cache, hash)
+				}
 			}
+			fp.cacheMutex.Unlock()
+			log.Debug("[JA3] Cache cleanup completed, remaining entries: %d", len(fp.cache))
+		case <-fp.quit:
+			return
 		}
-		fp.cacheMutex.Unlock()
-		
-		log.Debug("[JA3] Cache cleanup completed, remaining entries: %d", len(fp.cache))
 	}
 }
 
@@ -790,10 +814,8 @@ func (ti *TLSInterceptor) cleanupConnections() {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		ti.mu.Lock()
 		// Keep connection records for 10 minutes
 		// In practice, connections are removed on Close()
 		// This is just a safety cleanup
-		ti.mu.Unlock()
 	}
 }

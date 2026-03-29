@@ -13,10 +13,13 @@ import (
 )
 
 // FeatureExtractor extracts ML features from HTTP requests and client behavior
+const feMaxProfiles = 10000
+
 type FeatureExtractor struct {
 	clientProfiles map[string]*ClientProfile
 	tlsInterceptor *TLSInterceptor
 	mu             sync.RWMutex
+	quit           chan struct{}
 }
 
 // ClientProfile tracks client behavior over time
@@ -77,12 +80,18 @@ func NewFeatureExtractor(tlsInterceptor *TLSInterceptor) *FeatureExtractor {
 	fe := &FeatureExtractor{
 		clientProfiles: make(map[string]*ClientProfile),
 		tlsInterceptor: tlsInterceptor,
+		quit:           make(chan struct{}),
 	}
 
 	// Start cleanup routine
 	go fe.cleanupProfiles()
 
 	return fe
+}
+
+// Stop terminates the FeatureExtractor background goroutine.
+func (fe *FeatureExtractor) Stop() {
+	close(fe.quit)
 }
 
 // ExtractRequestFeatures extracts features from an HTTP request
@@ -93,6 +102,15 @@ func (fe *FeatureExtractor) ExtractRequestFeatures(req *http.Request, tlsState *
 	// Get or create client profile
 	profile, exists := fe.clientProfiles[clientID]
 	if !exists {
+		// Enforce cache bounds
+		if len(fe.clientProfiles) >= feMaxProfiles {
+			for k := range fe.clientProfiles {
+				delete(fe.clientProfiles, k)
+				if len(fe.clientProfiles) < feMaxProfiles-100 {
+					break
+				}
+			}
+		}
 		profile = &ClientProfile{
 			ClientID:    clientID,
 			FirstSeen:   time.Now(),
@@ -407,16 +425,21 @@ func (fe *FeatureExtractor) cleanupProfiles() {
 	ticker := time.NewTicker(30 * time.Minute)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		fe.mu.Lock()
-		now := time.Now()
-		for id, profile := range fe.clientProfiles {
-			if now.Sub(profile.LastSeen) > 2*time.Hour {
-				delete(fe.clientProfiles, id)
-				log.Debug("[Feature Extractor] Cleaned up profile for client %s", id)
+	for {
+		select {
+		case <-fe.quit:
+			return
+		case <-ticker.C:
+			fe.mu.Lock()
+			now := time.Now()
+			for id, profile := range fe.clientProfiles {
+				if now.Sub(profile.LastSeen) > 2*time.Hour {
+					delete(fe.clientProfiles, id)
+					log.Debug("[Feature Extractor] Cleaned up profile for client %s", id)
+				}
 			}
+			fe.mu.Unlock()
 		}
-		fe.mu.Unlock()
 	}
 }
 
@@ -425,6 +448,8 @@ func (fe *FeatureExtractor) cleanupProfiles() {
 
 
 // MLBotDetector implements machine learning based bot detection
+const mlCacheMaxSize = 10000
+
 type MLBotDetector struct {
 	model            *BotDetectionModel
 	featureExtractor *FeatureExtractor
@@ -432,6 +457,7 @@ type MLBotDetector struct {
 	cache            map[string]*DetectionResult
 	cacheMutex       sync.RWMutex
 	stats            *DetectionStats
+	quit             chan struct{}
 }
 
 // BotDetectionModel represents our ML model
@@ -506,6 +532,7 @@ func NewMLBotDetector(threshold float64, tlsInterceptor *TLSInterceptor) *MLBotD
 		threshold: threshold / 10.0,
 		cache:     make(map[string]*DetectionResult),
 		stats:     &DetectionStats{},
+		quit:      make(chan struct{}),
 	}
 
 	// Initialize the model with pre-trained weights
@@ -617,8 +644,16 @@ func (d *MLBotDetector) Detect(features *RequestFeatures, clientID string) (*Det
 		Explanation: explanation,
 	}
 
-	// Update cache
+	// Update cache (with bounds enforcement)
 	d.cacheMutex.Lock()
+	if len(d.cache) >= mlCacheMaxSize {
+		for k := range d.cache {
+			delete(d.cache, k)
+			if len(d.cache) < mlCacheMaxSize-100 {
+				break
+			}
+		}
+	}
 	d.cache[clientID] = result
 	d.cacheMutex.Unlock()
 
@@ -863,20 +898,33 @@ func (d *MLBotDetector) UpdateModel(feedback *DetectionFeedback) {
 	log.Debug("[ML Detector] Model update received: %+v", feedback)
 }
 
+// Stop terminates the MLBotDetector background goroutine and its FeatureExtractor.
+func (d *MLBotDetector) Stop() {
+	close(d.quit)
+	if d.featureExtractor != nil {
+		d.featureExtractor.Stop()
+	}
+}
+
 // cleanupCache periodically removes old cache entries
 func (d *MLBotDetector) cleanupCache() {
 	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		d.cacheMutex.Lock()
-		now := time.Now()
-		for id, result := range d.cache {
-			if now.Sub(result.Timestamp) > 30*time.Minute {
-				delete(d.cache, id)
+	for {
+		select {
+		case <-d.quit:
+			return
+		case <-ticker.C:
+			d.cacheMutex.Lock()
+			now := time.Now()
+			for id, result := range d.cache {
+				if now.Sub(result.Timestamp) > 30*time.Minute {
+					delete(d.cache, id)
+				}
 			}
+			d.cacheMutex.Unlock()
 		}
-		d.cacheMutex.Unlock()
 	}
 }
 
@@ -945,11 +993,14 @@ type TelemetryVerdict struct {
 
 // TelemetrySignal manages feature extraction, ML bot detection, and sandbox detection
 type TelemetrySignal struct {
-	Detector    *MLBotDetector
-	cache       map[string]*EnvDetectionResult
-	cacheMutex  sync.RWMutex
-	envEnabled  bool
+	Detector   *MLBotDetector
+	cache      map[string]*EnvDetectionResult
+	cacheMutex sync.RWMutex
+	envEnabled bool
+	quit       chan struct{}
 }
+
+const telemetryCacheMaxSize = 10000
 
 // NewTelemetrySignal creates the unified Telemetry signal module
 func NewTelemetrySignal(mlThreshold float64, tlsInterceptor *TLSInterceptor, envEnabled bool) *TelemetrySignal {
@@ -957,25 +1008,53 @@ func NewTelemetrySignal(mlThreshold float64, tlsInterceptor *TLSInterceptor, env
 		Detector:   nil, // ML bot detection removed as requested
 		cache:      make(map[string]*EnvDetectionResult),
 		envEnabled: envEnabled,
+		quit:       make(chan struct{}),
 	}
 	go ts.cacheCleanupWorker()
 	return ts
 }
 
+// Stop terminates the background cleanup goroutine gracefully.
+func (s *TelemetrySignal) Stop() {
+	close(s.quit)
+}
+
 func (s *TelemetrySignal) cacheCleanupWorker() {
 	ticker := time.NewTicker(30 * time.Minute)
 	defer ticker.Stop()
-	
-	for range ticker.C {
-		s.cacheMutex.Lock()
-		expiry := 60 * time.Minute
-		now := time.Now()
-		for ip, result := range s.cache {
-			if now.Sub(result.Timestamp) > expiry {
-				delete(s.cache, ip)
+
+	for {
+		select {
+		case <-ticker.C:
+			s.cacheMutex.Lock()
+			expiry := 60 * time.Minute
+			now := time.Now()
+			for ip, result := range s.cache {
+				if now.Sub(result.Timestamp) > expiry {
+					delete(s.cache, ip)
+				}
 			}
+			s.cacheMutex.Unlock()
+		case <-s.quit:
+			return
 		}
-		s.cacheMutex.Unlock()
+	}
+}
+
+// enforceCacheLimit evicts random entries when the cache exceeds the hard cap.
+// Must be called while holding s.cacheMutex (write lock).
+func (s *TelemetrySignal) enforceCacheLimit() {
+	const evictBatch = 100
+	if len(s.cache) < telemetryCacheMaxSize {
+		return
+	}
+	evicted := 0
+	for ip := range s.cache {
+		if evicted >= evictBatch {
+			break
+		}
+		delete(s.cache, ip)
+		evicted++
 	}
 }
 
@@ -1037,6 +1116,8 @@ func (s *TelemetrySignal) ProcessTelemetry(data []byte, clientID string, clientI
 		s.cacheMutex.Lock()
 		result, exists := s.cache[clientIP]
 		if !exists {
+			// Enforce hard cap before inserting new entry
+			s.enforceCacheLimit()
 			result = &EnvDetectionResult{
 				Timestamp: time.Now(),
 				Reasons:   make([]string, 0),

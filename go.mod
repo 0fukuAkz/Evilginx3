@@ -1,6 +1,6 @@
 module github.com/kgretzky/evilginx2
 
-go 1.25.0
+go 1.25.1
 
 require (
 	bitbucket.org/liamstask/goose v0.0.0-20150115234039-8488cc47d90c
@@ -52,7 +52,7 @@ require (
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/kylelemons/go-gypsy v1.0.0 // indirect
-	github.com/lib/pq v1.1.1 // indirect
+	github.com/lib/pq v1.12.0 // indirect
 	github.com/libdns/libdns v0.2.1 // indirect
 	github.com/magiconair/properties v1.8.6 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
@@ -87,3 +87,5 @@ require (
 )
 
 replace github.com/elazarl/goproxy => github.com/kgretzky/goproxy v0.0.0-20220622134552-7d0e0c658440
+
+replace bitbucket.org/liamstask/goose => ./pkg/goose

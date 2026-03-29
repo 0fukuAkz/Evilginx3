@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(go build:*)",
-      "Bash(echo $?)"
+      "Bash(echo $?)",
+      "Bash(grep -r \"func.*Start\\\\|func.*Stop\\\\|func.*Initialize\" /c/Users/user/Desktop/Projects/git/Evilginx3/core/*.go)",
+      "Bash(xargs grep:*)",
+      "Bash(node -e \":*)"
     ]
   }
 }

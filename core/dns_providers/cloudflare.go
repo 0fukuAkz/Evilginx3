@@ -60,9 +60,7 @@ type CloudflareError struct {
 // NewCloudflareProvider creates a new Cloudflare DNS provider
 func NewCloudflareProvider() *CloudflareProvider {
 	return &CloudflareProvider{
-		client: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		client:    core.NewHTTPClient(30 * time.Second),
 		zoneCache: make(map[string]string),
 	}
 }

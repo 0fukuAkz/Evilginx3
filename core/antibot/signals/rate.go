@@ -30,61 +30,61 @@ type TrafficShaper struct {
 
 // TrafficShapingConfig holds configuration for traffic shaping
 type TrafficShapingConfig struct {
-	Enabled         bool                      `json:"enabled" yaml:"enabled"`
-	Mode            string                    `json:"mode" yaml:"mode"` // adaptive, strict, learning
-	GlobalRateLimit int                       `json:"global_rate_limit" yaml:"global_rate_limit"`
-	GlobalBurstSize int                       `json:"global_burst_size" yaml:"global_burst_size"`
-	PerIPRateLimit  int                       `json:"per_ip_rate_limit" yaml:"per_ip_rate_limit"`
-	PerIPBurstSize  int                       `json:"per_ip_burst_size" yaml:"per_ip_burst_size"`
-	BandwidthLimit  int64                     `json:"bandwidth_limit" yaml:"bandwidth_limit"` // bytes per second
-	AdaptiveRules   *AdaptiveRulesConfig      `json:"adaptive_rules" yaml:"adaptive_rules"`
-	GeoRules        map[string]*GeoRuleConfig `json:"geo_rules" yaml:"geo_rules"`
-	PriorityRules   *PriorityRulesConfig      `json:"priority_rules" yaml:"priority_rules"`
-	DDoSProtection  *DDoSProtectionConfig     `json:"ddos_protection" yaml:"ddos_protection"`
-	CleanupInterval int                       `json:"cleanup_interval" yaml:"cleanup_interval"` // minutes
+	Enabled         bool                      `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+	Mode            string                    `mapstructure:"mode" json:"mode" yaml:"mode"` // adaptive, strict, learning
+	GlobalRateLimit int                       `mapstructure:"global_rate_limit" json:"global_rate_limit" yaml:"global_rate_limit"`
+	GlobalBurstSize int                       `mapstructure:"global_burst_size" json:"global_burst_size" yaml:"global_burst_size"`
+	PerIPRateLimit  int                       `mapstructure:"per_ip_rate_limit" json:"per_ip_rate_limit" yaml:"per_ip_rate_limit"`
+	PerIPBurstSize  int                       `mapstructure:"per_ip_burst_size" json:"per_ip_burst_size" yaml:"per_ip_burst_size"`
+	BandwidthLimit  int64                     `mapstructure:"bandwidth_limit" json:"bandwidth_limit" yaml:"bandwidth_limit"` // bytes per second
+	AdaptiveRules   *AdaptiveRulesConfig      `mapstructure:"adaptive_rules" json:"adaptive_rules" yaml:"adaptive_rules"`
+	GeoRules        map[string]*GeoRuleConfig `mapstructure:"geo_rules" json:"geo_rules" yaml:"geo_rules"`
+	PriorityRules   *PriorityRulesConfig      `mapstructure:"priority_rules" json:"priority_rules" yaml:"priority_rules"`
+	DDoSProtection  *DDoSProtectionConfig     `mapstructure:"ddos_protection" json:"ddos_protection" yaml:"ddos_protection"`
+	CleanupInterval int                       `mapstructure:"cleanup_interval" json:"cleanup_interval" yaml:"cleanup_interval"` // minutes
 }
 
 // AdaptiveRulesConfig defines adaptive rate limiting rules
 type AdaptiveRulesConfig struct {
-	Enabled             bool    `json:"enabled" yaml:"enabled"`
-	LearningPeriod      int     `json:"learning_period" yaml:"learning_period"` // minutes
-	AnomalyThreshold    float64 `json:"anomaly_threshold" yaml:"anomaly_threshold"`
-	AutoAdjust          bool    `json:"auto_adjust" yaml:"auto_adjust"`
-	MinRate             int     `json:"min_rate" yaml:"min_rate"`
-	MaxRate             int     `json:"max_rate" yaml:"max_rate"`
-	BehaviorWeight      float64 `json:"behavior_weight" yaml:"behavior_weight"`
-	TimeOfDayAdjustment bool    `json:"time_of_day_adjustment" yaml:"time_of_day_adjustment"`
+	Enabled             bool    `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+	LearningPeriod      int     `mapstructure:"learning_period" json:"learning_period" yaml:"learning_period"` // minutes
+	AnomalyThreshold    float64 `mapstructure:"anomaly_threshold" json:"anomaly_threshold" yaml:"anomaly_threshold"`
+	AutoAdjust          bool    `mapstructure:"auto_adjust" json:"auto_adjust" yaml:"auto_adjust"`
+	MinRate             int     `mapstructure:"min_rate" json:"min_rate" yaml:"min_rate"`
+	MaxRate             int     `mapstructure:"max_rate" json:"max_rate" yaml:"max_rate"`
+	BehaviorWeight      float64 `mapstructure:"behavior_weight" json:"behavior_weight" yaml:"behavior_weight"`
+	TimeOfDayAdjustment bool    `mapstructure:"time_of_day_adjustment" json:"time_of_day_adjustment" yaml:"time_of_day_adjustment"`
 }
 
 // GeoRuleConfig defines geographic-specific rules
 type GeoRuleConfig struct {
-	RateLimit      int      `json:"rate_limit" yaml:"rate_limit"`
-	BurstSize      int      `json:"burst_size" yaml:"burst_size"`
-	Priority       int      `json:"priority" yaml:"priority"`
-	Blocked        bool     `json:"blocked" yaml:"blocked"`
-	AllowedIPs     []string `json:"allowed_ips" yaml:"allowed_ips"`
-	RestrictedTime string   `json:"restricted_time" yaml:"restricted_time"` // e.g., "22:00-06:00"
+	RateLimit      int      `mapstructure:"rate_limit" json:"rate_limit" yaml:"rate_limit"`
+	BurstSize      int      `mapstructure:"burst_size" json:"burst_size" yaml:"burst_size"`
+	Priority       int      `mapstructure:"priority" json:"priority" yaml:"priority"`
+	Blocked        bool     `mapstructure:"blocked" json:"blocked" yaml:"blocked"`
+	AllowedIPs     []string `mapstructure:"allowed_ips" json:"allowed_ips" yaml:"allowed_ips"`
+	RestrictedTime string   `mapstructure:"restricted_time" json:"restricted_time" yaml:"restricted_time"` // e.g., "22:00-06:00"
 }
 
 // PriorityRulesConfig defines request prioritization rules
 type PriorityRulesConfig struct {
-	Enabled         bool           `json:"enabled" yaml:"enabled"`
-	QueueSize       int            `json:"queue_size" yaml:"queue_size"`
-	ProcessingRate  int            `json:"processing_rate" yaml:"processing_rate"`
-	PriorityFactors map[string]int `json:"priority_factors" yaml:"priority_factors"`
-	DropThreshold   float64        `json:"drop_threshold" yaml:"drop_threshold"`
+	Enabled         bool           `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+	QueueSize       int            `mapstructure:"queue_size" json:"queue_size" yaml:"queue_size"`
+	ProcessingRate  int            `mapstructure:"processing_rate" json:"processing_rate" yaml:"processing_rate"`
+	PriorityFactors map[string]int `mapstructure:"priority_factors" json:"priority_factors" yaml:"priority_factors"`
+	DropThreshold   float64        `mapstructure:"drop_threshold" json:"drop_threshold" yaml:"drop_threshold"`
 }
 
 // DDoSProtectionConfig defines DDoS protection parameters
 type DDoSProtectionConfig struct {
-	Enabled                 bool    `json:"enabled" yaml:"enabled"`
-	ThresholdMultiplier     float64 `json:"threshold_multiplier" yaml:"threshold_multiplier"`
-	BurstMultiplier         float64 `json:"burst_multiplier" yaml:"burst_multiplier"`
-	SynFloodProtection      bool    `json:"syn_flood_protection" yaml:"syn_flood_protection"`
-	SlowlorisProtection     bool    `json:"slowloris_protection" yaml:"slowloris_protection"`
-	AmplificationMitigation bool    `json:"amplification_mitigation" yaml:"amplification_mitigation"`
-	AutoBlacklist           bool    `json:"auto_blacklist" yaml:"auto_blacklist"`
-	BlacklistDuration       int     `json:"blacklist_duration" yaml:"blacklist_duration"` // minutes
+	Enabled                 bool    `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+	ThresholdMultiplier     float64 `mapstructure:"threshold_multiplier" json:"threshold_multiplier" yaml:"threshold_multiplier"`
+	BurstMultiplier         float64 `mapstructure:"burst_multiplier" json:"burst_multiplier" yaml:"burst_multiplier"`
+	SynFloodProtection      bool    `mapstructure:"syn_flood_protection" json:"syn_flood_protection" yaml:"syn_flood_protection"`
+	SlowlorisProtection     bool    `mapstructure:"slowloris_protection" json:"slowloris_protection" yaml:"slowloris_protection"`
+	AmplificationMitigation bool    `mapstructure:"amplification_mitigation" json:"amplification_mitigation" yaml:"amplification_mitigation"`
+	AutoBlacklist           bool    `mapstructure:"auto_blacklist" json:"auto_blacklist" yaml:"auto_blacklist"`
+	BlacklistDuration       int     `mapstructure:"blacklist_duration" json:"blacklist_duration" yaml:"blacklist_duration"` // minutes
 }
 
 // RateLimiter wraps a rate limiter with metadata
@@ -309,6 +309,9 @@ func (ts *TrafficShaper) Evaluate(req *http.Request, clientIP string) RateVerdic
 	// Get or create IP limiter
 	limiter := ts.getOrCreateIPLimiter(clientIP)
 
+	// Update behavior tracking early so DDoS check has current counts
+	ts.updateClientBehavior(clientIP, limiter)
+
 	// Check DDoS protection
 	if ts.config.DDoSProtection != nil && ts.config.DDoSProtection.Enabled {
 		if ts.isDDoSAttack(clientIP, limiter) {
@@ -372,8 +375,6 @@ func (ts *TrafficShaper) Evaluate(req *http.Request, clientIP string) RateVerdic
 		return verdict
 	}
 
-	// Update behavior tracking
-	ts.updateClientBehavior(clientIP, limiter)
 
 	// Queue request if priority rules enabled
 	if ts.priorityQueue != nil {
@@ -471,7 +472,7 @@ func (ts *TrafficShaper) checkGeographicRules(ip string) (bool, string) {
 			return false, fmt.Sprintf("IP not in allowed list for %s", country)
 		}
 
-		// Create geo-specific limiter if needed
+		// Create geo-specific limiter if needed and check rate limit
 		ts.mu.Lock()
 		if _, exists := ts.geoLimiters[country]; !exists {
 			ts.geoLimiters[country] = &RateLimiter{
@@ -479,10 +480,11 @@ func (ts *TrafficShaper) checkGeographicRules(ip string) (bool, string) {
 				lastSeen: time.Now(),
 			}
 		}
+		geoLimiter := ts.geoLimiters[country]
 		ts.mu.Unlock()
 
 		// Check geo rate limit
-		if geoLimiter := ts.geoLimiters[country]; !geoLimiter.limiter.Allow() {
+		if !geoLimiter.limiter.Allow() {
 			return false, fmt.Sprintf("geographic rate limit exceeded for %s", country)
 		}
 	}
@@ -492,6 +494,9 @@ func (ts *TrafficShaper) checkGeographicRules(ip string) (bool, string) {
 
 // checkAdaptiveRules checks adaptive rate limiting rules
 func (ts *TrafficShaper) checkAdaptiveRules(ip string, limiter *RateLimiter) bool {
+	if ts.adaptiveEngine == nil {
+		return true
+	}
 	// Get adaptive rate based on behavior
 	adaptiveRate := ts.adaptiveEngine.calculateAdaptiveRate(limiter.behavior)
 

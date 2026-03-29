@@ -8,6 +8,7 @@ import (
 	"math"
 	mathrand "math/rand"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,24 +19,27 @@ import (
 
 // PolymorphicEngine generates unique JavaScript mutations
 type PolymorphicEngine struct {
-	config       *PolymorphicConfig
-	mutators     []Mutator
-	templates    map[string]*JSTemplate
-	cache        map[string]string
-	cacheMutex   sync.RWMutex
-	stats        *PolymorphicStats
+	config     *PolymorphicConfig
+	mutators   []Mutator
+	templates  map[string]*JSTemplate
+	cache      map[string]string
+	cacheMutex sync.RWMutex
+	stats      *PolymorphicStats
+	quit       chan struct{}
 }
+
+const polymorphicCacheMaxSize = 5000
 
 // PolymorphicConfig holds configuration for the polymorphic engine
 type PolymorphicConfig struct {
-	Enabled           bool                      `json:"enabled" yaml:"enabled"`
-	MutationLevel     string                    `json:"mutation_level" yaml:"mutation_level"` // low, medium, high, extreme
-	CacheEnabled      bool                      `json:"cache_enabled" yaml:"cache_enabled"`
-	CacheDuration     int                       `json:"cache_duration" yaml:"cache_duration"` // minutes
-	SeedRotation      int                       `json:"seed_rotation" yaml:"seed_rotation"` // minutes
-	EnabledMutations  map[string]bool           `json:"enabled_mutations" yaml:"enabled_mutations"`
-	TemplateMode      bool                      `json:"template_mode" yaml:"template_mode"`
-	PreserveSemantics bool                      `json:"preserve_semantics" yaml:"preserve_semantics"`
+	Enabled           bool                      `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+	MutationLevel     string                    `mapstructure:"mutation_level" json:"mutation_level" yaml:"mutation_level"` // low, medium, high, extreme
+	CacheEnabled      bool                      `mapstructure:"cache_enabled" json:"cache_enabled" yaml:"cache_enabled"`
+	CacheDuration     int                       `mapstructure:"cache_duration" json:"cache_duration" yaml:"cache_duration"` // minutes
+	SeedRotation      int                       `mapstructure:"seed_rotation" json:"seed_rotation" yaml:"seed_rotation"` // minutes
+	EnabledMutations  map[string]bool           `mapstructure:"enabled_mutations" json:"enabled_mutations" yaml:"enabled_mutations"`
+	TemplateMode      bool                      `mapstructure:"template_mode" json:"template_mode" yaml:"template_mode"`
+	PreserveSemantics bool                      `mapstructure:"preserve_semantics" json:"preserve_semantics" yaml:"preserve_semantics"`
 }
 
 // Mutator interface for different mutation strategies
@@ -82,20 +86,26 @@ func NewPolymorphicEngine(config *PolymorphicConfig) *PolymorphicEngine {
 		stats: &PolymorphicStats{
 			MutationTimes: make(map[string]int64),
 		},
+		quit: make(chan struct{}),
 	}
-	
+
 	// Initialize mutators
 	pe.initializeMutators()
-	
+
 	// Initialize templates
 	pe.initializeTemplates()
-	
+
 	// Start cache cleanup if enabled
 	if config.CacheEnabled {
 		go pe.cacheCleanupWorker()
 	}
-	
+
 	return pe
+}
+
+// Stop terminates the polymorphic engine's background goroutine gracefully.
+func (pe *PolymorphicEngine) Stop() {
+	close(pe.quit)
 }
 
 // initializeMutators sets up all mutation strategies
@@ -289,13 +299,25 @@ func (pe *PolymorphicEngine) MutateTemplate(templateName string, context *Mutati
 		funcMap[f] = pe.generateRandomFunction(rng)
 	}
 	
-	// Apply replacements
-	for old, new := range varMap {
-		code = strings.ReplaceAll(code, "{{"+old+"}}", new)
+	// Apply replacements using sorted keys for deterministic output
+	varKeys := make([]string, 0, len(varMap))
+	for k := range varMap {
+		varKeys = append(varKeys, k)
+	}
+	sort.Strings(varKeys)
+	for _, k := range varKeys {
+		token := "{{" + k + "}}"
+		code = strings.ReplaceAll(code, token, varMap[k])
 	}
 	
-	for old, new := range funcMap {
-		code = strings.ReplaceAll(code, "{{"+old+"}}", new)
+	funcKeys := make([]string, 0, len(funcMap))
+	for k := range funcMap {
+		funcKeys = append(funcKeys, k)
+	}
+	sort.Strings(funcKeys)
+	for _, k := range funcKeys {
+		token := "{{" + k + "}}"
+		code = strings.ReplaceAll(code, token, funcMap[k])
 	}
 	
 	// Apply parameter replacements
@@ -383,7 +405,18 @@ func (pe *PolymorphicEngine) getCachedMutation(key string) string {
 func (pe *PolymorphicEngine) cacheMutation(key string, mutated string) {
 	pe.cacheMutex.Lock()
 	defer pe.cacheMutex.Unlock()
-	
+
+	// Enforce hard cap: evict random entries if over limit
+	if len(pe.cache) >= polymorphicCacheMaxSize {
+		evicted := 0
+		for k := range pe.cache {
+			if evicted >= 50 {
+				break
+			}
+			delete(pe.cache, k)
+			evicted++
+		}
+	}
 	pe.cache[key] = mutated
 }
 
@@ -391,9 +424,14 @@ func (pe *PolymorphicEngine) cacheMutation(key string, mutated string) {
 func (pe *PolymorphicEngine) cacheCleanupWorker() {
 	ticker := time.NewTicker(time.Duration(pe.config.CacheDuration) * time.Minute)
 	defer ticker.Stop()
-	
-	for range ticker.C {
-		pe.ClearCache()
+
+	for {
+		select {
+		case <-ticker.C:
+			pe.ClearCache()
+		case <-pe.quit:
+			return
+		}
 	}
 }
 

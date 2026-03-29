@@ -1,9 +1,14 @@
 package core
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/kgretzky/evilginx2/log"
 )
@@ -127,13 +132,30 @@ func NewDNSProviderManager(cfg *Config) *DNSProviderManager {
 
 // initializeProviders initializes all configured DNS providers
 func (m *DNSProviderManager) initializeProviders() {
-	// This will be expanded to initialize actual providers
-	// For now, it's a placeholder
 	log.Debug("Initializing DNS providers...")
 	
-	// TODO: Initialize Cloudflare provider
-	// TODO: Initialize Route53 provider  
-	// TODO: Initialize Gandi provider
+	dnsConfig := m.cfg.GetDNSProviderConfig()
+	if dnsConfig == nil || !dnsConfig.Enabled {
+		return
+	}
+	
+	switch strings.ToLower(dnsConfig.Provider) {
+	case "cloudflare":
+		provider := NewCloudflareDNSProvider()
+		creds := map[string]string{
+			"api_key": dnsConfig.ApiKey,
+			"email":   dnsConfig.Email,
+		}
+		if err := provider.Initialize(creds); err != nil {
+			log.Error("Failed to initialize Cloudflare DNS provider: %v", err)
+			return
+		}
+		if err := m.registry.Register("cloudflare", provider); err != nil {
+			log.Error("Failed to register Cloudflare DNS provider: %v", err)
+		}
+	default:
+		log.Warning("Unknown DNS provider: %s", dnsConfig.Provider)
+	}
 }
 
 // GetProviderForDomain returns the DNS provider for a specific domain
@@ -261,4 +283,266 @@ func (m *DNSProviderManager) CleanupDNSChallenge(domain string, recordID string)
 }
 
 // Helper function to extract base domain from hostname
+// --- Cloudflare DNS Provider ---
 
+const cloudflareAPIBase = "https://api.cloudflare.com/client/v4"
+
+// CloudflareDNSProvider implements DNSProvider using the Cloudflare API.
+type CloudflareDNSProvider struct {
+	apiKey string
+	email  string
+	client *http.Client
+	zones  map[string]string // domain -> zoneID cache
+	mu     sync.RWMutex
+}
+
+func NewCloudflareDNSProvider() *CloudflareDNSProvider {
+	return &CloudflareDNSProvider{
+		client: NewHTTPClient(30 * time.Second),
+		zones:  make(map[string]string),
+	}
+}
+
+func (p *CloudflareDNSProvider) Name() string { return "cloudflare" }
+
+func (p *CloudflareDNSProvider) Initialize(config map[string]string) error {
+	p.apiKey = config["api_key"]
+	p.email = config["email"]
+	if p.apiKey == "" {
+		return fmt.Errorf("cloudflare: api_key is required")
+	}
+	log.Info("Cloudflare DNS provider initialized")
+	return nil
+}
+
+func (p *CloudflareDNSProvider) setAuth(req *http.Request) {
+	if p.email != "" {
+		req.Header.Set("X-Auth-Email", p.email)
+		req.Header.Set("X-Auth-Key", p.apiKey)
+	} else {
+		req.Header.Set("Authorization", "Bearer "+p.apiKey)
+	}
+	req.Header.Set("Content-Type", "application/json")
+}
+
+type cfAPIResponse struct {
+	Success bool            `json:"success"`
+	Errors  []struct {
+		Message string `json:"message"`
+	} `json:"errors"`
+	Result json.RawMessage `json:"result"`
+}
+
+type cfDNSRecord struct {
+	ID      string `json:"id"`
+	Type    string `json:"type"`
+	Name    string `json:"name"`
+	Content string `json:"content"`
+	TTL     int    `json:"ttl"`
+}
+
+func (p *CloudflareDNSProvider) doRequest(method, url string, body interface{}) (*cfAPIResponse, error) {
+	var reqBody *bytes.Buffer
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("cloudflare: failed to marshal request: %v", err)
+		}
+		reqBody = bytes.NewBuffer(data)
+	} else {
+		reqBody = bytes.NewBuffer(nil)
+	}
+
+	req, err := http.NewRequest(method, url, reqBody)
+	if err != nil {
+		return nil, err
+	}
+	p.setAuth(req)
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("cloudflare: request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("cloudflare: failed to read response: %v", err)
+	}
+
+	var apiResp cfAPIResponse
+	if err := json.Unmarshal(respBody, &apiResp); err != nil {
+		return nil, fmt.Errorf("cloudflare: failed to parse response: %v", err)
+	}
+
+	if !apiResp.Success {
+		msg := "unknown error"
+		if len(apiResp.Errors) > 0 {
+			msg = apiResp.Errors[0].Message
+		}
+		return nil, fmt.Errorf("cloudflare API error: %s", msg)
+	}
+
+	return &apiResp, nil
+}
+
+func (p *CloudflareDNSProvider) GetZoneID(domain string) (string, error) {
+	p.mu.RLock()
+	if id, ok := p.zones[domain]; ok {
+		p.mu.RUnlock()
+		return id, nil
+	}
+	p.mu.RUnlock()
+
+	url := fmt.Sprintf("%s/zones?name=%s", cloudflareAPIBase, domain)
+	resp, err := p.doRequest("GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+
+	var zones []struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(resp.Result, &zones); err != nil {
+		return "", fmt.Errorf("cloudflare: failed to parse zones: %v", err)
+	}
+	if len(zones) == 0 {
+		return "", fmt.Errorf("cloudflare: zone not found for domain: %s", domain)
+	}
+
+	p.mu.Lock()
+	p.zones[domain] = zones[0].ID
+	p.mu.Unlock()
+
+	return zones[0].ID, nil
+}
+
+func (p *CloudflareDNSProvider) CreateRecord(domain string, record *DNSRecord) error {
+	zoneID, err := p.GetZoneID(domain)
+	if err != nil {
+		return err
+	}
+
+	url := fmt.Sprintf("%s/zones/%s/dns_records", cloudflareAPIBase, zoneID)
+	payload := map[string]interface{}{
+		"type":    record.Type,
+		"name":    record.Name,
+		"content": record.Value,
+		"ttl":     record.TTL,
+	}
+
+	_, err = p.doRequest("POST", url, payload)
+	return err
+}
+
+func (p *CloudflareDNSProvider) UpdateRecord(domain string, recordID string, record *DNSRecord) error {
+	zoneID, err := p.GetZoneID(domain)
+	if err != nil {
+		return err
+	}
+
+	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", cloudflareAPIBase, zoneID, recordID)
+	payload := map[string]interface{}{
+		"type":    record.Type,
+		"name":    record.Name,
+		"content": record.Value,
+		"ttl":     record.TTL,
+	}
+
+	_, err = p.doRequest("PUT", url, payload)
+	return err
+}
+
+func (p *CloudflareDNSProvider) DeleteRecord(domain string, recordID string) error {
+	zoneID, err := p.GetZoneID(domain)
+	if err != nil {
+		return err
+	}
+
+	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", cloudflareAPIBase, zoneID, recordID)
+	_, err = p.doRequest("DELETE", url, nil)
+	return err
+}
+
+func (p *CloudflareDNSProvider) GetRecords(domain string) ([]*DNSRecord, error) {
+	zoneID, err := p.GetZoneID(domain)
+	if err != nil {
+		return nil, err
+	}
+
+	url := fmt.Sprintf("%s/zones/%s/dns_records", cloudflareAPIBase, zoneID)
+	resp, err := p.doRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var cfRecords []cfDNSRecord
+	if err := json.Unmarshal(resp.Result, &cfRecords); err != nil {
+		return nil, fmt.Errorf("cloudflare: failed to parse records: %v", err)
+	}
+
+	records := make([]*DNSRecord, len(cfRecords))
+	for i, r := range cfRecords {
+		records[i] = &DNSRecord{
+			ID:    r.ID,
+			Type:  r.Type,
+			Name:  r.Name,
+			Value: r.Content,
+			TTL:   r.TTL,
+		}
+	}
+	return records, nil
+}
+
+func (p *CloudflareDNSProvider) GetRecord(domain string, recordID string) (*DNSRecord, error) {
+	zoneID, err := p.GetZoneID(domain)
+	if err != nil {
+		return nil, err
+	}
+
+	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", cloudflareAPIBase, zoneID, recordID)
+	resp, err := p.doRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var r cfDNSRecord
+	if err := json.Unmarshal(resp.Result, &r); err != nil {
+		return nil, fmt.Errorf("cloudflare: failed to parse record: %v", err)
+	}
+
+	return &DNSRecord{ID: r.ID, Type: r.Type, Name: r.Name, Value: r.Content, TTL: r.TTL}, nil
+}
+
+func (p *CloudflareDNSProvider) CreateTXTRecord(domain string, name string, value string, ttl int) (string, error) {
+	zoneID, err := p.GetZoneID(domain)
+	if err != nil {
+		return "", err
+	}
+
+	url := fmt.Sprintf("%s/zones/%s/dns_records", cloudflareAPIBase, zoneID)
+	payload := map[string]interface{}{
+		"type":    "TXT",
+		"name":    name,
+		"content": value,
+		"ttl":     ttl,
+	}
+
+	resp, err := p.doRequest("POST", url, payload)
+	if err != nil {
+		return "", err
+	}
+
+	var created struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(resp.Result, &created); err != nil {
+		return "", fmt.Errorf("cloudflare: failed to parse created record: %v", err)
+	}
+
+	return created.ID, nil
+}
+
+func (p *CloudflareDNSProvider) DeleteTXTRecord(domain string, recordID string) error {
+	return p.DeleteRecord(domain, recordID)
+}

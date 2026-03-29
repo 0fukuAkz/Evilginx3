@@ -38,17 +38,17 @@ type CaptchaManager struct {
 
 // CaptchaConfig holds configuration for all CAPTCHA providers
 type CaptchaConfig struct {
-	Enabled        bool                     `json:"enabled" yaml:"enabled"`
-	Provider       string                   `json:"provider" yaml:"provider"`
-	RequireForLures bool                    `json:"require_for_lures" yaml:"require_for_lures"`
-	Providers      map[string]ProviderConfig `json:"providers" yaml:"providers"`
+	Enabled        bool                     `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+	Provider       string                   `mapstructure:"provider" json:"provider" yaml:"provider"`
+	RequireForLures bool                    `mapstructure:"require_for_lures" json:"require_for_lures" yaml:"require_for_lures"`
+	Providers      map[string]ProviderConfig `mapstructure:"providers" json:"providers" yaml:"providers"`
 }
 
 // ProviderConfig holds configuration for a specific provider
 type ProviderConfig struct {
-	SiteKey   string            `json:"site_key" yaml:"site_key"`
-	SecretKey string            `json:"secret_key" yaml:"secret_key"`
-	Options   map[string]string `json:"options,omitempty" yaml:"options,omitempty"`
+	SiteKey   string            `mapstructure:"site_key" json:"site_key" yaml:"site_key"`
+	SecretKey string            `mapstructure:"secret_key" json:"secret_key" yaml:"secret_key"`
+	Options   map[string]string `mapstructure:"options" json:"options,omitempty" yaml:"options,omitempty"`
 }
 
 // ReCaptchaV2Provider implements Google reCAPTCHA v2

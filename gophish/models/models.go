@@ -179,6 +179,12 @@ func Setup(c *config.Config) error {
 	db.LogMode(false)
 	db.SetLogger(log.Logger)
 	db.DB().SetMaxOpenConns(1)
+	// Enable WAL mode for better concurrency: allows reads to proceed in
+	// parallel with writes, preventing "database is locked" errors under
+	// high campaign load. busy_timeout gives writers time to retry.
+	db.Exec("PRAGMA journal_mode=WAL;")
+	db.Exec("PRAGMA busy_timeout=5000;")
+	db.Exec("PRAGMA synchronous=NORMAL;")
 	// Migrate up to the latest version
 	err = goose.RunMigrationsOnDb(migrateConf, migrateConf.MigrationsDir, latest, db.DB())
 	if err != nil {

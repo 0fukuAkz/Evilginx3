@@ -36,9 +36,7 @@ type TelegramMessage struct {
 
 func NewTelegramBot() *TelegramBot {
 	return &TelegramBot{
-		client: &http.Client{
-			Timeout: 10 * time.Second,
-		},
+		client:   NewHTTPClient(10 * time.Second),
 		msgQueue: make(chan *TelegramMessage, 100),
 		stopChan: make(chan struct{}),
 	}

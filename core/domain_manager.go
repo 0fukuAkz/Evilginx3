@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
-	"net/http"
 	"sort"
 	"strings"
 	"sync"
@@ -18,6 +17,8 @@ import (
 // DomainStatus represents the status of a managed domain.
 type DomainStatus string
 
+const MinDomainHealth = 50
+
 const (
 	DomainActive      DomainStatus = "active"
 	DomainInactive    DomainStatus = "inactive"
@@ -26,62 +27,62 @@ const (
 
 // ManagedDomain is the single domain representation used throughout the system.
 type ManagedDomain struct {
-	Domain       string            `json:"domain" yaml:"domain"`
-	Subdomain    string            `json:"subdomain,omitempty" yaml:"subdomain,omitempty"`
-	FullDomain   string            `json:"full_domain" yaml:"full_domain"`
-	Status       DomainStatus      `json:"status" yaml:"status"`
-	IsPrimary    bool              `json:"is_primary" yaml:"is_primary"`
-	Health       int               `json:"health" yaml:"health"`
-	Weight       int               `json:"weight" yaml:"weight"`
-	DNSProvider  string            `json:"dns_provider,omitempty" yaml:"dns_provider,omitempty"`
-	HasCert      bool              `json:"has_cert" yaml:"has_cert"`
-	CreatedAt    time.Time         `json:"created_at" yaml:"created_at"`
-	LastUsed     time.Time         `json:"last_used" yaml:"last_used"`
-	RequestCount int64             `json:"request_count" yaml:"request_count"`
-	FailureCount int               `json:"failure_count" yaml:"failure_count"`
-	Description  string            `json:"description,omitempty" yaml:"description,omitempty"`
-	Metadata     map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	Domain       string            `mapstructure:"domain" json:"domain" yaml:"domain"`
+	Subdomain    string            `mapstructure:"subdomain" json:"subdomain,omitempty" yaml:"subdomain,omitempty"`
+	FullDomain   string            `mapstructure:"full_domain" json:"full_domain" yaml:"full_domain"`
+	Status       DomainStatus      `mapstructure:"status" json:"status" yaml:"status"`
+	IsPrimary    bool              `mapstructure:"is_primary" json:"is_primary" yaml:"is_primary"`
+	Health       int               `mapstructure:"health" json:"health" yaml:"health"`
+	Weight       int               `mapstructure:"weight" json:"weight" yaml:"weight"`
+	DNSProvider  string            `mapstructure:"dns_provider" json:"dns_provider,omitempty" yaml:"dns_provider,omitempty"`
+	HasCert      bool              `mapstructure:"has_cert" json:"has_cert" yaml:"has_cert"`
+	CreatedAt    time.Time         `mapstructure:"created_at" json:"created_at" yaml:"created_at"`
+	LastUsed     time.Time         `mapstructure:"last_used" json:"last_used" yaml:"last_used"`
+	RequestCount int64             `mapstructure:"request_count" json:"request_count" yaml:"request_count"`
+	FailureCount int               `mapstructure:"failure_count" json:"failure_count" yaml:"failure_count"`
+	Description  string            `mapstructure:"description" json:"description,omitempty" yaml:"description,omitempty"`
+	Metadata     map[string]string `mapstructure:"metadata" json:"metadata,omitempty" yaml:"metadata,omitempty"`
 }
 
 // DomainGenerationRules defines how to auto-generate new domains.
 type DomainGenerationRules struct {
-	BaseDomains     []string `json:"base_domains" yaml:"base_domains"`
-	SubdomainPrefix []string `json:"subdomain_prefix" yaml:"subdomain_prefix"`
-	SubdomainSuffix []string `json:"subdomain_suffix" yaml:"subdomain_suffix"`
-	RandomLength    int      `json:"random_length" yaml:"random_length"`
-	UseWordlist     bool     `json:"use_wordlist" yaml:"use_wordlist"`
-	Wordlist        []string `json:"wordlist,omitempty" yaml:"wordlist,omitempty"`
+	BaseDomains     []string `mapstructure:"base_domains" json:"base_domains" yaml:"base_domains"`
+	SubdomainPrefix []string `mapstructure:"subdomain_prefix" json:"subdomain_prefix" yaml:"subdomain_prefix"`
+	SubdomainSuffix []string `mapstructure:"subdomain_suffix" json:"subdomain_suffix" yaml:"subdomain_suffix"`
+	RandomLength    int      `mapstructure:"random_length" json:"random_length" yaml:"random_length"`
+	UseWordlist     bool     `mapstructure:"use_wordlist" json:"use_wordlist" yaml:"use_wordlist"`
+	Wordlist        []string `mapstructure:"wordlist" json:"wordlist,omitempty" yaml:"wordlist,omitempty"`
 }
 
 // DomainHealthCheckConfig defines health check parameters.
 type DomainHealthCheckConfig struct {
-	Enabled       bool   `json:"enabled" yaml:"enabled"`
-	Interval      int    `json:"interval" yaml:"interval"`
-	Timeout       int    `json:"timeout" yaml:"timeout"`
-	MaxFailures   int    `json:"max_failures" yaml:"max_failures"`
-	CheckEndpoint string `json:"check_endpoint" yaml:"check_endpoint"`
+	Enabled       bool   `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+	Interval      int    `mapstructure:"interval" json:"interval" yaml:"interval"`
+	Timeout       int    `mapstructure:"timeout" json:"timeout" yaml:"timeout"`
+	MaxFailures   int    `mapstructure:"max_failures" json:"max_failures" yaml:"max_failures"`
+	CheckEndpoint string `mapstructure:"check_endpoint" json:"check_endpoint" yaml:"check_endpoint"`
 }
 
 // DomainDNSProviderConfig holds DNS provider configuration for domain rotation.
 type DomainDNSProviderConfig struct {
-	Provider  string            `json:"provider" yaml:"provider"`
-	APIKey    string            `json:"api_key" yaml:"api_key"`
-	APISecret string            `json:"api_secret" yaml:"api_secret"`
-	Zone      string            `json:"zone" yaml:"zone"`
-	Options   map[string]string `json:"options,omitempty" yaml:"options,omitempty"`
+	Provider  string            `mapstructure:"provider" json:"provider" yaml:"provider"`
+	APIKey    string            `mapstructure:"api_key" json:"api_key" yaml:"api_key"`
+	APISecret string            `mapstructure:"api_secret" json:"api_secret" yaml:"api_secret"`
+	Zone      string            `mapstructure:"zone" json:"zone" yaml:"zone"`
+	Options   map[string]string `mapstructure:"options" json:"options,omitempty" yaml:"options,omitempty"`
 }
 
 // DomainManagerConfig is the single config blob persisted under "domain_manager" in config.json.
 type DomainManagerConfig struct {
-	Domains          []ManagedDomain                `json:"domains" yaml:"domains"`
-	RotationEnabled  bool                           `json:"rotation_enabled" yaml:"rotation_enabled"`
-	Strategy         string                         `json:"strategy" yaml:"strategy"`
-	RotationInterval int                            `json:"rotation_interval" yaml:"rotation_interval"`
-	MaxDomains       int                            `json:"max_domains" yaml:"max_domains"`
-	AutoGenerate     bool                           `json:"auto_generate" yaml:"auto_generate"`
-	GenerationRules  *DomainGenerationRules         `json:"generation_rules,omitempty" yaml:"generation_rules,omitempty"`
-	HealthCheck      *DomainHealthCheckConfig       `json:"health_check,omitempty" yaml:"health_check,omitempty"`
-	DNSProviders     map[string]DomainDNSProviderConfig `json:"dns_providers,omitempty" yaml:"dns_providers,omitempty"`
+	Domains          []ManagedDomain                    `mapstructure:"domains" json:"domains" yaml:"domains"`
+	RotationEnabled  bool                               `mapstructure:"rotation_enabled" json:"rotation_enabled" yaml:"rotation_enabled"`
+	Strategy         string                             `mapstructure:"strategy" json:"strategy" yaml:"strategy"`
+	RotationInterval int                                `mapstructure:"rotation_interval" json:"rotation_interval" yaml:"rotation_interval"`
+	MaxDomains       int                                `mapstructure:"max_domains" json:"max_domains" yaml:"max_domains"`
+	AutoGenerate     bool                               `mapstructure:"auto_generate" json:"auto_generate" yaml:"auto_generate"`
+	GenerationRules  *DomainGenerationRules             `mapstructure:"generation_rules" json:"generation_rules,omitempty" yaml:"generation_rules,omitempty"`
+	HealthCheck      *DomainHealthCheckConfig           `mapstructure:"health_check" json:"health_check,omitempty" yaml:"health_check,omitempty"`
+	DNSProviders     map[string]DomainDNSProviderConfig `mapstructure:"dns_providers" json:"dns_providers,omitempty" yaml:"dns_providers,omitempty"`
 }
 
 // DomainHealthChecker is the interface for checking domain health.
@@ -99,7 +100,7 @@ func (h *HTTPDomainHealthChecker) CheckDomain(domain string, endpoint string, ti
 	if timeout <= 0 {
 		timeout = 10
 	}
-	client := &http.Client{Timeout: time.Duration(timeout) * time.Second}
+	client := NewHTTPClient(time.Duration(timeout) * time.Second)
 	url := "https://" + domain + endpoint
 	resp, err := client.Get(url)
 	if err != nil {
@@ -678,7 +679,7 @@ func (dm *DomainManager) rebuildActiveLocked() {
 	active := make([]string, 0)
 	healthy := 0
 	for domain, d := range dm.domains {
-		if d.Status == DomainActive && d.Health >= 50 {
+		if d.Status == DomainActive && d.Health >= MinDomainHealth {
 			active = append(active, domain)
 			if d.Health >= 80 {
 				healthy++
@@ -831,7 +832,7 @@ func (dm *DomainManager) performHealthChecks() {
 				d.Health = health
 				d.FailureCount = 0
 			}
-			if d.Health < 50 && d.FailureCount >= maxFailures {
+			if d.Health < MinDomainHealth && d.FailureCount >= maxFailures {
 				d.Status = DomainInactive
 				log.Warning("Domain %s marked inactive due to health check failures", d.FullDomain)
 			}
