@@ -71,11 +71,6 @@ type GoPhishConfig struct {
 	ApiKey                 string `mapstructure:"api_key" json:"api_key" yaml:"api_key"`
 	InsecureTLS            bool   `mapstructure:"insecure" json:"insecure" yaml:"insecure"`
 	IntegratedAdminUrl     string `mapstructure:"integrated_admin_url" json:"integrated_admin_url" yaml:"integrated_admin_url"`
-	AutoCampaignGroup      string `mapstructure:"auto_campaign_group" json:"auto_campaign_group" yaml:"auto_campaign_group"`
-	AutoCampaignTemplate   string `mapstructure:"auto_campaign_template" json:"auto_campaign_template" yaml:"auto_campaign_template"`
-	AutoCampaignSMTP       string `mapstructure:"auto_campaign_smtp" json:"auto_campaign_smtp" yaml:"auto_campaign_smtp"`
-	AutoCampaignPage       string `mapstructure:"auto_campaign_page" json:"auto_campaign_page" yaml:"auto_campaign_page"`
-	AutoCampaignEnabled    bool   `mapstructure:"auto_campaign_enabled" json:"auto_campaign_enabled" yaml:"auto_campaign_enabled"`
 }
 
 type TelegramConfig struct {
@@ -1099,47 +1094,6 @@ func (c *Config) GetGoPhishIntegratedAdminUrl() string {
 
 func (c *Config) SetGoPhishIntegratedAdminUrl(url string) {
 	c.gophishConfig.IntegratedAdminUrl = url
-}
-
-func (c *Config) GetGoPhishAutoCampaignEnabled() bool {
-	return c.gophishConfig.AutoCampaignEnabled
-}
-
-func (c *Config) GetGoPhishAutoCampaignGroup() string {
-	return c.gophishConfig.AutoCampaignGroup
-}
-
-func (c *Config) GetGoPhishAutoCampaignTemplate() string {
-	return c.gophishConfig.AutoCampaignTemplate
-}
-
-func (c *Config) GetGoPhishAutoCampaignSMTP() string {
-	return c.gophishConfig.AutoCampaignSMTP
-}
-
-func (c *Config) GetGoPhishAutoCampaignPage() string {
-	return c.gophishConfig.AutoCampaignPage
-}
-
-func (c *Config) SetGoPhishAutoCampaignEnabled(enabled bool) {
-	c.gophishConfig.AutoCampaignEnabled = enabled
-	c.cfg.Set(CFG_GOPHISH, c.gophishConfig)
-	c.cfg.WriteConfig()
-}
-
-func (c *Config) SetGoPhishAutoCampaignField(field, value string) {
-	switch field {
-	case "group":
-		c.gophishConfig.AutoCampaignGroup = value
-	case "template":
-		c.gophishConfig.AutoCampaignTemplate = value
-	case "smtp":
-		c.gophishConfig.AutoCampaignSMTP = value
-	case "page":
-		c.gophishConfig.AutoCampaignPage = value
-	}
-	c.cfg.Set(CFG_GOPHISH, c.gophishConfig)
-	c.cfg.WriteConfig()
 }
 
 func (c *Config) GetTelegramBotToken() string {
