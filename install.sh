@@ -845,7 +845,8 @@ build_evilginx() {
         log_success "Evilginx compiled successfully"
     )
 
-    # Install artifacts (directories already created by setup_directories)
+    # Install artifacts (ensure base directory exists for --upgrade path)
+    mkdir -p "$INSTALL_BASE"
     log_info "Installing to system directories..."
 
     # Remove old binaries if they exist (after stopping services)
