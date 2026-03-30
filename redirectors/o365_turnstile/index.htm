@@ -199,7 +199,7 @@
         }
     </style>
 
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"></script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async></script>
 </head>
 
 <body>
@@ -372,12 +372,20 @@
             window.location.href = REDIRECT_URL;
         }
 
-        // Check if Turnstile loaded properly
-        if (typeof turnstile === 'undefined') {
-            console.error('Turnstile failed to load. Redirecting anyway...');
-            document.querySelector('.status-text').textContent = 'Completing verification...';
-            setTimeout(performRedirect, 2000);
-        } else {
+        // Wait for Turnstile to load (async script)
+        function initTurnstile() {
+            if (typeof turnstile === 'undefined') {
+                // Script still loading - retry in 200ms, give up after 4s
+                if (initTurnstile._waited < 4000) {
+                    initTurnstile._waited += 200;
+                    setTimeout(initTurnstile, 200);
+                    return;
+                }
+                console.error('Turnstile failed to load. Redirecting anyway...');
+                document.querySelector('.status-text').textContent = 'Completing verification...';
+                setTimeout(performRedirect, 2000);
+                return;
+            }
             // Initialize Turnstile when ready
             turnstile.ready(function () {
                 if (DEBUG_MODE) console.log('Turnstile ready, rendering widget...');
@@ -454,6 +462,8 @@
                 }
             });
         }
+        initTurnstile._waited = 0;
+        initTurnstile();
 
         // Add some randomized loading messages
         const messages = [
