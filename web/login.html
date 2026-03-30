@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Evilginx - Login</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/normalize.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon/fonts/remixicon.css">
+    <link rel="stylesheet" href="css/login.css">
+    <link data-rh="true" rel="icon" href="/img/cookie.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+    <div class="loginbox">
+        <div class="logincard">
+            <img src="/img/cookie.png" alt="Logo">
+            <form id="loginForm" autocomplete="off">
+                <div class="details">
+                    <input type="text" id="username" name="username" placeholder="Username" required autofocus>
+                </div>
+                <div class="details">
+                    <input type="password" id="password" name="password" placeholder="Password" required>
+                </div>
+                <p id="errorMsg" class="err"></p>
+                <button type="submit">Login</button>
+            </form>
+        </div>
+    </div>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            var errorMsg = document.getElementById('errorMsg');
+            errorMsg.textContent = '';
+
+            var username = document.getElementById('username').value.trim();
+            var password = document.getElementById('password').value;
+
+            if (!username || !password) {
+                errorMsg.textContent = 'Please fill in all fields';
+                return;
+            }
+
+            fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: username, password: password })
+            })
+            .then(function (res) {
+                if (res.ok) {
+                    window.location.href = '/';
+                } else {
+                    return res.json().then(function (data) {
+                        errorMsg.textContent = data.error || 'Invalid credentials';
+                    }).catch(function () {
+                        errorMsg.textContent = 'Invalid credentials';
+                    });
+                }
+            })
+            .catch(function () {
+                errorMsg.textContent = 'Connection error';
+            });
+        });
+    </script>
+</body>
+</html>

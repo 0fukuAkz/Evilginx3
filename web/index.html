@@ -3,23 +3,27 @@
 <head>
     <title>Admin Dashboard</title>
     <meta charset="utf-8">
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/normalize.css" />
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon/fonts/remixicon.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/normalize.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon/fonts/remixicon.css">
     <link rel="stylesheet" href="css/main.css">
-	<link data-rh="true" rel="icon" href="/img/cookie.png">
+    <link data-rh="true" rel="icon" href="/img/cookie.png">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-	<!-- jQuery + DataTables -->
-	<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
-	<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-	<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha512-..." crossorigin="anonymous" referrerpolicy="no-referrer" />
-	<!-- Leaflet CSS -->
-	<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-	<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
-	<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- jQuery + DataTables -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha512-..." crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+    <!-- xterm.js -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
 
 <style>
+/* ---- Dashboard-specific (from original) ---- */
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -186,7 +190,6 @@
   transition: background-color 0.3s;
 }
 .btn-save:hover { background-color: #019875; }
-
 .hidden { display: none; }
 .toggle-password {
   margin-left: 8px;
@@ -195,110 +198,796 @@
   cursor: pointer;
   font-size: 14px;
 }
+
+/* ---- Nav Tabs ---- */
+.nav-tabs {
+  display: flex;
+  gap: 0;
+  background: #1a1a2e;
+  padding: 0 30px;
+  border-bottom: 2px solid #2a2a4a;
+  overflow-x: auto;
+  position: fixed;
+  top: 60px;
+  left: 0;
+  width: 100%;
+  z-index: 9998;
+}
+.nav-tabs a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 20px;
+  color: #8888aa;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  border-bottom: 3px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+.nav-tabs a:hover {
+  color: #ccc;
+  background: rgba(255,255,255,0.03);
+}
+.nav-tabs a.active {
+  color: #00bcd4;
+  border-bottom-color: #00bcd4;
+}
+body {
+  padding-top: 110px !important;
+}
+
+/* ---- Section pages ---- */
+.section-page {
+  display: none;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+.section-page.active {
+  display: block;
+}
+
+/* ---- Filter Bar ---- */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: #f0f2f5;
+  border-radius: 8px;
+}
+body.dark .filter-bar {
+  background: #1f2937;
+}
+.filter-bar select,
+.filter-bar input[type="date"],
+.filter-bar input[type="text"] {
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+}
+body.dark .filter-bar select,
+body.dark .filter-bar input[type="date"],
+body.dark .filter-bar input[type="text"] {
+  background: #2d3748;
+  color: #eee;
+  border-color: #4a5568;
+}
+.filter-bar label {
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.filter-bar button {
+  padding: 8px 16px;
+  font-size: 13px;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.filter-bar button:hover {
+  background: #2563eb;
+}
+
+/* ---- Bulk Actions ---- */
+.bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.bulk-actions button {
+  padding: 7px 14px;
+  font-size: 13px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  color: #fff;
+}
+.bulk-actions .btn-delete { background: #ef4444; }
+.bulk-actions .btn-delete:hover { background: #dc2626; }
+.bulk-actions .btn-export { background: #10b981; }
+.bulk-actions .btn-export:hover { background: #059669; }
+.bulk-actions .btn-review { background: #f59e0b; }
+.bulk-actions .btn-review:hover { background: #d97706; }
+
+/* ---- Detail Panel ---- */
+.detail-panel {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 8px 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+body.dark .detail-panel {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+.detail-panel h4 {
+  margin: 14px 0 6px;
+  font-size: 14px;
+  color: #3b82f6;
+}
+.detail-panel pre {
+  background: #1e293b;
+  color: #a5f3fc;
+  padding: 10px 14px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 12px;
+  max-height: 300px;
+}
+body.light .detail-panel pre {
+  background: #1e293b;
+  color: #a5f3fc;
+}
+.detail-panel .copy-cookies-btn {
+  margin-top: 10px;
+  padding: 8px 16px;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+}
+.detail-panel .copy-cookies-btn:hover {
+  background: #2563eb;
+}
+
+/* ---- Timeline Visualization ---- */
+.timeline-vis {
+  position: relative;
+  padding-left: 24px;
+  margin: 10px 0;
+}
+.timeline-vis::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #3b82f6;
+}
+.timeline-vis .tl-item {
+  position: relative;
+  padding: 6px 0 6px 16px;
+  font-size: 13px;
+}
+.timeline-vis .tl-item::before {
+  content: '';
+  position: absolute;
+  left: -20px;
+  top: 12px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #3b82f6;
+  border: 2px solid #fff;
+}
+body.dark .timeline-vis .tl-item::before {
+  border-color: #1e293b;
+}
+.timeline-vis .tl-time {
+  color: #64748b;
+  font-size: 12px;
+}
+
+/* ---- Chart containers ---- */
+.chart-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+@media (max-width: 768px) {
+  .chart-row { grid-template-columns: 1fr; }
+}
+.chart-card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+body.dark .chart-card {
+  background: var(--card-dark, #1f2937);
+}
+.chart-card h3 {
+  font-size: 15px;
+  margin-bottom: 12px;
+  color: #555;
+}
+body.dark .chart-card h3 {
+  color: #ccc;
+}
+.chart-card canvas {
+  max-height: 260px;
+}
+
+/* ---- Section tables (phishlets, lures, etc.) ---- */
+.section-table-wrap {
+  background: #fff;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+body.dark .section-table-wrap {
+  background: var(--card-dark, #1f2937);
+}
+.section-table-wrap h2 {
+  font-size: 20px;
+  margin-bottom: 16px;
+}
+.section-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.section-table th, .section-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}
+body.dark .section-table th, body.dark .section-table td {
+  border-color: #334155;
+}
+.section-table th {
+  background: #f1f5f9;
+  font-weight: 600;
+  font-size: 13px;
+  color: #475569;
+}
+body.dark .section-table th {
+  background: #334155;
+  color: #cbd5e1;
+}
+.section-table tbody tr:hover {
+  background: rgba(59,130,246,0.06);
+}
+.section-table .badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge-enabled { background: #d1fae5; color: #065f46; }
+.badge-disabled { background: #fee2e2; color: #991b1b; }
+.badge-hidden { background: #fef3c7; color: #92400e; }
+body.dark .badge-enabled { background: #065f46; color: #a7f3d0; }
+body.dark .badge-disabled { background: #991b1b; color: #fecaca; }
+body.dark .badge-hidden { background: #92400e; color: #fde68a; }
+.section-table button {
+  padding: 5px 12px;
+  font-size: 12px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 600;
+  color: #fff;
+  background: #3b82f6;
+  margin: 2px;
+}
+.section-table button:hover { background: #2563eb; }
+.section-table button.btn-danger { background: #ef4444; }
+.section-table button.btn-danger:hover { background: #dc2626; }
+.section-table button.btn-warn { background: #f59e0b; }
+.section-table button.btn-warn:hover { background: #d97706; }
+
+/* ---- Config Section ---- */
+.config-section {
+  background: #fff;
+  border-radius: 10px;
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+body.dark .config-section {
+  background: var(--card-dark, #1f2937);
+}
+.config-section h3 {
+  font-size: 17px;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e2e8f0;
+}
+body.dark .config-section h3 {
+  border-color: #334155;
+}
+.config-row {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.config-row label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+body.dark .config-row label {
+  color: #94a3b8;
+}
+.config-row input, .config-row select {
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+body.dark .config-row input, body.dark .config-row select {
+  background: #1e293b;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+/* ---- Audit table ---- */
+.audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.audit-table th, .audit-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}
+body.dark .audit-table th, body.dark .audit-table td {
+  border-color: #334155;
+}
+.audit-table th {
+  background: #f1f5f9;
+  font-weight: 600;
+  color: #475569;
+}
+body.dark .audit-table th {
+  background: #334155;
+  color: #cbd5e1;
+}
+
+/* ---- Terminal container ---- */
+#xterm-container {
+  width: 100%;
+  height: 480px;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.terminal-wrap {
+  background: #fff;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+body.dark .terminal-wrap {
+  background: var(--card-dark, #1f2937);
+}
+.terminal-wrap h2 {
+  font-size: 20px;
+  margin-bottom: 14px;
+}
+.terminal-wrap .term-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.terminal-wrap .term-actions button {
+  padding: 8px 16px;
+  font-size: 13px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  color: #fff;
+  background: #10b981;
+}
+.terminal-wrap .term-actions button:hover { background: #059669; }
+.terminal-wrap .term-actions button.btn-disconnect {
+  background: #ef4444;
+}
+.terminal-wrap .term-actions button.btn-disconnect:hover {
+  background: #dc2626;
+}
+.term-placeholder {
+  color: #94a3b8;
+  font-style: italic;
+  padding: 20px;
+  text-align: center;
+}
+/* ---- Create button ---- */
+.btn-create {
+  padding: 8px 18px;
+  font-size: 14px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  color: #fff;
+  background: #10b981;
+  margin-bottom: 16px;
+}
+.btn-create:hover { background: #059669; }
 </style>
-	<!-- Leaflet JS -->
-	<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-	<script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-	<script src="js/leaflet-curve.js"></script> 
-	<script src="js/leaflet-heat.js"></script>   
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+    <script src="js/leaflet-curve.js"></script>
+    <script src="js/leaflet-heat.js"></script>
 </head>
-<body> 
-	<nav class="navbar">
-		<div class="navbar-left">
-			<img src="/img/cookie.png" alt="Logo" class="navbar-logo" />
-			<span class="navbar-title">EVILX SESSIONS 𝗗𝗔𝗦𝗛𝗕𝗢𝗔𝗥𝗗</span>
-		</div>
-		<div class="navbar-right">
-			<button id="settingsToggle">
-			<i class="ri-settings-3-line"></i>
-			<span>Settings</span>
-			</button>
-			<button id="themeToggle" title="Toggle Theme">
-			<i id="themeIcon" class="ri-moon-line"></i>
-			</button>
-			<button onclick="logoutUser()" title="Logout">
-			<i class="ri-logout-box-line"></i>
-			</button>
-		</div>
+<body>
+<nav class="navbar">
+    <div class="navbar-left">
+        <img src="/img/cookie.png" alt="Logo" class="navbar-logo" />
+        <span class="navbar-title">EVILX ADMIN PANEL</span>
+    </div>
+    <div class="navbar-right">
+        <button id="settingsToggle">
+            <i class="ri-settings-3-line"></i>
+            <span>Settings</span>
+        </button>
+        <button id="themeToggle" title="Toggle Theme">
+            <i id="themeIcon" class="ri-moon-line"></i>
+        </button>
+        <button onclick="logoutUser()" title="Logout">
+            <i class="ri-logout-box-line"></i>
+        </button>
+    </div>
 </nav>
 
-<div class="dashboard-grid">
-  <div class="stat-card percent-bull">
-    <h3><i class="bi bi-people"></i> TOTAL VISITS</h3>
-    <p class="value total-visits">0</p>
-    <div class="trend">
-      <img src="img/dash-bull.svg" alt="bull">
-      <small class="percent">100%</small>
-    </div>
-    <p class="description">All Visitors</p>
-  </div>
-  <div class="stat-card percent-bull">
-    <h3><i class="bi bi-shield-check"></i> VALID LOGINS</h3>
-    <p class="value valid">0</p>
-    <div class="trend">
-      <img src="img/dash-bull.svg" alt="bull">
-      <small class="percent">100%</small>
-    </div>
-    <p class="description">Valid credentials</p>
-  </div>
-  <div class="stat-card percent-bear">
-    <h3><i class="bi bi-shield-x"></i> INVALID LOGINS</h3>
-    <p class="value invalid">0</p>
-    <div class="trend">
-      <img src="img/dash-bear.svg" alt="bear">
-      <small class="percent">0%</small>
-    </div>
-    <p class="description">Invalid credentials</p>
-  </div>
+<!-- Tab Navigation -->
+<div class="nav-tabs" id="navTabs">
+    <a href="#dashboard" data-tab="dashboard"><i class="ri-dashboard-line"></i> Dashboard</a>
+    <a href="#phishlets" data-tab="phishlets"><i class="ri-shield-keyhole-line"></i> Phishlets</a>
+    <a href="#lures" data-tab="lures"><i class="ri-links-line"></i> Lures</a>
+    <a href="#campaigns" data-tab="campaigns"><i class="ri-megaphone-line"></i> Campaigns</a>
+    <a href="#config" data-tab="config"><i class="ri-settings-4-line"></i> Config</a>
+    <a href="#audit" data-tab="audit"><i class="ri-file-list-3-line"></i> Audit</a>
+    <a href="#terminal" data-tab="terminal"><i class="ri-terminal-box-line"></i> Terminal</a>
 </div>
-<div class="dashboard-layout">
-  <!-- Map Section -->
-  <div class="dashboard-card card-map">
-    <div id="map"></div>
-  </div>
 
-  <!-- Session Logs Section -->
-  <section class="session-section">
-    <div class="card-actions">
-      <button onclick="deleteAllSessions()">
-        <i class="ri-delete-bin-6-line"></i> Delete All
-      </button>
-      <button onclick="exportData('json')">
-        <i class="ri-download-2-line"></i> Export .JSON
-      </button>
-      <button onclick="exportData('csv')">
-        <i class="ri-download-2-line"></i> Export .CSV
-      </button>
-      <button onclick="exportData('txt')">
-        <i class="ri-download-2-line"></i> Export .TXT
-      </button>
+<!-- ==================== DASHBOARD SECTION ==================== -->
+<div id="section-dashboard" class="section-page">
+    <div class="dashboard-grid">
+      <div class="stat-card percent-bull">
+        <h3><i class="bi bi-people"></i> TOTAL VISITS</h3>
+        <p class="value total-visits">0</p>
+        <div class="trend">
+          <img src="img/dash-bull.svg" alt="bull">
+          <small class="percent">100%</small>
+        </div>
+        <p class="description">All Visitors</p>
+      </div>
+      <div class="stat-card percent-bull">
+        <h3><i class="bi bi-shield-check"></i> VALID LOGINS</h3>
+        <p class="value valid">0</p>
+        <div class="trend">
+          <img src="img/dash-bull.svg" alt="bull">
+          <small class="percent">100%</small>
+        </div>
+        <p class="description">Valid credentials</p>
+      </div>
+      <div class="stat-card percent-bear">
+        <h3><i class="bi bi-shield-x"></i> INVALID LOGINS</h3>
+        <p class="value invalid">0</p>
+        <div class="trend">
+          <img src="img/dash-bear.svg" alt="bear">
+          <small class="percent">0%</small>
+        </div>
+        <p class="description">Invalid credentials</p>
+      </div>
     </div>
 
-    <div class="logs-table-container">
-      <table id="dataTable" class="styled-table">
+    <div class="dashboard-layout">
+      <!-- Charts Row -->
+      <div class="chart-row">
+        <div class="chart-card">
+          <h3>Sessions Over Time</h3>
+          <canvas id="timelineChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>By Phishlet</h3>
+          <canvas id="phishletChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Map Section -->
+      <div class="dashboard-card card-map">
+        <div id="map"></div>
+      </div>
+
+      <!-- Session Logs Section -->
+      <section class="session-section">
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+          <select id="filterPhishlet">
+            <option value="">All Phishlets</option>
+          </select>
+          <label>From: <input type="date" id="filterDateFrom"></label>
+          <label>To: <input type="date" id="filterDateTo"></label>
+          <label><input type="checkbox" id="filterHasTokens"> Has Tokens</label>
+          <button onclick="applySessionFilter()"><i class="ri-filter-3-line"></i> Filter</button>
+        </div>
+
+        <!-- Bulk Actions -->
+        <div class="bulk-actions">
+          <button class="btn-delete" onclick="bulkAction('delete')"><i class="ri-delete-bin-line"></i> Delete Selected</button>
+          <button class="btn-export" onclick="bulkAction('export')"><i class="ri-download-2-line"></i> Export Selected</button>
+          <button class="btn-review" onclick="bulkAction('review')"><i class="ri-check-double-line"></i> Mark Reviewed</button>
+        </div>
+
+        <div class="card-actions">
+          <button onclick="deleteAllSessions()">
+            <i class="ri-delete-bin-6-line"></i> Delete All
+          </button>
+          <button onclick="exportData('json')">
+            <i class="ri-download-2-line"></i> Export .JSON
+          </button>
+          <button onclick="exportData('csv')">
+            <i class="ri-download-2-line"></i> Export .CSV
+          </button>
+          <button onclick="exportData('txt')">
+            <i class="ri-download-2-line"></i> Export .TXT
+          </button>
+        </div>
+
+        <div class="logs-table-container">
+          <table id="dataTable" class="styled-table">
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="selectAllSessions"></th>
+                <th>No.</th>
+                <th>Phishlet</th>
+                <th>Username</th>
+                <th>Password</th>
+                <th>IP</th>
+                <th>Device</th>
+                <th>Time</th>
+                <th>Tokens</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="sessionsTableBody">
+            </tbody>
+          </table>
+        </div>
+        <!-- Detail panel is injected dynamically below clicked rows -->
+      </section>
+    </div>
+</div>
+
+<!-- ==================== PHISHLETS SECTION ==================== -->
+<div id="section-phishlets" class="section-page">
+    <div class="section-table-wrap">
+      <h2><i class="ri-shield-keyhole-line"></i> Phishlets</h2>
+      <table class="section-table" id="phishletsTable">
         <thead>
           <tr>
-            <th>No.</th>
-            <th>Username</th>
-            <th>Password</th>
-            <th>IP</th>
-            <th>Device</th>
-            <th>Time</th>
-            <th>Custom</th>
-            <th>Tokens</th>
-            <th></th>
+            <th>Name</th>
+            <th>Hostname</th>
+            <th>Status</th>
+            <th>Actions</th>
           </tr>
         </thead>
-        <tbody id="sessionsTableBody">
+        <tbody id="phishletsTableBody">
+          <tr><td colspan="4" style="text-align:center;color:#999;">Loading...</td></tr>
         </tbody>
       </table>
     </div>
-  </section>
+</div>
+
+<!-- ==================== LURES SECTION ==================== -->
+<div id="section-lures" class="section-page">
+    <div class="section-table-wrap">
+      <h2><i class="ri-links-line"></i> Lures</h2>
+      <div style="margin-bottom:16px;display:flex;gap:10px;align-items:center;">
+        <select id="lurePhishletSelect" style="padding:8px 12px;border-radius:6px;border:1px solid #ccc;font-size:13px;">
+          <option value="">Select Phishlet</option>
+        </select>
+        <button class="btn-create" onclick="createLure()"><i class="ri-add-line"></i> Create Lure</button>
+      </div>
+      <table class="section-table" id="luresTable">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Phishlet</th>
+            <th>Path</th>
+            <th>Hostname</th>
+            <th>Redirect URL</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="luresTableBody">
+          <tr><td colspan="6" style="text-align:center;color:#999;">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+</div>
+
+<!-- ==================== CAMPAIGNS SECTION ==================== -->
+<div id="section-campaigns" class="section-page">
+    <div class="section-table-wrap">
+      <h2><i class="ri-megaphone-line"></i> Campaigns</h2>
+      <table class="section-table" id="campaignsTable">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>URL</th>
+            <th>Stats</th>
+          </tr>
+        </thead>
+        <tbody id="campaignsTableBody">
+          <tr><td colspan="5" style="text-align:center;color:#999;">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+</div>
+
+<!-- ==================== CONFIG SECTION ==================== -->
+<div id="section-config" class="section-page">
+    <!-- Network -->
+    <div class="config-section">
+      <h3><i class="ri-global-line"></i> Network</h3>
+      <div class="config-row">
+        <label>External IP</label>
+        <input type="text" id="cfgExternalIP" placeholder="e.g. 1.2.3.4">
+      </div>
+      <div class="config-row">
+        <label>Bind IP</label>
+        <input type="text" id="cfgBindIP" placeholder="0.0.0.0">
+      </div>
+      <div class="config-row">
+        <label>HTTPS Port</label>
+        <input type="text" id="cfgHttpsPort" placeholder="443">
+      </div>
+      <div class="config-row">
+        <label>HTTP Port</label>
+        <input type="text" id="cfgHttpPort" placeholder="80">
+      </div>
+      <div class="config-row">
+        <label>DNS Port</label>
+        <input type="text" id="cfgDnsPort" placeholder="53">
+      </div>
+      <button class="btn-save" onclick="saveConfigSection('network')">Save Network</button>
+    </div>
+
+    <!-- General -->
+    <div class="config-section">
+      <h3><i class="ri-settings-3-line"></i> General</h3>
+      <div class="config-row">
+        <label>Unauth URL</label>
+        <input type="text" id="cfgUnauthURL" placeholder="https://example.com">
+      </div>
+      <div class="config-row">
+        <label>Autocert</label>
+        <select id="cfgAutocert">
+          <option value="true">Enabled</option>
+          <option value="false">Disabled</option>
+        </select>
+      </div>
+      <div class="config-row">
+        <label>Base Domain</label>
+        <input type="text" id="cfgBaseDomain" placeholder="yourdomain.com">
+      </div>
+      <button class="btn-save" onclick="saveConfigSection('general')">Save General</button>
+    </div>
+
+    <!-- Telegram -->
+    <div class="config-section">
+      <h3><i class="ri-telegram-line"></i> Telegram</h3>
+      <div class="config-row">
+        <label>Bot Token</label>
+        <input type="password" id="cfgTgBotToken" placeholder="123456:ABC-DEF...">
+      </div>
+      <div class="config-row">
+        <label>Chat ID</label>
+        <input type="text" id="cfgTgChatID" placeholder="12345678">
+      </div>
+      <button class="btn-save" onclick="saveConfigSection('telegram')">Save Telegram</button>
+    </div>
+
+    <!-- GoPhish -->
+    <div class="config-section">
+      <h3><i class="ri-spy-line"></i> GoPhish</h3>
+      <div class="config-row">
+        <label>Admin URL</label>
+        <input type="text" id="cfgGpAdminURL" placeholder="https://gophish.local:3333">
+      </div>
+      <div class="config-row">
+        <label>API Key</label>
+        <input type="password" id="cfgGpAPIKey" placeholder="API key">
+      </div>
+      <div class="config-row">
+        <label>Insecure TLS</label>
+        <select id="cfgGpInsecure">
+          <option value="false">No</option>
+          <option value="true">Yes</option>
+        </select>
+      </div>
+      <button class="btn-save" onclick="saveConfigSection('gophish')">Save GoPhish</button>
+    </div>
+</div>
+
+<!-- ==================== AUDIT SECTION ==================== -->
+<div id="section-audit" class="section-page">
+    <div class="section-table-wrap">
+      <h2><i class="ri-file-list-3-line"></i> Audit Log</h2>
+      <table class="audit-table" id="auditTable">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>User</th>
+            <th>Action</th>
+            <th>Detail</th>
+            <th>IP</th>
+          </tr>
+        </thead>
+        <tbody id="auditTableBody">
+          <tr><td colspan="5" style="text-align:center;color:#999;">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+</div>
+
+<!-- ==================== TERMINAL SECTION ==================== -->
+<div id="section-terminal" class="section-page">
+    <div class="terminal-wrap">
+      <h2><i class="ri-terminal-box-line"></i> Terminal</h2>
+      <div class="term-actions">
+        <button onclick="connectTerminal()" id="btnTermConnect"><i class="ri-link"></i> Connect</button>
+        <button class="btn-disconnect" onclick="disconnectTerminal()" id="btnTermDisconnect" style="display:none;"><i class="ri-link-unlink"></i> Disconnect</button>
+      </div>
+      <div id="xterm-container">
+        <p class="term-placeholder">Terminal functionality coming soon. Press Connect to attempt WebSocket connection.</p>
+      </div>
+    </div>
+</div>
+
+<!-- ==================== SETTINGS OVERLAY ==================== -->
 <div id="settingsOverlay" class="overlay hidden">
   <div class="overlay-content">
-    <h2 class="settings-title">⚙️ Settings</h2>
+    <h2 class="settings-title">Settings</h2>
     <div class="settings-section">
-      <h3>📤 Telegram Notifications</h3>
+      <h3>Telegram Notifications</h3>
       <p style="font-size: 0.85rem; color: #666; margin-bottom: 15px;">
         Receive instant alerts on your Telegram bot when a new session is captured.
       </p>
@@ -310,10 +999,8 @@
         <i class="ri-save-line"></i> Save Telegram Config
       </button>
     </div>
-
-    <!-- Optional: Password Change Section -->
     <div class="settings-section">
-      <h3>🔐 Admin Password</h3>
+      <h3>Admin Password</h3>
       <div class="form-row">
         <input type="password" id="oldPassword" placeholder="Current Password" />
         <input type="password" id="newPassword" placeholder="New Password" />
@@ -324,128 +1011,1205 @@
     </div>
   </div>
 </div>
-</div>
+
 <div id="notify" class="notify hidden"></div>
 <script src="js/main.js?v=1.0.1"></script>
 
 <script>
-// Dynamic Session Render!
-fetch('/api/sessions').then(r=>r.json()).then(data => {
-   const tbody = document.getElementById('sessionsTableBody');
-   if(!data) { data = []; }
-   data.forEach((item, index) => {
-      let realPass = item.password || "";
-      let passHTML = '<span class="text-muted">No password</span>';
-      if (realPass) {
-          passHTML = `<span class="masked-password">••••••••</span>
-                      <span class="real-password hidden">${realPass}</span>
-                      <button type="button" class="toggle-password">👁️</button>`;
-      }
-
-      let ua = (item.useragent || "").toLowerCase();
-      let os = "Unknown OS", osIcon = "fa-question-circle";
-      let browser = "Unknown Browser", browserIcon = "fa-globe";
-
-      if (ua.includes("iphone") || ua.includes("ipad") || ua.includes("ios")) {
-        os = "iOS"; osIcon = "fa-mobile-screen-button";
-      } else if (ua.includes("android")) {
-         os = "Android"; osIcon = "fa-robot";
-      } else if (ua.includes("windows")) {
-         os = "Windows"; osIcon = "fa-desktop";
-      } else if (ua.includes("mac os") || ua.includes("macintosh")) {
-         os = "macOS"; osIcon = "fa-laptop";
-      } else if (ua.includes("linux")) {
-         os = "Linux"; osIcon = "fa-server";
-      }
-
-      if (ua.includes("chrome") && !ua.includes("edg")) {
-        browser = "Chrome"; browserIcon = "fa-chrome";
-      } else if (ua.includes("firefox")) {
-        browser = "Firefox"; browserIcon = "fa-firefox";
-      } else if (ua.includes("safari") && !ua.includes("chrome")) {
-        browser = "Safari"; browserIcon = "fa-safari";
-      } else if (ua.includes("edg")) {
-        browser = "Edge"; browserIcon = "fa-edge";
-      } else if (ua.includes("opera") || ua.includes("opr")) {
-        browser = "Opera"; browserIcon = "fa-opera";
-      }
-
-      const hasCustom = item.custom && Object.keys(item.custom).length > 0 ? "✅" : "";
-      const hasTokens = item.tokens && Object.keys(item.tokens).length > 0 ? '<i class="fa-solid fa-cookie-bite icon-cookie-valid"></i>' : '<i class="fa-solid fa-cookie icon-cookie-invalid"></i>';
-      const timeStr = new Date(item.create_time * 1000).toLocaleString();
-
-      const tr = document.createElement("tr");
-      tr.setAttribute("data-session-id", item.id);
-      tr.setAttribute("data-tokens", JSON.stringify(item.tokens || {}));
-      tr.setAttribute("data-custom", JSON.stringify(item.custom || {}));
-      tr.innerHTML = `
-          <td>${index + 1}</td>
-          <td>${item.username || ""}</td>
-          <td>${passHTML}</td>
-          <td>${item.remote_addr || ""}</td>
-          <td>
-              <i class="fa-solid ${osIcon}"></i> ${os}<br>
-              <i class="fa-brands ${browserIcon}"></i> ${browser}
-          </td>
-          <td>${timeStr}</td>
-          <td>${hasCustom}</td>
-          <td>${hasTokens}</td>
-          <td><button class="download-button">Download</button></td>
-      `;
-      tbody.appendChild(tr);
-  });
-
-  $('#dataTable').DataTable({
-      pageLength: 10,
-      lengthMenu: [5, 10, 25, 50, 100],
-      responsive: true
-  });
-  // Use event delegation for all table buttons (survives DataTables re-render)
-  var tableEl = document.getElementById('dataTable');
-  
-  // Download button delegation
-  tableEl.addEventListener('click', function(e) {
-    var btn = e.target.closest('.download-button');
-    if (btn) {
-      var row = btn.closest('tr');
-      var sessionId = row.getAttribute('data-session-id');
-      if (!sessionId) {
-        if (typeof showNotify === 'function') showNotify('❌ No session ID found.', 'error');
-        return;
-      }
-      // Trigger browser download
-      window.open('/api/sessions/download?id=' + sessionId, '_blank');
+// ============================================================
+// API Fetch Wrapper - checks for 401 and redirects to /login
+// ============================================================
+async function apiFetch(url, options) {
+  try {
+    const resp = await fetch(url, options || {});
+    if (resp.status === 401) {
+      window.location.href = '/login';
+      return null;
     }
+    return resp;
+  } catch (err) {
+    console.error('apiFetch error:', err);
+    throw err;
+  }
+}
+
+// ============================================================
+// Auth check on page load
+// ============================================================
+(async function checkAuth() {
+  try {
+    const resp = await fetch('/api/auth/check');
+    if (resp.status === 401) {
+      window.location.href = '/login';
+    }
+  } catch (e) {
+    // Network error - don't redirect, might be local
+  }
+})();
+
+// ============================================================
+// Session data store
+// ============================================================
+let allSessions = [];
+let filteredSessions = [];
+let dataTableInstance = null;
+let timelineChartInstance = null;
+let phishletChartInstance = null;
+
+// ============================================================
+// Navigation / Routing
+// ============================================================
+const sections = ['dashboard', 'phishlets', 'lures', 'campaigns', 'config', 'audit', 'terminal'];
+
+function navigateTo(section) {
+  if (!sections.includes(section)) section = 'dashboard';
+
+  // Hide all sections
+  sections.forEach(function(s) {
+    var el = document.getElementById('section-' + s);
+    if (el) el.classList.remove('active');
   });
 
-  // Password toggle delegation
-  tableEl.addEventListener('click', function(e) {
-    if (e.target && e.target.classList.contains('toggle-password')) {
-      var cell = e.target.closest('td');
-      var maskedPassword = cell.querySelector('.masked-password');
-      var realPassword = cell.querySelector('.real-password');
-      if (maskedPassword && realPassword) {
-        maskedPassword.classList.toggle('hidden');
-        realPassword.classList.toggle('hidden');
-        e.target.textContent = realPassword.classList.contains('hidden') ? '👁️' : '🙈';
-      }
-    }
+  // Remove active from all tabs
+  document.querySelectorAll('.nav-tabs a').forEach(function(a) {
+    a.classList.remove('active');
+  });
+
+  // Show target section
+  var target = document.getElementById('section-' + section);
+  if (target) target.classList.add('active');
+
+  // Activate tab
+  var tab = document.querySelector('.nav-tabs a[data-tab="' + section + '"]');
+  if (tab) tab.classList.add('active');
+
+  // Load section data
+  if (section === 'dashboard') {
+    loadDashboard();
+  } else if (section === 'phishlets') {
+    loadPhishlets();
+  } else if (section === 'lures') {
+    loadLures();
+  } else if (section === 'campaigns') {
+    loadCampaigns();
+  } else if (section === 'config') {
+    loadConfig();
+  } else if (section === 'audit') {
+    loadAudit();
+  }
+  // terminal - loaded once on connect
+}
+
+// Hash-based routing
+function onHashChange() {
+  var hash = window.location.hash.replace('#', '') || 'dashboard';
+  navigateTo(hash);
+}
+window.addEventListener('hashchange', onHashChange);
+
+// Tab click handlers
+document.querySelectorAll('.nav-tabs a').forEach(function(a) {
+  a.addEventListener('click', function(e) {
+    // Let hash change handle it
   });
 });
 
-// Update fetch stat endpoint
-setInterval(() => {
-  fetch("/api/stats")
-    .then(r => r.json())
-    .then(stats => {
-      const ts = document.querySelector(".total-visits");
-      if (ts) ts.textContent = stats.total;
-      const vs = document.querySelector(".valid");
-      if (vs) vs.textContent = stats.validCount;
-      const is = document.querySelector(".invalid");
-      if (is) is.textContent = stats.invalidCount;
+// ============================================================
+// Dashboard
+// ============================================================
+let dashboardLoaded = false;
+
+function loadDashboard() {
+  if (!dashboardLoaded) {
+    loadSessions();
+    initCharts();
+    dashboardLoaded = true;
+  }
+  // Refresh map if needed
+  if (typeof map !== 'undefined' && map) {
+    setTimeout(function() { map.invalidateSize(); }, 200);
+  }
+}
+
+function loadSessions() {
+  apiFetch('/api/sessions').then(function(r) {
+    if (!r) return;
+    return r.json();
+  }).then(function(data) {
+    if (!data) data = [];
+    allSessions = data;
+    filteredSessions = data;
+    populatePhishletFilter(data);
+    renderSessions(data);
+    updateCharts(data);
+  }).catch(function(err) {
+    console.error('Failed to load sessions:', err);
+  });
+}
+
+function populatePhishletFilter(data) {
+  var sel = document.getElementById('filterPhishlet');
+  if (!sel) return;
+  var phishlets = {};
+  data.forEach(function(item) {
+    if (item.phishlet) phishlets[item.phishlet] = true;
+  });
+  // Reset options
+  sel.innerHTML = '<option value="">All Phishlets</option>';
+  Object.keys(phishlets).sort().forEach(function(p) {
+    var opt = document.createElement('option');
+    opt.value = p;
+    opt.textContent = p;
+    sel.appendChild(opt);
+  });
+}
+
+function renderSessions(data) {
+  // Destroy existing DataTable
+  if (dataTableInstance) {
+    dataTableInstance.destroy();
+    dataTableInstance = null;
+  }
+
+  var tbody = document.getElementById('sessionsTableBody');
+  tbody.innerHTML = '';
+
+  if (!data || data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#999;">No sessions found</td></tr>';
+    return;
+  }
+
+  data.forEach(function(item, index) {
+    var realPass = item.password || '';
+    var passHTML = '<span class="text-muted">No password</span>';
+    if (realPass) {
+      passHTML = '<span class="masked-password">--------</span>' +
+                 '<span class="real-password hidden">' + escapeHtml(realPass) + '</span>' +
+                 '<button type="button" class="toggle-password">Show</button>';
+    }
+
+    var ua = (item.useragent || '').toLowerCase();
+    var os = 'Unknown OS', osIcon = 'fa-question-circle';
+    var browser = 'Unknown Browser', browserIcon = 'fa-globe';
+
+    if (ua.includes('iphone') || ua.includes('ipad') || ua.includes('ios')) {
+      os = 'iOS'; osIcon = 'fa-mobile-screen-button';
+    } else if (ua.includes('android')) {
+      os = 'Android'; osIcon = 'fa-robot';
+    } else if (ua.includes('windows')) {
+      os = 'Windows'; osIcon = 'fa-desktop';
+    } else if (ua.includes('mac os') || ua.includes('macintosh')) {
+      os = 'macOS'; osIcon = 'fa-laptop';
+    } else if (ua.includes('linux')) {
+      os = 'Linux'; osIcon = 'fa-server';
+    }
+
+    if (ua.includes('chrome') && !ua.includes('edg')) {
+      browser = 'Chrome'; browserIcon = 'fa-chrome';
+    } else if (ua.includes('firefox')) {
+      browser = 'Firefox'; browserIcon = 'fa-firefox';
+    } else if (ua.includes('safari') && !ua.includes('chrome')) {
+      browser = 'Safari'; browserIcon = 'fa-safari';
+    } else if (ua.includes('edg')) {
+      browser = 'Edge'; browserIcon = 'fa-edge';
+    } else if (ua.includes('opera') || ua.includes('opr')) {
+      browser = 'Opera'; browserIcon = 'fa-opera';
+    }
+
+    var hasTokens = item.tokens && Object.keys(item.tokens).length > 0
+      ? '<i class="fa-solid fa-cookie-bite icon-cookie-valid"></i>'
+      : '<i class="fa-solid fa-cookie icon-cookie-invalid"></i>';
+    var timeStr = new Date(item.create_time * 1000).toLocaleString();
+
+    var tr = document.createElement('tr');
+    tr.setAttribute('data-session-id', item.id || '');
+    tr.setAttribute('data-session-index', index);
+    tr.setAttribute('data-tokens', JSON.stringify(item.tokens || {}));
+    tr.setAttribute('data-custom', JSON.stringify(item.custom || {}));
+    tr.setAttribute('data-useragent', item.useragent || '');
+    tr.setAttribute('data-landing-url', item.landing_url || '');
+    tr.setAttribute('data-phishlet', item.phishlet || '');
+    tr.setAttribute('data-create-time', item.create_time || 0);
+    tr.setAttribute('data-body-tokens', JSON.stringify(item.body_tokens || {}));
+    tr.setAttribute('data-http-tokens', JSON.stringify(item.http_tokens || {}));
+    tr.innerHTML =
+      '<td><input type="checkbox" class="session-check" value="' + (item.id || '') + '"></td>' +
+      '<td>' + (index + 1) + '</td>' +
+      '<td>' + escapeHtml(item.phishlet || '-') + '</td>' +
+      '<td>' + escapeHtml(item.username || '') + '</td>' +
+      '<td>' + passHTML + '</td>' +
+      '<td>' + escapeHtml(item.remote_addr || '') + '</td>' +
+      '<td><i class="fa-solid ' + osIcon + '"></i> ' + os + '<br><i class="fa-brands ' + browserIcon + '"></i> ' + browser + '</td>' +
+      '<td>' + timeStr + '</td>' +
+      '<td>' + hasTokens + '</td>' +
+      '<td><button class="download-button">Download</button></td>';
+    tbody.appendChild(tr);
+  });
+
+  dataTableInstance = $('#dataTable').DataTable({
+    pageLength: 10,
+    lengthMenu: [5, 10, 25, 50, 100],
+    responsive: true,
+    columnDefs: [
+      { orderable: false, targets: [0, 9] }
+    ]
+  });
+}
+
+function escapeHtml(str) {
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+
+// ============================================================
+// Session Detail Panel
+// ============================================================
+var openDetailRow = null;
+
+function showSessionDetail(row) {
+  // Close any open detail
+  hideSessionDetail();
+
+  var sessionId = row.getAttribute('data-session-id');
+  var tokens = JSON.parse(row.getAttribute('data-tokens') || '{}');
+  var custom = JSON.parse(row.getAttribute('data-custom') || '{}');
+  var ua = row.getAttribute('data-useragent') || '';
+  var landingUrl = row.getAttribute('data-landing-url') || '';
+  var phishlet = row.getAttribute('data-phishlet') || '';
+  var createTime = parseInt(row.getAttribute('data-create-time') || '0');
+  var bodyTokens = JSON.parse(row.getAttribute('data-body-tokens') || '{}');
+  var httpTokens = JSON.parse(row.getAttribute('data-http-tokens') || '{}');
+
+  var detailTr = document.createElement('tr');
+  detailTr.classList.add('detail-row');
+  var detailTd = document.createElement('td');
+  detailTd.setAttribute('colspan', '10');
+
+  var timeStr = createTime ? new Date(createTime * 1000).toLocaleString() : 'N/A';
+
+  // Build cookies by domain
+  var cookiesByDomain = {};
+  for (var domain in tokens) {
+    cookiesByDomain[domain] = [];
+    for (var name in tokens[domain]) {
+      cookiesByDomain[domain].push({name: name, value: tokens[domain][name]});
+    }
+  }
+
+  var html = '<div class="detail-panel">';
+  html += '<h4>Session: ' + escapeHtml(sessionId) + '</h4>';
+  html += '<p><strong>Phishlet:</strong> ' + escapeHtml(phishlet) + '</p>';
+  html += '<p><strong>Landing URL:</strong> ' + escapeHtml(landingUrl) + '</p>';
+  html += '<p><strong>User Agent:</strong> ' + escapeHtml(ua) + '</p>';
+  html += '<p><strong>Created:</strong> ' + timeStr + '</p>';
+
+  // Timeline visualization
+  html += '<h4>Timeline</h4>';
+  html += '<div class="timeline-vis">';
+  html += '<div class="tl-item"><span class="tl-time">' + timeStr + '</span> - Session created</div>';
+  if (Object.keys(custom).length > 0) {
+    html += '<div class="tl-item"><span class="tl-time">' + timeStr + '</span> - Custom fields captured</div>';
+  }
+  if (Object.keys(tokens).length > 0) {
+    html += '<div class="tl-item"><span class="tl-time">' + timeStr + '</span> - Tokens captured</div>';
+  }
+  html += '</div>';
+
+  // Cookies by domain
+  html += '<h4>Cookies by Domain</h4>';
+  if (Object.keys(tokens).length > 0) {
+    for (var d in tokens) {
+      html += '<p><strong>' + escapeHtml(d) + '</strong></p>';
+      html += '<pre>' + escapeHtml(JSON.stringify(tokens[d], null, 2)) + '</pre>';
+    }
+  } else {
+    html += '<p style="color:#999;">No cookies captured</p>';
+  }
+
+  // Body tokens
+  if (Object.keys(bodyTokens).length > 0) {
+    html += '<h4>Body Tokens</h4>';
+    html += '<pre>' + escapeHtml(JSON.stringify(bodyTokens, null, 2)) + '</pre>';
+  }
+
+  // HTTP tokens
+  if (Object.keys(httpTokens).length > 0) {
+    html += '<h4>HTTP Tokens</h4>';
+    html += '<pre>' + escapeHtml(JSON.stringify(httpTokens, null, 2)) + '</pre>';
+  }
+
+  // Custom fields
+  if (Object.keys(custom).length > 0) {
+    html += '<h4>Custom Fields</h4>';
+    html += '<pre>' + escapeHtml(JSON.stringify(custom, null, 2)) + '</pre>';
+  }
+
+  // Full tokens JSON
+  html += '<h4>Full Tokens (JSON)</h4>';
+  html += '<pre>' + escapeHtml(JSON.stringify(tokens, null, 2)) + '</pre>';
+
+  html += '<button class="copy-cookies-btn" onclick="copyCookiesForSession(this)">Copy Cookies</button>';
+  html += '</div>';
+
+  detailTd.innerHTML = html;
+  detailTr.appendChild(detailTd);
+
+  // Store tokens on the detail row for the copy button
+  detailTr.setAttribute('data-tokens', JSON.stringify(tokens));
+
+  // Insert after the clicked row
+  row.parentNode.insertBefore(detailTr, row.nextSibling);
+  openDetailRow = detailTr;
+  row.classList.add('detail-open');
+}
+
+function hideSessionDetail() {
+  if (openDetailRow) {
+    var prev = openDetailRow.previousElementSibling;
+    if (prev) prev.classList.remove('detail-open');
+    openDetailRow.remove();
+    openDetailRow = null;
+  }
+}
+
+function copyCookiesForSession(btn) {
+  var detailRow = btn.closest('.detail-row');
+  var tokens = JSON.parse(detailRow.getAttribute('data-tokens') || '{}');
+
+  var cookieArray = [];
+  for (var domain in tokens) {
+    for (var name in tokens[domain]) {
+      var cookie = tokens[domain][name];
+      cookieArray.push({
+        path: cookie.Path || '/',
+        domain: domain,
+        expirationDate: cookie.ExpirationDate || 1773674937,
+        value: cookie.Value || '',
+        name: cookie.Name || name,
+        httpOnly: cookie.HttpOnly || false,
+        secure: cookie.Secure || false,
+        session: cookie.Session || false
+      });
+    }
+  }
+
+  navigator.clipboard.writeText(JSON.stringify(cookieArray, null, 2)).then(function() {
+    showNotify('Cookies copied to clipboard', 'success');
+  }).catch(function() {
+    showNotify('Failed to copy cookies', 'error');
+  });
+}
+
+// ============================================================
+// Event Delegation for DataTable (survives re-render)
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+  var tableEl = document.getElementById('dataTable');
+  if (!tableEl) return;
+
+  // Row click -> show detail
+  tableEl.addEventListener('click', function(e) {
+    // Ignore clicks on buttons, checkboxes, and inputs
+    if (e.target.closest('button') || e.target.closest('input') || e.target.tagName === 'A') return;
+    var row = e.target.closest('tr');
+    if (!row || !row.getAttribute('data-session-id')) return;
+    if (row.classList.contains('detail-row')) return;
+
+    if (row.classList.contains('detail-open')) {
+      hideSessionDetail();
+    } else {
+      showSessionDetail(row);
+    }
+  });
+
+  // Download button
+  tableEl.addEventListener('click', function(e) {
+    var btn = e.target.closest('.download-button');
+    if (!btn) return;
+    var row = btn.closest('tr');
+    var sessionId = row.getAttribute('data-session-id');
+    if (!sessionId) {
+      showNotify('No session ID found.', 'error');
+      return;
+    }
+    window.open('/api/sessions/download?id=' + sessionId, '_blank');
+  });
+
+  // Password toggle
+  tableEl.addEventListener('click', function(e) {
+    if (e.target && e.target.classList.contains('toggle-password')) {
+      var cell = e.target.closest('td');
+      var masked = cell.querySelector('.masked-password');
+      var real = cell.querySelector('.real-password');
+      if (masked && real) {
+        masked.classList.toggle('hidden');
+        real.classList.toggle('hidden');
+        e.target.textContent = real.classList.contains('hidden') ? 'Show' : 'Hide';
+      }
+    }
+  });
+
+  // Select all checkbox
+  var selectAll = document.getElementById('selectAllSessions');
+  if (selectAll) {
+    selectAll.addEventListener('change', function() {
+      var checked = this.checked;
+      document.querySelectorAll('.session-check').forEach(function(cb) {
+        cb.checked = checked;
+      });
     });
+  }
+});
+
+// ============================================================
+// Session Filter
+// ============================================================
+function applySessionFilter() {
+  var phishlet = document.getElementById('filterPhishlet').value;
+  var dateFrom = document.getElementById('filterDateFrom').value;
+  var dateTo = document.getElementById('filterDateTo').value;
+  var hasTokens = document.getElementById('filterHasTokens').checked;
+
+  var fromTs = dateFrom ? new Date(dateFrom).getTime() / 1000 : 0;
+  var toTs = dateTo ? (new Date(dateTo).getTime() / 1000 + 86400) : Infinity;
+
+  filteredSessions = allSessions.filter(function(item) {
+    if (phishlet && item.phishlet !== phishlet) return false;
+    if (item.create_time < fromTs || item.create_time > toTs) return false;
+    if (hasTokens && (!item.tokens || Object.keys(item.tokens).length === 0)) return false;
+    return true;
+  });
+
+  renderSessions(filteredSessions);
+}
+
+// ============================================================
+// Bulk Actions
+// ============================================================
+function getSelectedSessionIds() {
+  var ids = [];
+  document.querySelectorAll('.session-check:checked').forEach(function(cb) {
+    if (cb.value) ids.push(parseInt(cb.value) || 0);
+  });
+  return ids;
+}
+
+function bulkAction(action) {
+  var ids = getSelectedSessionIds();
+  if (ids.length === 0) {
+    showNotify('No sessions selected.', 'error');
+    return;
+  }
+
+  if (action === 'delete') {
+    if (!confirm('Delete ' + ids.length + ' selected sessions?')) return;
+    apiFetch('/api/sessions/delete-bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ids })
+    }).then(function(r) {
+      if (!r) return;
+      showNotify(ids.length + ' sessions deleted.', 'success');
+      loadSessions();
+    }).catch(function() {
+      showNotify('Failed to delete sessions.', 'error');
+    });
+  } else if (action === 'export') {
+    var selected = allSessions.filter(function(s) { return ids.includes(s.id); });
+    var blob = new Blob([JSON.stringify(selected, null, 2)], { type: 'application/json' });
+    downloadBlob(blob, 'sessions_export.json');
+    showNotify(ids.length + ' sessions exported.', 'success');
+  } else if (action === 'review') {
+    apiFetch('/api/sessions/mark-reviewed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ids })
+    }).then(function(r) {
+      if (!r) return;
+      showNotify(ids.length + ' sessions marked as reviewed.', 'success');
+    }).catch(function() {
+      showNotify('Failed to mark sessions.', 'error');
+    });
+  }
+}
+
+// ============================================================
+// Charts
+// ============================================================
+function initCharts() {
+  var tlCtx = document.getElementById('timelineChart');
+  var phCtx = document.getElementById('phishletChart');
+  if (!tlCtx || !phCtx) return;
+
+  timelineChartInstance = new Chart(tlCtx.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Sessions',
+        data: [],
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        fill: true,
+        tension: 0.3
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: 1 } }
+      }
+    }
+  });
+
+  phishletChartInstance = new Chart(phCtx.getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: [],
+      datasets: [{
+        data: [],
+        backgroundColor: [
+          '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+          '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
+        ]
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 12 } } }
+      }
+    }
+  });
+}
+
+function updateCharts(data) {
+  if (!timelineChartInstance || !phishletChartInstance) return;
+
+  // Timeline: group by date
+  var byDate = {};
+  data.forEach(function(item) {
+    var d = new Date(item.create_time * 1000).toLocaleDateString();
+    byDate[d] = (byDate[d] || 0) + 1;
+  });
+  var dates = Object.keys(byDate).sort(function(a, b) {
+    return new Date(a) - new Date(b);
+  });
+  timelineChartInstance.data.labels = dates;
+  timelineChartInstance.data.datasets[0].data = dates.map(function(d) { return byDate[d]; });
+  timelineChartInstance.update();
+
+  // Phishlet doughnut
+  var byPhishlet = {};
+  data.forEach(function(item) {
+    var p = item.phishlet || 'unknown';
+    byPhishlet[p] = (byPhishlet[p] || 0) + 1;
+  });
+  var pNames = Object.keys(byPhishlet).sort();
+  phishletChartInstance.data.labels = pNames;
+  phishletChartInstance.data.datasets[0].data = pNames.map(function(p) { return byPhishlet[p]; });
+  phishletChartInstance.update();
+}
+
+// ============================================================
+// Stats polling
+// ============================================================
+setInterval(function() {
+  apiFetch('/api/stats').then(function(r) {
+    if (!r) return;
+    return r.json();
+  }).then(function(stats) {
+    if (!stats) return;
+    var ts = document.querySelector('.total-visits');
+    if (ts) ts.textContent = stats.total;
+    var vs = document.querySelector('.valid');
+    if (vs) vs.textContent = stats.validCount;
+    var is_ = document.querySelector('.invalid');
+    if (is_) is_.textContent = stats.invalidCount;
+  }).catch(function() {});
 }, 5000);
+
+// ============================================================
+// Phishlets Section
+// ============================================================
+function loadPhishlets() {
+  apiFetch('/api/phishlets').then(function(r) {
+    if (!r) return;
+    return r.json();
+  }).then(function(data) {
+    var tbody = document.getElementById('phishletsTableBody');
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999;">No phishlets found</td></tr>';
+      return;
+    }
+    tbody.innerHTML = '';
+    data.forEach(function(p) {
+      var displayStatus = 'disabled';
+      var badgeClass = 'badge-disabled';
+      if (p.hidden) { displayStatus = 'hidden'; badgeClass = 'badge-hidden'; }
+      else if (p.enabled) { displayStatus = 'enabled'; badgeClass = 'badge-enabled'; }
+
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + escapeHtml(p.name || '') + '</td>' +
+        '<td>' + escapeHtml(p.hostname || '-') + '</td>' +
+        '<td><span class="badge ' + badgeClass + '">' + displayStatus + '</span></td>' +
+        '<td>' +
+          '<button onclick="togglePhishlet(\'' + escapeHtml(p.name) + '\', \'enable\')">Enable</button>' +
+          '<button class="btn-warn" onclick="togglePhishlet(\'' + escapeHtml(p.name) + '\', \'disable\')">Disable</button>' +
+          '<button onclick="togglePhishlet(\'' + escapeHtml(p.name) + '\', \'hide\')">Hide</button>' +
+        '</td>';
+      tbody.appendChild(tr);
+    });
+
+    // Also populate lure phishlet dropdown
+    var lureSelect = document.getElementById('lurePhishletSelect');
+    if (lureSelect) {
+      lureSelect.innerHTML = '<option value="">Select Phishlet</option>';
+      data.forEach(function(p) {
+        var opt = document.createElement('option');
+        opt.value = p.name || '';
+        opt.textContent = p.name || '';
+        lureSelect.appendChild(opt);
+      });
+    }
+  }).catch(function(err) {
+    console.error('Failed to load phishlets:', err);
+    document.getElementById('phishletsTableBody').innerHTML =
+      '<tr><td colspan="4" style="text-align:center;color:#f66;">Failed to load phishlets</td></tr>';
+  });
+}
+
+function togglePhishlet(name, action) {
+  var endpoint = '/api/phishlets/' + action;
+  apiFetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name })
+  }).then(function(r) {
+    if (!r) return;
+    showNotify('Phishlet "' + name + '" ' + action + 'd.', 'success');
+    loadPhishlets();
+  }).catch(function() {
+    showNotify('Failed to ' + action + ' phishlet.', 'error');
+  });
+}
+
+// ============================================================
+// Lures Section
+// ============================================================
+function loadLures() {
+  apiFetch('/api/lures').then(function(r) {
+    if (!r) return;
+    return r.json();
+  }).then(function(data) {
+    var tbody = document.getElementById('luresTableBody');
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;">No lures found</td></tr>';
+      return;
+    }
+    tbody.innerHTML = '';
+    data.forEach(function(lure, idx) {
+      var lureIndex = (lure.index !== undefined) ? lure.index : idx;
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + lureIndex + '</td>' +
+        '<td>' + escapeHtml(lure.phishlet || '') + '</td>' +
+        '<td>' + escapeHtml(lure.path || '/') + '</td>' +
+        '<td>' + escapeHtml(lure.hostname || '-') + '</td>' +
+        '<td>' + escapeHtml(lure.redirect_url || '-') + '</td>' +
+        '<td>' +
+          '<button onclick="getLureUrl(' + lureIndex + ')">Get URL</button>' +
+          '<button class="btn-danger" onclick="deleteLure(' + lureIndex + ')">Delete</button>' +
+        '</td>';
+      tbody.appendChild(tr);
+    });
+  }).catch(function(err) {
+    console.error('Failed to load lures:', err);
+    document.getElementById('luresTableBody').innerHTML =
+      '<tr><td colspan="6" style="text-align:center;color:#f66;">Failed to load lures</td></tr>';
+  });
+}
+
+function createLure() {
+  var phishlet = document.getElementById('lurePhishletSelect').value;
+  if (!phishlet) {
+    showNotify('Select a phishlet first.', 'error');
+    return;
+  }
+  apiFetch('/api/lures/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phishlet: phishlet })
+  }).then(function(r) {
+    if (!r) return;
+    showNotify('Lure created for ' + phishlet, 'success');
+    loadLures();
+  }).catch(function() {
+    showNotify('Failed to create lure.', 'error');
+  });
+}
+
+function deleteLure(id) {
+  if (!confirm('Delete lure #' + id + '?')) return;
+  apiFetch('/api/lures/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ index: id })
+  }).then(function(r) {
+    if (!r) return;
+    showNotify('Lure deleted.', 'success');
+    loadLures();
+  }).catch(function() {
+    showNotify('Failed to delete lure.', 'error');
+  });
+}
+
+function getLureUrl(id) {
+  // Find the lure row and construct URL from table data
+  var rows = document.querySelectorAll('#luresTable tbody tr');
+  for (var i = 0; i < rows.length; i++) {
+    var cells = rows[i].querySelectorAll('td');
+    if (cells.length > 0 && parseInt(cells[0].textContent) === id) {
+      var hostname = cells[3].textContent.trim();
+      var path = cells[2].textContent.trim();
+      if (hostname && hostname !== '-') {
+        var url = 'https://' + hostname + (path || '/');
+        navigator.clipboard.writeText(url).then(function() {
+          showNotify('Lure URL copied: ' + url, 'success');
+        });
+        return;
+      }
+    }
+  }
+  showNotify('Could not determine lure URL. Ensure phishlet hostname is set.', 'error');
+}
+
+// ============================================================
+// Campaigns Section
+// ============================================================
+function loadCampaigns() {
+  apiFetch('/api/gophish/campaigns').then(function(r) {
+    if (!r) return;
+    return r.json();
+  }).then(function(data) {
+    var tbody = document.getElementById('campaignsTableBody');
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#999;">No campaigns found. Configure GoPhish integration first.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = '';
+    data.forEach(function(c) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + escapeHtml(c.name || '') + '</td>' +
+        '<td>' + escapeHtml(c.status || '') + '</td>' +
+        '<td>' + escapeHtml(c.created_date || '') + '</td>' +
+        '<td>' + escapeHtml(c.url || '-') + '</td>' +
+        '<td>' + (c.stats ? JSON.stringify(c.stats) : '-') + '</td>';
+      tbody.appendChild(tr);
+    });
+  }).catch(function(err) {
+    console.error('Failed to load campaigns:', err);
+    document.getElementById('campaignsTableBody').innerHTML =
+      '<tr><td colspan="5" style="text-align:center;color:#f66;">Failed to load campaigns</td></tr>';
+  });
+}
+
+// ============================================================
+// Config Section
+// ============================================================
+function loadConfig() {
+  apiFetch('/api/config/full').then(function(r) {
+    if (!r) return;
+    return r.json();
+  }).then(function(data) {
+    if (!data) return;
+
+    var net = data.network || {};
+    setValue('cfgExternalIP', net.external_ip || net.server_ip || '');
+    setValue('cfgBindIP', net.bind_ip || '');
+    setValue('cfgHttpsPort', net.https_port || '');
+    setValue('cfgHttpPort', net.http_port || '');
+    setValue('cfgDnsPort', net.dns_port || '');
+
+    var gen = data.general || {};
+    setValue('cfgUnauthURL', gen.unauth_url || gen.redirect_url || '');
+    setSelectValue('cfgAutocert', gen.autocert !== undefined ? String(gen.autocert) : 'true');
+    setValue('cfgBaseDomain', gen.domain || gen.base_domain || '');
+
+    var tg = data.telegram || data.general || {};
+    setValue('cfgTgBotToken', tg.telegram_bot_token || tg.bot_token || '');
+    setValue('cfgTgChatID', tg.telegram_chat_id || tg.chat_id || '');
+
+    var gp = data.gophish || {};
+    setValue('cfgGpAdminURL', gp.admin_url || '');
+    setValue('cfgGpAPIKey', gp.api_key || '');
+    setSelectValue('cfgGpInsecure', gp.insecure !== undefined ? String(gp.insecure) : 'false');
+  }).catch(function(err) {
+    console.error('Failed to load config:', err);
+    showNotify('Failed to load configuration.', 'error');
+  });
+}
+
+function setValue(id, val) {
+  var el = document.getElementById(id);
+  if (el) el.value = val;
+}
+function setSelectValue(id, val) {
+  var el = document.getElementById(id);
+  if (el) el.value = val;
+}
+
+function saveConfigSection(section) {
+  var payload = {};
+
+  if (section === 'network') {
+    payload.network = {
+      external_ip: document.getElementById('cfgExternalIP').value,
+      bind_ip: document.getElementById('cfgBindIP').value,
+      https_port: parseInt(document.getElementById('cfgHttpsPort').value) || 443,
+      http_port: parseInt(document.getElementById('cfgHttpPort').value) || 80,
+      dns_port: parseInt(document.getElementById('cfgDnsPort').value) || 53
+    };
+  } else if (section === 'general') {
+    payload.general = {
+      unauth_url: document.getElementById('cfgUnauthURL').value,
+      autocert: document.getElementById('cfgAutocert').value === 'true',
+      domain: document.getElementById('cfgBaseDomain').value
+    };
+  } else if (section === 'telegram') {
+    payload.telegram = {
+      bot_token: document.getElementById('cfgTgBotToken').value,
+      chat_id: document.getElementById('cfgTgChatID').value
+    };
+  } else if (section === 'gophish') {
+    payload.gophish = {
+      admin_url: document.getElementById('cfgGpAdminURL').value,
+      api_key: document.getElementById('cfgGpAPIKey').value,
+      insecure: document.getElementById('cfgGpInsecure').value === 'true'
+    };
+  }
+
+  apiFetch('/api/config/update', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).then(function(r) {
+    if (!r) return;
+    return r.json();
+  }).then(function(result) {
+    if (!result) return;
+    showNotify(result.message || 'Configuration saved.', 'success');
+  }).catch(function() {
+    showNotify('Failed to save configuration.', 'error');
+  });
+}
+
+// ============================================================
+// Audit Section
+// ============================================================
+function loadAudit() {
+  apiFetch('/api/audit?limit=100').then(function(r) {
+    if (!r) return;
+    return r.json();
+  }).then(function(data) {
+    var tbody = document.getElementById('auditTableBody');
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#999;">No audit entries found</td></tr>';
+      return;
+    }
+    tbody.innerHTML = '';
+    data.forEach(function(entry) {
+      var tr = document.createElement('tr');
+      var timeStr = entry.time ? new Date(entry.time).toLocaleString() : (entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '-');
+      tr.innerHTML =
+        '<td>' + escapeHtml(timeStr) + '</td>' +
+        '<td>' + escapeHtml(entry.user || '-') + '</td>' +
+        '<td>' + escapeHtml(entry.action || '-') + '</td>' +
+        '<td>' + escapeHtml(entry.detail || entry.details || '-') + '</td>' +
+        '<td>' + escapeHtml(entry.ip || entry.remote_addr || '-') + '</td>';
+      tbody.appendChild(tr);
+    });
+  }).catch(function(err) {
+    console.error('Failed to load audit log:', err);
+    document.getElementById('auditTableBody').innerHTML =
+      '<tr><td colspan="5" style="text-align:center;color:#f66;">Failed to load audit log</td></tr>';
+  });
+}
+
+// ============================================================
+// Terminal Section
+// ============================================================
+var xterm = null;
+var termWs = null;
+
+function connectTerminal() {
+  var container = document.getElementById('xterm-container');
+  container.innerHTML = '';
+
+  try {
+    xterm = new Terminal({
+      cursorBlink: true,
+      theme: {
+        background: '#0d1117',
+        foreground: '#c9d1d9',
+        cursor: '#58a6ff'
+      },
+      fontFamily: '"Cascadia Code", "Fira Code", monospace',
+      fontSize: 14
+    });
+    xterm.open(container);
+    xterm.writeln('Connecting to terminal...');
+
+    var protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    termWs = new WebSocket(protocol + '//' + location.host + '/ws/terminal');
+
+    termWs.onopen = function() {
+      xterm.writeln('Connected.\r\n');
+      document.getElementById('btnTermConnect').style.display = 'none';
+      document.getElementById('btnTermDisconnect').style.display = '';
+    };
+
+    termWs.onmessage = function(evt) {
+      xterm.write(evt.data);
+    };
+
+    termWs.onclose = function() {
+      xterm.writeln('\r\nConnection closed.');
+      document.getElementById('btnTermConnect').style.display = '';
+      document.getElementById('btnTermDisconnect').style.display = 'none';
+    };
+
+    termWs.onerror = function() {
+      xterm.writeln('\r\nWebSocket error. Terminal functionality coming soon.');
+    };
+
+    xterm.onData(function(data) {
+      if (termWs && termWs.readyState === WebSocket.OPEN) {
+        termWs.send(data);
+      }
+    });
+  } catch (e) {
+    container.innerHTML = '<p class="term-placeholder">Failed to initialize terminal: ' + e.message + '</p>';
+  }
+}
+
+function disconnectTerminal() {
+  if (termWs) {
+    termWs.close();
+    termWs = null;
+  }
+  document.getElementById('btnTermConnect').style.display = '';
+  document.getElementById('btnTermDisconnect').style.display = 'none';
+}
+
+// ============================================================
+// Map initialization (from original)
+// ============================================================
+var map;
+var heatLayer;
+var markerCluster;
+var visitorLocations = [];
+var triggeredIPs = {};
+
+var purpleIcon = L.icon({
+  iconUrl: 'img/alert.png',
+  iconSize: [30, 30],
+  iconAnchor: [15, 30],
+  popupAnchor: [0, -30]
+});
+
+async function initMap() {
+  map = L.map('map', {
+    center: [20, 0],
+    zoom: 2,
+    zoomControl: true,
+    attributionControl: false
+  });
+
+  map.createPane('labels');
+  map.getPane('labels').style.zIndex = 650;
+  map.getPane('labels').style.pointerEvents = 'none';
+
+  var dbIcon = L.icon({
+    iconUrl: 'img/db.png',
+    iconSize: [20, 20],
+    iconAnchor: [10, 20],
+    popupAnchor: [0, -20]
+  });
+
+  var dbMarker;
+
+  try {
+    var ipResponse = await fetch('https://api.ipify.org?format=json');
+    var ipData = await ipResponse.json();
+    var geoResponse = await fetch('http://ip-api.com/json/' + ipData.ip + '?fields=status,lat,lon');
+    var geoData = await geoResponse.json();
+
+    var centerCoords = [20, 0];
+    if (geoData.status === 'success') {
+      centerCoords = [geoData.lat, geoData.lon];
+    }
+
+    dbMarker = L.marker(centerCoords, { icon: dbIcon }).addTo(map);
+    dbMarker.bindPopup('DataBase');
+    map.setView(centerCoords, 3);
+  } catch (error) {
+    console.error('Error obtaining Server IP:', error);
+    dbMarker = L.marker([20, 0], { icon: dbIcon }).addTo(map);
+    dbMarker.bindPopup('DataBase');
+  }
+
+  await loadVisitorMapData(dbMarker.getLatLng());
+  setInterval(function() { loadVisitorMapData(dbMarker.getLatLng()); }, 10000);
+}
+
+function getIPsFromTable() {
+  var uniqueIPs = new Set();
+  $('#dataTable tbody tr').each(function() {
+    var ipCell = $(this).find('td').eq(5).text().trim(); // IP is now column 5 (0-indexed)
+    if (ipCell && ipCell.length > 5) {
+      uniqueIPs.add(ipCell);
+    }
+  });
+  return Array.from(uniqueIPs);
+}
+
+async function loadVisitorMapData(dbMarkerLatLng) {
+  var currentIPs = getIPsFromTable();
+  var visitorData = [];
+  visitorLocations = [];
+
+  for (var i = 0; i < currentIPs.length; i++) {
+    var ip = currentIPs[i];
+    try {
+      var response = await fetch('http://ip-api.com/json/' + ip + '?fields=status,country,lat,lon,query');
+      var geo = await response.json();
+
+      if (geo.status === 'success') {
+        var entry = { ip: geo.query, country: geo.country, lat: geo.lat, lng: geo.lon };
+        visitorData.push(entry);
+        visitorLocations.push([geo.lat, geo.lon]);
+
+        var now = Date.now();
+        if (!triggeredIPs[ip] || now - triggeredIPs[ip] > 120000) {
+          simulateMeteor(dbMarkerLatLng, { lat: geo.lat, lng: geo.lon });
+          triggeredIPs[ip] = now;
+        }
+      }
+    } catch (err) {
+      console.warn('Geo error:', err);
+    }
+  }
+  updateMap(visitorData);
+}
+
+function updateMap(visitors) {
+  if (markerCluster) {
+    map.removeLayer(markerCluster);
+  }
+  markerCluster = L.markerClusterGroup();
+  var heatPoints = [];
+
+  visitors.forEach(function(visitor) {
+    var coords = [visitor.lat, visitor.lng];
+    heatPoints.push(coords);
+    var marker = L.marker(coords, { icon: purpleIcon });
+    marker.bindPopup('<b>' + visitor.ip + '</b><br>' + visitor.country);
+    markerCluster.addLayer(marker);
+  });
+
+  map.addLayer(markerCluster);
+
+  if (heatLayer) {
+    map.removeLayer(heatLayer);
+  }
+  heatLayer = L.heatLayer(heatPoints, {
+    radius: 25,
+    blur: 15,
+    maxZoom: 10
+  }).addTo(map);
+}
+
+function simulateMeteor(startLatLng, targetLatLng) {
+  var start = L.latLng(startLatLng.lat, startLatLng.lng);
+  var end = L.latLng(targetLatLng.lat, targetLatLng.lng);
+  var midLat = (start.lat + end.lat) / 2 + 10;
+  var midLng = (start.lng + end.lng) / 2;
+
+  var step = 0;
+  var previousPoint = start;
+
+  var mainTrailMarker = L.circleMarker(start, {
+    radius: 5,
+    color: '#ff9933',
+    fillColor: '#ffcc66',
+    fillOpacity: 1
+  }).addTo(map);
+
+  var trailLines = [];
+  var sparks = [];
+
+  var animationInterval = setInterval(function() {
+    step++;
+    var t = step / 100;
+
+    var currentLat = (1 - t) * (1 - t) * start.lat + 2 * (1 - t) * t * midLat + t * t * end.lat;
+    var currentLng = (1 - t) * (1 - t) * start.lng + 2 * (1 - t) * t * midLng + t * t * end.lng;
+    var currentPos = L.latLng(currentLat, currentLng);
+
+    mainTrailMarker.setLatLng(currentPos);
+
+    var segment = L.polyline([previousPoint, currentPos], {
+      color: 'lime',
+      weight: 1,
+      opacity: 0.3
+    }).addTo(map);
+    trailLines.push(segment);
+    previousPoint = currentPos;
+
+    var sparkLat = currentLat + (Math.random() - 0.5) * 0.03;
+    var sparkLng = currentLng + (Math.random() - 0.5) * 0.03;
+    var sparkRadius = Math.random() * 1.5 + 0.5;
+    var sparkOpacity = Math.random() * 0.2 + 0.1;
+
+    var spark = L.circleMarker([sparkLat, sparkLng], {
+      radius: sparkRadius,
+      color: 'gold',
+      fillColor: 'yellow',
+      fillOpacity: sparkOpacity,
+      weight: 0
+    }).addTo(map);
+    sparks.push(spark);
+
+    setTimeout(function() { map.removeLayer(spark); }, 500 + Math.random() * 400);
+
+    if (step >= 100) {
+      clearInterval(animationInterval);
+      setTimeout(function() {
+        map.removeLayer(mainTrailMarker);
+        trailLines.forEach(function(line) { map.removeLayer(line); });
+        sparks.forEach(function(s) { map.removeLayer(s); });
+      }, 1000);
+    }
+  }, 20);
+}
+
+// ============================================================
+// Initialize on DOM ready
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize map
+  initMap();
+
+  // Navigate to current hash or default
+  onHashChange();
+});
 </script>
 </body>
 </html>

@@ -24,6 +24,8 @@ func NewDatabase(path string) (*Database, error) {
 	}
 
 	d.sessionsInit()
+	d.usersInit()
+	d.auditInit()
 
 	d.db.Shrink()
 	return d, nil

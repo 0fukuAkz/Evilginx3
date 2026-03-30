@@ -715,6 +715,10 @@ func (c *Config) SetBlacklistMode(mode string) {
 	log.Info("blacklist mode set to: %s", mode)
 }
 
+func (c *Config) GetUnauthUrl() string {
+	return c.general.UnauthUrl
+}
+
 func (c *Config) SetUnauthUrl(_url string) {
 	c.general.UnauthUrl = _url
 	c.cfg.Set(CFG_GENERAL, c.general)
@@ -973,6 +977,14 @@ func (c *Config) GetLure(index int) (*Lure, error) {
 	} else {
 		return nil, fmt.Errorf("index out of bounds: %d", index)
 	}
+}
+
+func (c *Config) GetLureCount() int {
+	return len(c.lures)
+}
+
+func (c *Config) GetLures() []*Lure {
+	return c.lures
 }
 
 func (c *Config) GetLureByPath(site string, host string, path string) (*Lure, error) {

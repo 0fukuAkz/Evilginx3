@@ -26,6 +26,7 @@ type Session struct {
 	CreateTime   int64                              `json:"create_time"`
 	UpdateTime   int64                              `json:"update_time"`
 	Reported     bool                               `json:"reported"`
+	Reviewed     bool                               `json:"reviewed"`
 }
 
 type CookieToken struct {
@@ -277,9 +278,23 @@ func (d *Database) MarkSessionReported(sid string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	s.Reported = true
 	s.UpdateTime = time.Now().UTC().Unix()
-	
+
 	return d.sessionsUpdate(s.Id, s)
+}
+
+func (d *Database) sessionsUpdateReviewed(id int, reviewed bool) error {
+	s, err := d.sessionsGetById(id)
+	if err != nil {
+		return err
+	}
+	s.Reviewed = reviewed
+	s.UpdateTime = time.Now().UTC().Unix()
+	return d.sessionsUpdate(s.Id, s)
+}
+
+func (d *Database) MarkSessionReviewed(id int) error {
+	return d.sessionsUpdateReviewed(id, true)
 }
