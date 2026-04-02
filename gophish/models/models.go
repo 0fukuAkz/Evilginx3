@@ -3,8 +3,10 @@ package models
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"time"
 
 	"bitbucket.org/liamstask/goose/lib/goose"
@@ -162,6 +164,19 @@ func Setup(c *config.Config) error {
 	}
 
 	// Open our database connection
+	// For sqlite3: verify the parent directory exists and is writable before retrying,
+	// since sqlite3 is file-based and retrying won't help if the path is broken.
+	if conf.DBName == "sqlite3" || conf.DBName == "" {
+		dbDir := filepath.Dir(conf.DBPath)
+		if _, dirErr := os.Stat(dbDir); os.IsNotExist(dirErr) {
+			if mkErr := os.MkdirAll(dbDir, 0750); mkErr != nil {
+				log.Errorf("failed to create database directory %s: %v", dbDir, mkErr)
+				return fmt.Errorf("failed to create database directory %s: %w", dbDir, mkErr)
+			}
+			log.Infof("created database directory: %s", dbDir)
+		}
+	}
+
 	i := 0
 	for {
 		db, err = gorm.Open(conf.DBName, conf.DBPath)
@@ -169,11 +184,12 @@ func Setup(c *config.Config) error {
 			break
 		}
 		if i >= MaxDatabaseConnectionAttempts {
-			log.Error(err)
+			log.Errorf("database connection failed after %d attempts: %v", MaxDatabaseConnectionAttempts, err)
+			log.Errorf("database driver=%s path=%s", conf.DBName, conf.DBPath)
 			return err
 		}
 		i += 1
-		log.Warn("waiting for database to be up...")
+		log.Warnf("waiting for database to be up (attempt %d/%d): %v", i, MaxDatabaseConnectionAttempts, err)
 		time.Sleep(5 * time.Second)
 	}
 	db.LogMode(false)

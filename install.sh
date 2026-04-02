@@ -880,7 +880,8 @@ build_evilginx() {
         log_info "Building from: $(pwd)"
 
         log_info "Compiling Evilginx..."
-        /usr/local/go/bin/go build -mod=vendor -o build/evilginx main.go
+        # CGO_ENABLED=1 is required for go-sqlite3 (CGo-based SQLite driver)
+        CGO_ENABLED=1 /usr/local/go/bin/go build -mod=vendor -o build/evilginx main.go
 
         if [[ ! -f "$BUILD_DIR/build/evilginx" ]]; then
             log_error "Build failed - binary not created"
