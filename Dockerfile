@@ -6,13 +6,11 @@ RUN apk add --no-cache git make gcc musl-dev sqlite-dev
 
 WORKDIR /app
 
-# Cache dependencies
-COPY go.mod go.sum ./
-RUN go mod download
+# Copy source (includes vendor directory for reproducible builds)
+COPY . .
 
 # Build with CGo enabled (required for go-sqlite3 driver)
-COPY . .
-RUN CGO_ENABLED=1 go build -o evilginx .
+RUN CGO_ENABLED=1 go build -mod=vendor -o evilginx .
 
 # Runtime Stage
 FROM alpine:latest

@@ -223,7 +223,7 @@ detect_os() {
         if [[ "$ID" != "ubuntu" ]] && [[ "$ID" != "debian" ]]; then
             log_warning "This script is optimized for Ubuntu/Debian"
             log_warning "Detected: $ID - Installation may fail"
-            read -p "Continue anyway? (y/N): " -n 1 -r
+            read -p "Continue anyway? (y/N): " -n 1 -r < /dev/tty
             echo
             if [[ ! $REPLY =~ ^[Yy]$ ]]; then
                 exit 1
@@ -263,13 +263,13 @@ LEGAL NOTICE:
 EOF
     echo -e "${NC}"
     
-    read -p "Do you have WRITTEN AUTHORIZATION to deploy this tool? (yes/NO): " -r
+    read -p "Do you have WRITTEN AUTHORIZATION to deploy this tool? (yes/NO): " -r < /dev/tty
     if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
         log_error "Installation cancelled. Authorization required."
         exit 1
     fi
-    
-    read -p "Proceed with installation? (yes/NO): " -r
+
+    read -p "Proceed with installation? (yes/NO): " -r < /dev/tty
     if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
         log_error "Installation cancelled by user"
         exit 1
@@ -279,15 +279,28 @@ EOF
 # Pre-flight connectivity and resource checks
 preflight_check() {
     log_step "Pre-flight Checks"
-    
-    # Test internet connectivity
-    if ! curl -s --max-time 10 https://go.dev > /dev/null 2>&1; then
+
+    # Test internet connectivity (use wget or curl — one of them should exist)
+    local connectivity_ok=false
+    if command -v curl &>/dev/null; then
+        curl -s --max-time 10 https://go.dev > /dev/null 2>&1 && connectivity_ok=true
+    elif command -v wget &>/dev/null; then
+        wget -q --timeout=10 --spider https://go.dev 2>/dev/null && connectivity_ok=true
+    else
+        # Neither curl nor wget — try a basic TCP connection via bash
+        if (echo > /dev/tcp/go.dev/443) 2>/dev/null; then
+            connectivity_ok=true
+        fi
+    fi
+
+    if [[ "$connectivity_ok" == true ]]; then
+        log_success "Internet connectivity OK (go.dev reachable)"
+    else
         log_error "Cannot reach go.dev — check internet connectivity"
         log_error "Go download will fail without internet access"
         exit 1
     fi
-    log_success "Internet connectivity OK (go.dev reachable)"
-    
+
     # Test DNS resolution
     if command -v host &>/dev/null; then
         if ! host go.dev > /dev/null 2>&1; then
@@ -295,8 +308,14 @@ preflight_check() {
         else
             log_success "DNS resolution OK"
         fi
+    elif command -v nslookup &>/dev/null; then
+        if ! nslookup go.dev > /dev/null 2>&1; then
+            log_warning "DNS resolution may be impaired — installation may have issues"
+        else
+            log_success "DNS resolution OK"
+        fi
     fi
-    
+
     # Check disk space (need at least 2GB free)
     local free_space_mb
     free_space_mb=$(df / --output=avail -BM 2>/dev/null | tail -1 | tr -d 'M ' || echo "0")
@@ -368,7 +387,7 @@ uninstall_evilginx() {
     
     # Remove config directory (prompt user)
     if [ -d "$CONFIG_DIR" ]; then
-        read -p "Remove configuration directory $CONFIG_DIR? This includes certs and DB. (y/N): " -n 1 -r
+        read -p "Remove configuration directory $CONFIG_DIR? This includes certs and DB. (y/N): " -n 1 -r < /dev/tty
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             rm -rf "$CONFIG_DIR"
@@ -386,7 +405,7 @@ uninstall_evilginx() {
     
     # Remove Go PATH drop-in (if created by us)
     if [ -f /etc/profile.d/golang.sh ]; then
-        read -p "Remove Go PATH configuration (/etc/profile.d/golang.sh)? (y/N): " -n 1 -r
+        read -p "Remove Go PATH configuration (/etc/profile.d/golang.sh)? (y/N): " -n 1 -r < /dev/tty
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             rm -f /etc/profile.d/golang.sh
@@ -456,8 +475,10 @@ install_dependencies() {
         screen \
         tmux \
         dnsutils \
-        libsqlite3-dev \
-        iptables 2>/dev/null || true
+        libsqlite3-dev
+
+    # iptables may already be provided by nftables — install separately so failure is non-fatal
+    apt-get install -y -qq "${APT_OPTS[@]}" iptables 2>/dev/null || true
     
     # iptables-persistent can conflict with nftables on newer systems
     if [[ "$DISTRO_ID" == "debian" ]] && [[ "${DISTRO_VER%%.*}" -ge 12 ]]; then
@@ -619,7 +640,7 @@ create_admin_user() {
     log_info "You are currently logged in as root."
     log_info "It is recommended to create a separate admin user for VPS management."
     echo ""
-    read -r -p "$(echo -e "${CYAN}Create an admin user for SSH/management? [y/N]: ${NC}")" CREATE_ADMIN
+    read -r -p "$(echo -e "${CYAN}Create an admin user for SSH/management? [y/N]: ${NC}")" CREATE_ADMIN < /dev/tty
     
     if [[ ! "$CREATE_ADMIN" =~ ^[Yy]$ ]]; then
         log_info "Skipping admin user creation (you can do this later)"
@@ -627,7 +648,7 @@ create_admin_user() {
     fi
     
     # Get username
-    read -r -p "$(echo -e "${CYAN}Enter admin username [evilginx-admin]: ${NC}")" ADMIN_USER
+    read -r -p "$(echo -e "${CYAN}Enter admin username [evilginx-admin]: ${NC}")" ADMIN_USER < /dev/tty
     ADMIN_USER="${ADMIN_USER:-evilginx-admin}"
     
     # Check if user already exists
@@ -650,7 +671,7 @@ create_admin_user() {
     
     # SSH key setup
     echo ""
-    read -r -p "$(echo -e "${CYAN}Set up SSH key authentication? [Y/n]: ${NC}")" SETUP_SSH_KEY
+    read -r -p "$(echo -e "${CYAN}Set up SSH key authentication? [Y/n]: ${NC}")" SETUP_SSH_KEY < /dev/tty
     
     if [[ ! "$SETUP_SSH_KEY" =~ ^[Nn]$ ]]; then
         ADMIN_SSH_DIR="/home/$ADMIN_USER/.ssh"
@@ -664,7 +685,7 @@ create_admin_user() {
         else
             echo ""
             log_info "Paste your SSH public key (or press Enter to skip):"
-            read -r SSH_PUB_KEY
+            read -r SSH_PUB_KEY < /dev/tty
             if [[ -n "$SSH_PUB_KEY" ]]; then
                 echo "$SSH_PUB_KEY" > "$ADMIN_SSH_DIR/authorized_keys"
                 log_success "SSH key added"
@@ -679,14 +700,14 @@ create_admin_user() {
     
     # Set password (as fallback or primary auth)
     echo ""
-    read -r -p "$(echo -e "${CYAN}Set a password for '$ADMIN_USER'? [y/N]: ${NC}")" SET_PASSWD
+    read -r -p "$(echo -e "${CYAN}Set a password for '$ADMIN_USER'? [y/N]: ${NC}")" SET_PASSWD < /dev/tty
     if [[ "$SET_PASSWD" =~ ^[Yy]$ ]]; then
         passwd "$ADMIN_USER"
     fi
     
     # Offer to disable root SSH login
     echo ""
-    read -r -p "$(echo -e "${CYAN}Disable root SSH login for security? [y/N]: ${NC}")" DISABLE_ROOT
+    read -r -p "$(echo -e "${CYAN}Disable root SSH login for security? [y/N]: ${NC}")" DISABLE_ROOT < /dev/tty
     if [[ "$DISABLE_ROOT" =~ ^[Yy]$ ]]; then
         sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
         systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null || true
@@ -871,9 +892,15 @@ RESOLVEOF
 build_evilginx() {
     log_step "Step 6: Building and Installing Evilginx"
 
-    # Verify gcc is available (required for CGo / go-sqlite3)
+    # Verify build toolchain is available
     if ! command -v gcc &>/dev/null; then
         log_error "gcc not found! Install build-essential: apt-get install -y build-essential libsqlite3-dev"
+        exit 1
+    fi
+
+    if [[ ! -x /usr/local/go/bin/go ]]; then
+        log_error "Go not found at /usr/local/go/bin/go"
+        log_error "Run full install (sudo ./install.sh) or install Go manually"
         exit 1
     fi
 
