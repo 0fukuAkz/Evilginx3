@@ -124,8 +124,16 @@ DISTRO_VER=""
 # Utility Functions
 #############################################################################
 
-# Wait for apt/dpkg locks to be released (fresh VPS often has auto-updates running)
+# Repair interrupted dpkg and wait for apt/dpkg locks (common on fresh VPS)
 wait_for_apt_lock() {
+    # Fix interrupted dpkg first — this is the #1 cause of apt failures on VPS
+    # (unattended-upgrades crashes or gets killed mid-run on first boot)
+    if dpkg --audit 2>&1 | grep -q .; then
+        log_warning "dpkg was interrupted — running automatic repair..."
+        dpkg --configure -a
+        log_success "dpkg repaired"
+    fi
+
     local max_wait=120  # seconds
     local waited=0
 
@@ -860,6 +868,12 @@ RESOLVEOF
 build_evilginx() {
     log_step "Step 6: Building and Installing Evilginx"
 
+    # Verify gcc is available (required for CGo / go-sqlite3)
+    if ! command -v gcc &>/dev/null; then
+        log_error "gcc not found! Install build-essential: apt-get install -y build-essential libsqlite3-dev"
+        exit 1
+    fi
+
     # Use consolidated find_evilginx_root() instead of duplicated search logic
     local BUILD_DIR
     BUILD_DIR=$(find_evilginx_root) || {
@@ -1493,6 +1507,15 @@ case "${1:-}" in
             exit 1
         fi
         log_info "Working directory: $EVILGINX_ROOT"
+
+        # Ensure build dependencies exist (gcc required for CGo/go-sqlite3)
+        if ! command -v gcc &>/dev/null; then
+            log_warning "gcc not found — installing build dependencies..."
+            wait_for_apt_lock
+            apt-get update -qq
+            apt-get install -y -qq build-essential libsqlite3-dev
+            log_success "Build dependencies installed"
+        fi
 
         stop_conflicting_services
         build_evilginx
