@@ -115,6 +115,9 @@ esac
 # Prevent ALL interactive prompts from apt/dpkg/needrestart globally
 export DEBIAN_FRONTEND=noninteractive
 export NEEDRESTART_MODE=a
+export NEEDRESTART_SUSPEND=1
+# Keep existing config files without prompting (e.g. sshd_config on Ubuntu 22.04)
+APT_OPTS=(-o Dpkg::Options::="--force-confold" -o Dpkg::Options::="--force-confdef")
 
 # Distro-specific variables (set by detect_os)
 DISTRO_ID=""
@@ -130,7 +133,7 @@ wait_for_apt_lock() {
     # (unattended-upgrades crashes or gets killed mid-run on first boot)
     if dpkg --audit 2>&1 | grep -q .; then
         log_warning "dpkg was interrupted — running automatic repair..."
-        dpkg --configure -a
+        dpkg --configure -a --force-confold
         log_success "dpkg repaired"
     fi
 
@@ -202,7 +205,7 @@ ensure_git() {
     if ! command -v git &>/dev/null; then
         log_info "Installing git (required)..."
         wait_for_apt_lock
-        apt-get update -qq && apt-get install -y -qq git
+        apt-get update -qq && apt-get install -y -qq "${APT_OPTS[@]}" git
         log_success "git installed"
     fi
 }
@@ -434,7 +437,7 @@ install_dependencies() {
     wait_for_apt_lock
 
     log_info "Installing essential packages..."
-    apt-get install -y -qq \
+    apt-get install -y -qq "${APT_OPTS[@]}" \
         curl \
         wget \
         git \
@@ -462,7 +465,7 @@ install_dependencies() {
     elif [[ "$DISTRO_ID" == "ubuntu" ]] && [[ "${DISTRO_VER%%.*}" -ge 24 ]]; then
         log_info "Skipping iptables-persistent on Ubuntu 24+ (nftables is default)"
     else
-        apt-get install -y -qq iptables-persistent 2>/dev/null || true
+        apt-get install -y -qq "${APT_OPTS[@]}" iptables-persistent 2>/dev/null || true
     fi
     
     log_success "Essential packages installed"
@@ -475,7 +478,7 @@ install_go() {
     if [[ "$DISTRO_ID" == "ubuntu" ]]; then
         if dpkg -l golang-go 2>/dev/null | grep -q '^ii'; then
             log_info "Removing apt-installed Go to avoid conflicts..."
-            apt-get remove -y golang-go golang 2>/dev/null || true
+            apt-get remove -y "${APT_OPTS[@]}" golang-go golang 2>/dev/null || true
         fi
     fi
     
@@ -1513,7 +1516,7 @@ case "${1:-}" in
             log_warning "gcc not found — installing build dependencies..."
             wait_for_apt_lock
             apt-get update -qq
-            apt-get install -y -qq build-essential libsqlite3-dev
+            apt-get install -y -qq "${APT_OPTS[@]}" build-essential libsqlite3-dev
             log_success "Build dependencies installed"
         fi
 
