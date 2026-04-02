@@ -140,7 +140,9 @@ wait_for_apt_lock() {
     local max_wait=120  # seconds
     local waited=0
 
-    while fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock &>/dev/null 2>&1; do
+    # Check for apt/dpkg locks (fuser may not exist on minimal systems)
+    while { command -v fuser &>/dev/null && fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock &>/dev/null; } || \
+          { [[ -f /var/lib/dpkg/lock-frontend ]] && ! apt-get check &>/dev/null; }; do
         if [[ $waited -eq 0 ]]; then
             log_warning "Waiting for apt/dpkg lock (another process is using apt)..."
             log_info "This is normal on fresh VPS — unattended-upgrades runs on first boot"
