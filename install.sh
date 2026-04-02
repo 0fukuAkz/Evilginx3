@@ -1005,44 +1005,66 @@ configure_firewall() {
 
 configure_fail2ban() {
     log_step "Step 8: Configuring Fail2Ban"
-    
-    if [[ ! -f /etc/fail2ban/jail.local ]]; then
-        cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
-        log_success "Created /etc/fail2ban/jail.local"
+
+    # Verify fail2ban is actually installed
+    if ! command -v fail2ban-client &>/dev/null; then
+        log_warning "fail2ban is not installed — skipping configuration"
+        return 0
     fi
-    
+
+    # Create jail.local from jail.conf if it doesn't exist yet
+    if [[ ! -f /etc/fail2ban/jail.local ]]; then
+        if [[ -f /etc/fail2ban/jail.conf ]]; then
+            cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
+            log_success "Created /etc/fail2ban/jail.local"
+        else
+            log_warning "/etc/fail2ban/jail.conf not found — skipping jail.local creation"
+        fi
+    fi
+
     # Determine backend based on distro
     # Debian 12+ and Ubuntu 24+ may not have /var/log/auth.log without rsyslog
     F2B_BACKEND=""
     F2B_LOGPATH="logpath = /var/log/auth.log"
-    
+
+    USE_SYSTEMD_BACKEND=false
     if [[ "$DISTRO_ID" == "debian" ]] && [[ "${DISTRO_VER%%.*}" -ge 12 ]]; then
-        if [ ! -f /var/log/auth.log ]; then
-            F2B_BACKEND="backend = systemd"
-            F2B_LOGPATH="logpath = %(sshd_log)s"
-            log_info "Using systemd backend for Fail2Ban (Debian 12+)"
-        fi
+        USE_SYSTEMD_BACKEND=true
+    elif [[ "$DISTRO_ID" == "ubuntu" ]] && [[ "${DISTRO_VER%%.*}" -ge 24 ]]; then
+        USE_SYSTEMD_BACKEND=true
     fi
-    
-    # Configure SSH protection
-    cat > /etc/fail2ban/jail.d/sshd.conf << EOF
-[sshd]
-enabled = true
-port = 22
-filter = sshd
-${F2B_LOGPATH}
-${F2B_BACKEND}
-maxretry = 3
-bantime = 3600
-findtime = 600
-EOF
-    
+
+    if [[ "$USE_SYSTEMD_BACKEND" == true ]] && [[ ! -f /var/log/auth.log ]]; then
+        F2B_BACKEND="backend = systemd"
+        F2B_LOGPATH="logpath = %(sshd_log)s"
+        log_info "Using systemd backend for Fail2Ban (no /var/log/auth.log detected)"
+    fi
+
+    # Ensure jail.d directory exists
+    mkdir -p /etc/fail2ban/jail.d
+
+    # Build config — avoid blank lines from empty variables
+    {
+        echo "[sshd]"
+        echo "enabled = true"
+        echo "port = 22"
+        echo "filter = sshd"
+        echo "$F2B_LOGPATH"
+        [[ -n "$F2B_BACKEND" ]] && echo "$F2B_BACKEND"
+        echo "maxretry = 3"
+        echo "bantime = 3600"
+        echo "findtime = 600"
+    } > /etc/fail2ban/jail.d/sshd.conf
+
     log_success "Fail2Ban configured for SSH protection"
-    
+
     systemctl enable fail2ban
-    systemctl restart fail2ban
-    
-    log_success "Fail2Ban enabled and started"
+    if systemctl restart fail2ban; then
+        log_success "Fail2Ban enabled and started"
+    else
+        log_warning "Fail2Ban failed to start — check: systemctl status fail2ban / journalctl -u fail2ban"
+        log_warning "Continuing installation (fail2ban is non-critical)"
+    fi
 }
 
 create_systemd_service() {
