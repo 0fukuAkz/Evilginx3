@@ -112,6 +112,10 @@ case "$ARCH" in
     *)             GO_ARCH="amd64"; log_warning "Unknown arch '$ARCH', defaulting to amd64" ;;
 esac
 
+# Prevent ALL interactive prompts from apt/dpkg/needrestart globally
+export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
+
 # Distro-specific variables (set by detect_os)
 DISTRO_ID=""
 DISTRO_VER=""
@@ -119,6 +123,30 @@ DISTRO_VER=""
 #############################################################################
 # Utility Functions
 #############################################################################
+
+# Wait for apt/dpkg locks to be released (fresh VPS often has auto-updates running)
+wait_for_apt_lock() {
+    local max_wait=120  # seconds
+    local waited=0
+
+    while fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock &>/dev/null 2>&1; do
+        if [[ $waited -eq 0 ]]; then
+            log_warning "Waiting for apt/dpkg lock (another process is using apt)..."
+            log_info "This is normal on fresh VPS — unattended-upgrades runs on first boot"
+        fi
+        sleep 5
+        waited=$((waited + 5))
+        if [[ $waited -ge $max_wait ]]; then
+            log_error "apt lock not released after ${max_wait}s"
+            log_info "Try: sudo kill \$(sudo lsof -t /var/lib/dpkg/lock-frontend) && sudo dpkg --configure -a"
+            exit 1
+        fi
+    done
+
+    if [[ $waited -gt 0 ]]; then
+        log_success "apt lock released after ${waited}s"
+    fi
+}
 
 # Consolidated function to find the Evilginx root directory
 # Replaces duplicate search logic that was in both main() and build_evilginx()
@@ -165,6 +193,7 @@ check_root() {
 ensure_git() {
     if ! command -v git &>/dev/null; then
         log_info "Installing git (required)..."
+        wait_for_apt_lock
         apt-get update -qq && apt-get install -y -qq git
         log_success "git installed"
     fi
@@ -369,19 +398,35 @@ uninstall_evilginx() {
 
 update_system() {
     log_step "Step 1: Updating System Packages"
-    
+
+    # Wait for any existing apt operations to finish (common on fresh VPS)
+    wait_for_apt_lock
+
+    # Kill needrestart if it's running (causes hangs on Ubuntu 22.04+)
+    if pgrep -x needrestart &>/dev/null; then
+        log_info "Stopping needrestart daemon to prevent interactive prompts..."
+        killall needrestart 2>/dev/null || true
+    fi
+
+    # Disable needrestart prompts for this session if the config exists
+    if [[ -d /etc/needrestart/conf.d ]]; then
+        echo '$nrconf{restart} = "a";' > /etc/needrestart/conf.d/99-installer-tmp.conf
+    fi
+
     apt-get update -qq
     log_success "Package lists updated"
-    
+
     # Only update, don't upgrade — avoids kernel surprises and needrestart hangs
     log_info "Skipping full system upgrade (run 'apt upgrade' manually if desired)"
 }
 
 install_dependencies() {
     log_step "Step 2: Installing Dependencies"
-    
+
+    wait_for_apt_lock
+
     log_info "Installing essential packages..."
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+    apt-get install -y -qq \
         curl \
         wget \
         git \
@@ -409,7 +454,7 @@ install_dependencies() {
     elif [[ "$DISTRO_ID" == "ubuntu" ]] && [[ "${DISTRO_VER%%.*}" -ge 24 ]]; then
         log_info "Skipping iptables-persistent on Ubuntu 24+ (nftables is default)"
     else
-        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq iptables-persistent 2>/dev/null || true
+        apt-get install -y -qq iptables-persistent 2>/dev/null || true
     fi
     
     log_success "Essential packages installed"
@@ -1402,9 +1447,12 @@ main() {
     create_helper_scripts
     create_admin_user
     
+    # Cleanup temporary needrestart override
+    rm -f /etc/needrestart/conf.d/99-installer-tmp.conf 2>/dev/null
+
     # Completion
     display_completion
-    
+
     log_success "Installation complete! Review the information above."
     log_success "Full log saved to: $INSTALL_LOG"
 }
