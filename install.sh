@@ -133,7 +133,7 @@ wait_for_apt_lock() {
     # (unattended-upgrades crashes or gets killed mid-run on first boot)
     if dpkg --audit 2>&1 | grep -q .; then
         log_warning "dpkg was interrupted — running automatic repair..."
-        dpkg --configure -a --force-confold
+        dpkg --configure -a --force-confold --force-confdef
         log_success "dpkg repaired"
     fi
 
