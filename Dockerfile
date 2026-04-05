@@ -23,9 +23,10 @@ WORKDIR /root/
 # Copy binary from builder
 COPY --from=builder /app/evilginx .
 
-# Copy phishlets and redirectors
+# Copy phishlets, redirectors, and post_redirectors
 COPY --from=builder /app/phishlets ./phishlets
 COPY --from=builder /app/redirectors ./redirectors
+COPY --from=builder /app/post_redirectors ./post_redirectors
 
 # Global directory for config
 RUN mkdir -p /root/.evilginx
@@ -36,4 +37,4 @@ EXPOSE 53/udp 53/tcp 80/tcp 443/tcp
 
 ENTRYPOINT ["./evilginx"]
 # Default command with correct paths
-CMD ["-p", "/root/phishlets", "-t", "/root/redirectors", "-c", "/root/.evilginx"]
+CMD ["-p", "/root/phishlets", "-t", "/root/redirectors", "-u", "/root/post_redirectors", "-c", "/root/.evilginx"]

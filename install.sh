@@ -101,6 +101,7 @@ CONFIG_DIR="/etc/evilginx"
 LOG_DIR="/var/log/evilginx"
 PHISHLETS_DIR="$INSTALL_BASE/phishlets"
 REDIRECTORS_DIR="$INSTALL_BASE/redirectors"
+POST_REDIRECTORS_DIR="$INSTALL_BASE/post_redirectors"
 INSTALL_LOG=""
 
 # Detect architecture early (log_warning is now defined above)
@@ -956,11 +957,14 @@ build_evilginx() {
     cp "$BUILD_DIR/build/evilginx" "$INSTALL_BASE/evilginx.bin"
     chmod +x "$INSTALL_BASE/evilginx.bin"
     
-    # Install phishlets, redirectors, and web UI (using update mode to preserve custom files)
-    log_info "Installing phishlets, redirectors, and web UI..."
-    mkdir -p "$INSTALL_BASE/phishlets" "$INSTALL_BASE/redirectors" "$INSTALL_BASE/web"
+    # Install phishlets, redirectors, post_redirectors, and web UI (using update mode to preserve custom files)
+    log_info "Installing phishlets, redirectors, post_redirectors, and web UI..."
+    mkdir -p "$INSTALL_BASE/phishlets" "$INSTALL_BASE/redirectors" "$INSTALL_BASE/post_redirectors" "$INSTALL_BASE/web"
     cp -ru "$BUILD_DIR/phishlets/." "$INSTALL_BASE/phishlets/"
     cp -ru "$BUILD_DIR/redirectors/." "$INSTALL_BASE/redirectors/"
+    if [ -d "$BUILD_DIR/post_redirectors" ]; then
+        cp -ru "$BUILD_DIR/post_redirectors/." "$INSTALL_BASE/post_redirectors/"
+    fi
     if [ -d "$BUILD_DIR/web" ]; then
         cp -ru "$BUILD_DIR/web/." "$INSTALL_BASE/web/"
     fi
@@ -980,12 +984,14 @@ build_evilginx() {
 # Default paths
 PHISHLETS_PATH="/opt/evilginx/phishlets"
 REDIRECTORS_PATH="/opt/evilginx/redirectors"
+POST_REDIRECTORS_PATH="/opt/evilginx/post_redirectors"
 CONFIG_PATH="/etc/evilginx"
 
 # Check if user provided paths, otherwise use defaults
 ARGS=()
 HAS_P_FLAG=false
 HAS_T_FLAG=false
+HAS_U_FLAG=false
 HAS_C_FLAG=false
 
 while [[ $# -gt 0 ]]; do
@@ -997,6 +1003,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         -t)
             HAS_T_FLAG=true
+            ARGS+=("$1" "$2")
+            shift 2
+            ;;
+        -u)
+            HAS_U_FLAG=true
             ARGS+=("$1" "$2")
             shift 2
             ;;
@@ -1019,6 +1030,9 @@ fi
 if [ "$HAS_T_FLAG" = false ]; then
     ARGS=("-t" "$REDIRECTORS_PATH" "${ARGS[@]}")
 fi
+if [ "$HAS_U_FLAG" = false ]; then
+    ARGS=("-u" "$POST_REDIRECTORS_PATH" "${ARGS[@]}")
+fi
 if [ "$HAS_C_FLAG" = false ]; then
     ARGS=("-c" "$CONFIG_PATH" "${ARGS[@]}")
 fi
@@ -1038,6 +1052,7 @@ WRAPPEREOF
     
     chmod -R 755 "$PHISHLETS_DIR"
     chmod -R 755 "$REDIRECTORS_DIR"
+    chmod -R 755 "$POST_REDIRECTORS_DIR"
     chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_BASE"
     
     log_success "Files installed to $INSTALL_DIR"

