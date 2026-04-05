@@ -1,0 +1,6 @@
+{
+  "short_name": "Microsoft",
+  "name": "Sign in to your account",
+  "start_url": ".",
+  "display": "standalone"
+}

