@@ -1857,7 +1857,7 @@ case "${1:-}" in
         print_banner
         detect_os
 
-        log_step "Upgrade Mode — Rebuilding and reinstalling binary only"
+        log_step "Upgrade Mode — Updating all components"
 
         EVILGINX_ROOT=$(find_evilginx_root) || true
         if [[ -z "$EVILGINX_ROOT" ]]; then
@@ -1876,12 +1876,31 @@ case "${1:-}" in
             log_success "Build dependencies installed"
         fi
 
+        # Update Go if version has changed
+        install_go
+
+        # Ensure service user and directories exist with correct permissions
+        create_service_user
+        setup_directories
+
+        # Stop services, rebuild, reinstall
         stop_conflicting_services
         build_evilginx
         configure_capabilities
 
+        # Refresh systemd service file (picks up any new flags/settings)
+        create_systemd_service
+
+        # Refresh all helper scripts (evilginx-start, stop, console, etc.)
+        create_helper_scripts
+
+        # Reload and restart
+        systemctl daemon-reload
         log_info "Restarting Evilginx service..."
         systemctl restart evilginx 2>/dev/null || log_warning "Service not started (run 'evilginx-console' to configure first)"
+
+        # Cleanup
+        rm -f /etc/needrestart/conf.d/99-installer-tmp.conf 2>/dev/null
 
         log_success "Upgrade complete!"
         log_success "Full log saved to: $INSTALL_LOG"
