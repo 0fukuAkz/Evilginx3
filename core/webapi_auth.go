@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kgretzky/evilginx2/database"
@@ -15,10 +16,21 @@ import (
 )
 
 const (
-	authCookieName   = "evilginx_session"
-	authTokenPrefix  = "auth_session:"
-	sessionTTLHours  = 24
+	authCookieName  = "evilginx_session"
+	authTokenPrefix = "auth_session:"
+	sessionTTLHours = 24
+
+	maxLoginAttempts = 5
+	loginWindowSecs  = 300 // 5 minutes
 )
+
+// loginAttempt tracks failed login attempts per IP for rate limiting.
+type loginAttempt struct {
+	count   int
+	resetAt time.Time
+}
+
+var loginRateLimiter sync.Map // map[string]loginAttempt
 
 // generateToken creates a cryptographically random hex token.
 func generateToken(n int) (string, error) {
@@ -123,6 +135,27 @@ func (w *WebAPI) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// requireOperator wraps an http.HandlerFunc requiring role admin or operator.
+// Viewer-role users are denied write/mutation endpoints.
+func (w *WebAPI) requireOperator(next http.HandlerFunc) http.HandlerFunc {
+	return func(rw http.ResponseWriter, req *http.Request) {
+		user, err := w.getUserFromRequest(req)
+		if err != nil {
+			rw.Header().Set("Content-Type", "application/json")
+			rw.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(rw).Encode(map[string]string{"error": "unauthorized"})
+			return
+		}
+		if user.Role != "admin" && user.Role != "operator" {
+			rw.Header().Set("Content-Type", "application/json")
+			rw.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(rw).Encode(map[string]string{"error": "operator or admin access required"})
+			return
+		}
+		next(rw, req)
+	}
+}
+
 // getClientIP extracts the client IP from the request.
 func getClientIP(req *http.Request) string {
 	forwarded := req.Header.Get("X-Forwarded-For")
@@ -145,6 +178,22 @@ func (w *WebAPI) handleLogin(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// Rate limit by IP: max 5 attempts per 5 minutes
+	clientIP := getClientIP(req)
+	now := time.Now()
+	if v, ok := loginRateLimiter.Load(clientIP); ok {
+		attempt := v.(loginAttempt)
+		if now.Before(attempt.resetAt) && attempt.count >= maxLoginAttempts {
+			rw.Header().Set("Content-Type", "application/json")
+			rw.WriteHeader(http.StatusTooManyRequests)
+			json.NewEncoder(rw).Encode(map[string]string{"error": "too many login attempts, try again later"})
+			return
+		}
+		if now.After(attempt.resetAt) {
+			loginRateLimiter.Store(clientIP, loginAttempt{count: 0, resetAt: now.Add(loginWindowSecs * time.Second)})
+		}
+	}
+
 	var payload struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -156,8 +205,17 @@ func (w *WebAPI) handleLogin(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// recordFailedAttempt increments the rate-limit counter for this IP
+	recordFailedAttempt := func() {
+		v, _ := loginRateLimiter.LoadOrStore(clientIP, loginAttempt{count: 0, resetAt: now.Add(loginWindowSecs * time.Second)})
+		attempt := v.(loginAttempt)
+		attempt.count++
+		loginRateLimiter.Store(clientIP, attempt)
+	}
+
 	user, err := w.db.GetUserByUsername(payload.Username)
 	if err != nil {
+		recordFailedAttempt()
 		rw.Header().Set("Content-Type", "application/json")
 		rw.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(rw).Encode(map[string]string{"error": "invalid credentials"})
@@ -165,11 +223,15 @@ func (w *WebAPI) handleLogin(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(payload.Password)); err != nil {
+		recordFailedAttempt()
 		rw.Header().Set("Content-Type", "application/json")
 		rw.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(rw).Encode(map[string]string{"error": "invalid credentials"})
 		return
 	}
+
+	// Successful login — clear rate limit counter
+	loginRateLimiter.Delete(clientIP)
 
 	token, err := generateToken(32)
 	if err != nil {
@@ -199,7 +261,7 @@ func (w *WebAPI) handleLogin(rw http.ResponseWriter, req *http.Request) {
 		MaxAge:   sessionTTLHours * 3600,
 	})
 
-	clientIP := getClientIP(req)
+	clientIP = getClientIP(req)
 	w.db.CreateAuditEntry(user.Username, "login", "User logged in", clientIP)
 	log.Info("webapi: user '%s' logged in from %s", user.Username, clientIP)
 

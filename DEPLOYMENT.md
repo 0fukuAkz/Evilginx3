@@ -333,6 +333,8 @@ lures edit 0 og_image https://example.com/logo.png
 lures get-url 0
 ```
 
+> **GoPhish auto-provisioning:** `lures create` automatically provisions a matching GoPhish campaign, landing page, email template, and target group in the embedded GoPhish instance. Credentials submitted through the lure are recorded in both the Evilginx session store and the GoPhish results database (with geolocation). No manual GoPhish setup is required.
+
 ---
 
 ## 10. Domain Rotation & Multi-Domain Lures
@@ -432,19 +434,119 @@ antibot spoof_url https://google.com
 ```
 
 ### Web API Dashboard
-A built-in JSON API and Web GUI are running automatically on port 2030, allowing you to manage phishlets and view sessions via a structured interface.
-- **Access URL:** `http://YOUR_VPS_IP:2030/`
+
+A built-in JSON API and web dashboard run automatically on port **2030**, providing full remote management of phishlets, lures, sessions, config, and users.
+
+> **Security:** Port 2030 binds to `0.0.0.0` (all interfaces) over **HTTP only** — traffic is unencrypted. The installer opens it to the internet via UFW. Harden before exposing to the network:
+
+```bash
+# Restrict port 2030 to your operator IP only
+sudo ufw delete allow 2030/tcp
+sudo ufw allow from YOUR_OPERATOR_IP to any port 2030
+
+# Or use an SSH tunnel instead of exposing the port at all
+ssh -L 2030:127.0.0.1:2030 root@YOUR_VPS_IP
+# Then open http://localhost:2030 in your browser
+```
+
+**Default credentials** are printed to stdout on first start:
+
+```text
+Web Admin default credentials:
+  Username: admin
+  Password: <random 32-char token>
+```
+
+Change it immediately after first login via the dashboard or API:
+
+```bash
+curl -s -b cookies.txt -X POST http://localhost:2030/api/auth/change-password \
+  -H "Content-Type: application/json" \
+  -d '{"old_password":"OLD","new_password":"NEW_STRONG_PASSWORD"}'
+```
+
+**User roles** (`admin` only can manage users):
+
+| Role | Capabilities |
+| --- | --- |
+| `admin` | Full access including user management |
+| `operator` | Manage phishlets, lures, sessions, config (default for new users) |
+| `viewer` | Read-only — all mutation endpoints return 403 |
+
+```bash
+# Create an operator account (admin credentials required)
+curl -s -b cookies.txt -X POST http://localhost:2030/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"username":"operator1","password":"StrongPass","role":"operator"}'
+```
+
+**Session export with filters:**
+
+```bash
+# All sessions for a specific phishlet
+GET /api/sessions/export?phishlet=o365
+
+# Only sessions that captured credentials
+GET /api/sessions/export?has_creds=true
+
+# Sessions captured after a Unix timestamp
+GET /api/sessions/export?since=1700000000
+```
+
+**Audit log** — all admin actions are recorded:
+
+```bash
+# View last 200 audit entries
+GET /api/audit?limit=200
+```
 
 ### Telegram Notifications
 Real-time alerts can be sent directly to your Telegram bot whenever credentials or cookies are captured.
 - Enable via: `config telegram enabled true`
 - Test configuration: `config telegram test`
 
-### Gophish Integration
-Evilginx3 integrates directly with the Gophish database to bridge captured credentials and campaigns.
-- Set API URL: `config gophish admin_url http://127.0.0.1:3333`
-- Set API Key: `config gophish api_key YOUR_GOPHISH_API_KEY`
-- Test connection: `config gophish test`
+### GoPhish Integration
+
+GoPhish is **embedded directly inside the Evilginx binary** — it is not a separate process or install. It starts automatically alongside Evilginx and runs on `127.0.0.1:3333` (localhost only).
+
+**How it works:**
+
+- When a lure is created (`lures create`), Evilginx auto-provisions a GoPhish campaign, landing page, email template, and target group.
+- When a victim submits credentials, Evilginx records the event in GoPhish's SQLite database (`~/.evilginx/gophish.db`) with IP address, user-agent, submitted form data, and geolocation (MaxMind GeoLite2).
+- Results are viewable in the GoPhish dashboard and via the Evilginx WebAPI at `/api/gophish/campaigns/results`.
+
+**First-time login:**
+The auto-generated admin password is printed to stdout when Evilginx first starts. Override it before starting via environment variables:
+
+```bash
+export GOPHISH_INITIAL_ADMIN_PASSWORD="YourStrongPassword"
+export GOPHISH_INITIAL_ADMIN_API_TOKEN="your-32-char-api-token-here"
+sudo evilginx-start
+```
+
+**Accessing the dashboard remotely (SSH tunnel required):**
+
+The dashboard binds to localhost only and has no TLS. Access it via an SSH tunnel from your operator machine:
+
+```bash
+ssh -L 3333:127.0.0.1:3333 root@YOUR_VPS_IP
+# Then open http://localhost:3333 in your browser
+# Login: admin / <password printed at startup>
+```
+
+**Auto-created SMTP profile:**
+
+The auto-provisioned SMTP profile points to `localhost:25` with a placeholder sender. To actually send phishing emails from GoPhish, configure a real SMTP provider in the GoPhish dashboard under **Sending Profiles**.
+
+**`config gophish` commands — note on scope:**
+
+```bash
+config gophish admin_url <url>    # For future external GoPhish (not used by native integration)
+config gophish api_key <key>      # For future external GoPhish (not used by native integration)
+config gophish test               # Confirms native integration is active
+```
+
+> **Note:** `admin_url` and `api_key` are configuration stubs for a planned external-instance mode. The native embedded integration does **not** use them — it accesses the GoPhish database directly in-process.
 
 ### Bind Address
 
@@ -454,6 +556,97 @@ By default Evilginx listens on all interfaces using the external IP set via `con
 config ipv4 external YOUR_PUBLIC_IP   # external IP announced to targets
 config ipv4 bind YOUR_LOCAL_IP        # local interface to bind sockets to
 ```
+
+### Cloudflare Tunnel Setup (Admin Panel Remote Access)
+
+Cloudflare Tunnel (`cloudflared`) exposes the admin panels publicly over HTTPS without opening firewall ports or requiring a static IP. Two subdomains are created:
+
+| Subdomain | Target | Purpose |
+| --- | --- | --- |
+| `admin.YOUR_DOMAIN` | `localhost:2030` | Web Admin API / Dashboard |
+| `gophish.YOUR_DOMAIN` | `localhost:3333` | GoPhish Dashboard |
+
+**Prerequisites:**
+
+- Domain already added to Cloudflare and using Cloudflare nameservers
+- Cloudflare account with API access
+
+**Option A — During full installation (prompted at end):**
+
+```bash
+TUNNEL_DOMAIN=example.com sudo ./install.sh
+# Answer 'y' when asked about Cloudflare Tunnel at the end
+```
+
+**Option B — Standalone tunnel setup only:**
+
+```bash
+# Run after Evilginx is already installed
+TUNNEL_DOMAIN=example.com sudo ./install.sh --tunnel
+
+# Or run the dedicated setup script directly
+TUNNEL_DOMAIN=example.com sudo bash setup-tunnel.sh
+```
+
+**Environment variables for automation (skip interactive prompts):**
+
+```bash
+TUNNEL_DOMAIN=example.com          # Required — your Cloudflare-managed domain
+CF_TUNNEL_NAME=evilginx-panels     # Tunnel name (default: evilginx-panels)
+CF_TUNNEL_ADMIN_SUB=admin          # Admin subdomain prefix (default: admin)
+CF_TUNNEL_GOPHISH_SUB=gophish      # GoPhish subdomain prefix (default: gophish)
+```
+
+**What the setup does (automated):**
+
+1. Installs `cloudflared` from GitHub releases (detects amd64/arm64)
+2. Opens browser login to authenticate with Cloudflare
+3. Creates a named tunnel and retrieves its ID
+4. Writes `/etc/cloudflared/config.yml` with ingress rules
+5. Creates DNS CNAME records automatically via `cloudflared tunnel route dns`
+6. Installs and starts `cloudflared` as a systemd service (auto-starts on boot)
+
+**Verify tunnel is running:**
+
+```bash
+systemctl status cloudflared
+journalctl -u cloudflared -f          # Live logs
+
+cloudflared tunnel list               # Show all tunnels and status
+cloudflared tunnel info evilginx-panels
+```
+
+**Troubleshooting:**
+
+```bash
+# Tunnel not starting — check credentials file path
+cat /etc/cloudflared/config.yml
+
+# Re-authenticate if cert.pem is missing or expired
+cloudflared tunnel login
+
+# DNS not resolving — check CNAME records in Cloudflare dashboard
+# They should point to <TUNNEL_ID>.cfargotunnel.com
+
+# Restart after config changes
+systemctl restart cloudflared
+```
+
+**Remove tunnel:**
+
+```bash
+# Via uninstaller (prompts)
+sudo ./install.sh --uninstall
+
+# Or manually
+systemctl stop cloudflared && systemctl disable cloudflared
+cloudflared service uninstall
+cloudflared tunnel delete evilginx-panels
+rm -rf /etc/cloudflared ~/.cloudflared
+```
+
+> **Security:** Add Cloudflare Access policies to restrict who can reach these subdomains.
+> Dashboard → Zero Trust → Access → Applications
 
 ---
 

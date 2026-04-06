@@ -5,7 +5,10 @@
       "Bash(echo $?)",
       "Bash(grep -r \"func.*Start\\\\|func.*Stop\\\\|func.*Initialize\" /c/Users/user/Desktop/Projects/git/Evilginx3/core/*.go)",
       "Bash(xargs grep:*)",
-      "Bash(node -e \":*)"
+      "Bash(node -e \":*)",
+      "Bash(file /Users/macbook/Desktop/GitHub/Evilginx3/gophish/static/db/*)",
+      "Bash(head -30 /Users/macbook/Desktop/GitHub/Evilginx3/gophish/db/db_sqlite3/migrations/*users*)",
+      "Bash(xargs cat:*)"
     ]
   }
 }

