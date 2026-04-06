@@ -5,7 +5,7 @@
   </p>
 </p>
 
-# Evilginx 3.3.1 - Private Dev Edition
+# Evilginx 3.5.4 - Private Dev Edition
 
 **Evilginx** is a man-in-the-middle attack framework used for phishing login credentials along with session cookies, which in turn allows to bypass 2-factor authentication protection.
 
@@ -13,7 +13,7 @@ This **Private Development Edition** includes advanced evasion, detection, and o
 
 **Modified by:** AKaZA (Akz0fuku)  
 **Original Author:** Kuba Gretzky ([@mrgretzky](https://twitter.com/mrgretzky))  
-**Version:** 3.3.1 - Private Dev Edition
+**Version:** 3.5.4 - Private Dev Edition
 
 ## 🚨 Disclaimer
 

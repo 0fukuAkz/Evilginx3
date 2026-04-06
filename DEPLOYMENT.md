@@ -1,4 +1,4 @@
-# 🚀 Evilginx 3.3.1 Private Dev Edition - Complete Deployment Guide
+# 🚀 Evilginx 3.5.4 Private Dev Edition - Complete Deployment Guide
 
 > **⚠️ LEGAL DISCLAIMER**: This guide is for **AUTHORIZED PENETRATION TESTING AND RED TEAM ENGAGEMENTS ONLY**. Unauthorized use is illegal. Always obtain written permission before conducting security assessments.
 
@@ -182,7 +182,7 @@ cd C:\Users\user\Desktop\Projects\git\Evilginx3
 ```
 
 **The installer automatically:**
-- ✅ Installs Go 1.22 (if missing)
+- ✅ Installs Go 1.25.1 (if missing)
 - ✅ Builds from source
 - ✅ Installs NSSM and creates a Windows Service
 - ✅ Configures Windows Firewall
@@ -200,16 +200,18 @@ evilginx-logs       # Monitor logs
 If you prefer to build manually:
 
 ```bash
-# Install Go (Linux)
-wget https://go.dev/dl/go1.22.0.linux-amd64.tar.gz
+# Install Go (Linux) — must match go.mod requirement (1.25.1+)
+wget https://go.dev/dl/go1.25.1.linux-amd64.tar.gz
 sudo rm -rf /usr/local/go
-sudo tar -C /usr/local -xzf go1.22.0.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.25.1.linux-amd64.tar.gz
 export PATH=$PATH:/usr/local/go/bin
 
 # Build
+# CGO_ENABLED=1 is required — go-sqlite3 uses CGo
+# -mod=vendor uses the checked-in vendor/ directory (no network needed)
 cd Evilginx3
-go mod download
-go build -o build/evilginx main.go
+mkdir -p build
+CGO_ENABLED=1 go build -mod=vendor -o build/evilginx main.go
 
 # Install
 sudo cp build/evilginx /usr/local/bin/
@@ -218,11 +220,13 @@ sudo chmod +x /usr/local/bin/evilginx
 # Allow binding to privileged ports without root
 sudo setcap 'cap_net_bind_service=+ep' /usr/local/bin/evilginx
 
-# Create config dirs
+# Create config dirs and copy assets
 mkdir -p ~/.evilginx/phishlets
 mkdir -p ~/.evilginx/redirectors
+mkdir -p ~/.evilginx/post_redirectors
 cp -r phishlets/* ~/.evilginx/phishlets/
 cp -r redirectors/* ~/.evilginx/redirectors/
+cp -r post_redirectors/* ~/.evilginx/post_redirectors/
 ```
 
 ### 5.5 Docker Installation (Experimental)
@@ -266,7 +270,7 @@ If certs fail, ensure ports 80/443 are open and your DNS A records point to the 
 ## 7. Phishlet Configuration
 
 ### Available Phishlets
-Includes 6 debugged phishlets: `amazon`, `apple`, `google`, `linkedin`, `o365`, `paypal`.
+This build ships with `o365` (Office 365). Additional phishlets can be added to the `phishlets/` directory — see the YAML format in the existing file as a reference.
 
 ### Enabling a Phishlet
 
@@ -440,6 +444,16 @@ Real-time alerts can be sent directly to your Telegram bot whenever credentials 
 Evilginx3 integrates directly with the Gophish database to bridge captured credentials and campaigns.
 - Set API URL: `config gophish admin_url http://127.0.0.1:3333`
 - Set API Key: `config gophish api_key YOUR_GOPHISH_API_KEY`
+- Test connection: `config gophish test`
+
+### Bind Address
+
+By default Evilginx listens on all interfaces using the external IP set via `config ipv4`. To bind to a specific local interface instead:
+
+```bash
+config ipv4 external YOUR_PUBLIC_IP   # external IP announced to targets
+config ipv4 bind YOUR_LOCAL_IP        # local interface to bind sockets to
+```
 
 ---
 
@@ -487,20 +501,23 @@ sudo lsof -i :443
 | Command | Usage | Description |
 | :--- | :--- | :--- |
 | **`config`** | `config` | Show all configuration variables. |
-| | `config ipv4 <ipv4_address>` | Set IPv4 external address of the server. |
+| | `config ipv4 external <ipv4_address>` | Set the public IPv4 address announced to targets. |
+| | `config ipv4 bind <ipv4_address>` | Set the local interface IP to bind sockets to (defaults to external). |
 | | `config unauth_url <url>` | Set redirect URL for unauthorized requests. |
-| | `config autocert <on|off>` | Enable/disable automatic Let's Encrypt certificates. |
+| | `config autocert <on\|off>` | Enable/disable automatic Let's Encrypt certificates. |
 | | `config lure_strategy <strategy>` | Set lure URL strategy (`short`, `medium`, `long`, `realistic`, `hex`, `base64`, `mixed`). |
-| | `config gophish <args...>` | Configure Gophish integration (`admin_url`, `api_key`, `test`). |
-| | `config telegram bot_token <token>` | Set up the Telegram bot token for notifications. |
-| | `config telegram chat_id <id>` | Set up the Telegram chat ID where notifications will be sent. |
-| | `config telegram enabled <true|false>` | Enable or disable Telegram notifications. |
-| | `config telegram test` | Test the Telegram configuration by sending a test message. |
-| | `config test` | Test the general configuration. |
+| | `config gophish admin_url <url>` | Set GoPhish admin API URL. |
+| | `config gophish api_key <key>` | Set GoPhish API key. |
+| | `config gophish test` | Test the GoPhish API connection. |
+| | `config telegram bot_token <token>` | Set Telegram bot token for notifications. |
+| | `config telegram chat_id <id>` | Set Telegram chat ID to receive notifications. |
+| | `config telegram enabled <true\|false>` | Enable or disable Telegram notifications. |
+| | `config telegram test` | Send a test Telegram notification. |
 | | `config http_port <port>` | Set the HTTP proxy port. |
 | | `config https_port <port>` | Set the HTTPS proxy port. |
 | | `config dns_port <port>` | Set the DNS server port. |
-| | `config redirectors_dir <path>` | Set directory where redirector files are stored. |
+| | `config redirectors_dir <path>` | Set directory where redirector HTML files are stored. |
+| | `config post_redirectors_dir <path>` | Set directory where post-redirector HTML files are stored. |
 | **`proxy`** | `proxy` | Show proxy configuration. |
 | | `proxy enable`, `proxy disable` | Enable/disable upstream proxy. |
 | | `proxy type <http|https|socks5>` | Set proxy type. |

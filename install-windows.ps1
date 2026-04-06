@@ -1,7 +1,7 @@
 #Requires -RunAsAdministrator
 
 #############################################################################
-# Evilginx 3.3.1 - Private Dev Edition - Windows Service Installer
+# Evilginx 3.5.4 - Private Dev Edition - Windows Service Installer
 #############################################################################
 # This script automates the complete installation and configuration process
 # for Windows systems, including Windows Service creation
@@ -59,7 +59,7 @@ function Write-Step($message) {
 }
 
 # Configuration
-$GO_VERSION = "1.22.0"
+$GO_VERSION = "1.25.1"
 $INSTALL_DIR = "C:\Evilginx"
 $CONFIG_DIR = "$env:USERPROFILE\.evilginx"
 $LOG_DIR = "$INSTALL_DIR\logs"
