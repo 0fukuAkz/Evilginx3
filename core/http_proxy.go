@@ -846,6 +846,13 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 								} else {
 									log.Error("post-redirector: failed to read asset file: %s", err)
 								}
+							} else if s.RedirectURL != "" {
+								// any navigation request that isn't a post-redirector static asset → redirect to final URL
+								resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
+								if resp != nil {
+									resp.Header.Set("Location", s.RedirectURL)
+									return req, resp
+								}
 							}
 						}
 					}

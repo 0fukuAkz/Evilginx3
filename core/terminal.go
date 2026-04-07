@@ -3702,7 +3702,7 @@ func (t *Terminal) sprintLures() string {
 	hcyan := color.New(color.FgHiCyan)
 	white := color.New(color.FgHiWhite)
 	//n := 0
-	cols := []string{"id", "phishlet", "hostname", "path", "redirector", "redirect_url", "paused", "og"}
+	cols := []string{"id", "phishlet", "hostname", "path", "redirector", "post_redirector", "redirect_url", "paused", "og"}
 	var rows [][]string
 	for n, l := range t.cfg.lures {
 		var og string
@@ -3729,7 +3729,7 @@ func (t *Terminal) sprintLures() string {
 
 		var s_paused string = higreen.Sprint(GetDurationString(time.Now(), time.Unix(l.PausedUntil, 0)))
 
-		rows = append(rows, []string{strconv.Itoa(n), hiblue.Sprint(l.Phishlet), cyan.Sprint(l.Hostname), hcyan.Sprint(l.Path), white.Sprint(l.Redirector), yellow.Sprint(l.RedirectUrl), s_paused, og})
+		rows = append(rows, []string{strconv.Itoa(n), hiblue.Sprint(l.Phishlet), cyan.Sprint(l.Hostname), hcyan.Sprint(l.Path), white.Sprint(l.Redirector), white.Sprint(l.PostRedirector), yellow.Sprint(l.RedirectUrl), s_paused, og})
 	}
 	return AsTable(cols, rows)
 }
