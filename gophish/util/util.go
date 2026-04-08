@@ -36,7 +36,7 @@ func ParseMail(r *http.Request) (email.Email, error) {
 	e := email.Email{}
 	m, err := mail.ReadMessage(r.Body)
 	if err != nil {
-		fmt.Println(err)
+		return e, err
 	}
 	body, err := ioutil.ReadAll(m.Body)
 	e.HTML = body

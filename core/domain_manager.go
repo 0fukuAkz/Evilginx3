@@ -635,7 +635,10 @@ func (dm *DomainManager) weightedNextLocked() string {
 	if totalWeight == 0 {
 		return dm.randomNextLocked()
 	}
-	randWeight, _ := rand.Int(rand.Reader, big.NewInt(int64(totalWeight)))
+	randWeight, err := rand.Int(rand.Reader, big.NewInt(int64(totalWeight)))
+	if err != nil {
+		return dm.randomNextLocked()
+	}
 	w := int(randWeight.Int64())
 	for _, domain := range dm.activeDomains {
 		if d, ok := dm.domains[domain]; ok {
@@ -661,7 +664,10 @@ func (dm *DomainManager) healthBasedNextLocked() string {
 	if len(healthy) == 0 {
 		return dm.randomNextLocked()
 	}
-	idx, _ := rand.Int(rand.Reader, big.NewInt(int64(len(healthy))))
+	idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(healthy))))
+	if err != nil {
+		return healthy[0]
+	}
 	return healthy[idx.Int64()]
 }
 
@@ -669,7 +675,10 @@ func (dm *DomainManager) randomNextLocked() string {
 	if len(dm.activeDomains) == 0 {
 		return ""
 	}
-	idx, _ := rand.Int(rand.Reader, big.NewInt(int64(len(dm.activeDomains))))
+	idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(dm.activeDomains))))
+	if err != nil {
+		return dm.activeDomains[0]
+	}
 	return dm.activeDomains[idx.Int64()]
 }
 
@@ -890,16 +899,25 @@ func (dm *DomainManager) GenerateDomain() (string, string, error) {
 		return "", "", fmt.Errorf("no generation rules configured")
 	}
 
-	baseIdx, _ := rand.Int(rand.Reader, big.NewInt(int64(len(rules.BaseDomains))))
+	baseIdx, err := rand.Int(rand.Reader, big.NewInt(int64(len(rules.BaseDomains))))
+	if err != nil {
+		return "", "", fmt.Errorf("crypto/rand failed: %v", err)
+	}
 	baseDomain := rules.BaseDomains[baseIdx.Int64()]
 
 	var subdomain string
 	if rules.UseWordlist && len(rules.Wordlist) > 0 {
-		wordIdx, _ := rand.Int(rand.Reader, big.NewInt(int64(len(rules.Wordlist))))
+		wordIdx, err := rand.Int(rand.Reader, big.NewInt(int64(len(rules.Wordlist))))
+		if err != nil {
+			return "", "", fmt.Errorf("crypto/rand failed: %v", err)
+		}
 		subdomain = rules.Wordlist[wordIdx.Int64()]
 	} else {
 		if len(rules.SubdomainPrefix) > 0 {
-			prefixIdx, _ := rand.Int(rand.Reader, big.NewInt(int64(len(rules.SubdomainPrefix))))
+			prefixIdx, err := rand.Int(rand.Reader, big.NewInt(int64(len(rules.SubdomainPrefix))))
+			if err != nil {
+				return "", "", fmt.Errorf("crypto/rand failed: %v", err)
+			}
 			subdomain = rules.SubdomainPrefix[prefixIdx.Int64()]
 		}
 		if rules.RandomLength > 0 {
@@ -910,7 +928,10 @@ func (dm *DomainManager) GenerateDomain() (string, string, error) {
 			subdomain += hex.EncodeToString(randomBytes)[:rules.RandomLength]
 		}
 		if len(rules.SubdomainSuffix) > 0 {
-			suffixIdx, _ := rand.Int(rand.Reader, big.NewInt(int64(len(rules.SubdomainSuffix))))
+			suffixIdx, err := rand.Int(rand.Reader, big.NewInt(int64(len(rules.SubdomainSuffix))))
+			if err != nil {
+				return "", "", fmt.Errorf("crypto/rand failed: %v", err)
+			}
 			subdomain += rules.SubdomainSuffix[suffixIdx.Int64()]
 		}
 	}
@@ -930,7 +951,10 @@ func (dm *DomainManager) selectDNSProvider() string {
 	if len(providers) == 0 {
 		return ""
 	}
-	idx, _ := rand.Int(rand.Reader, big.NewInt(int64(len(providers))))
+	idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(providers))))
+	if err != nil {
+		return providers[0]
+	}
 	return providers[idx.Int64()]
 }
 

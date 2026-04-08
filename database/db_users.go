@@ -58,7 +58,9 @@ func (d *Database) usersGetByUsername(username string) (*User, error) {
 	err := d.db.View(func(tx *buntdb.Tx) error {
 		found := false
 		err := tx.AscendEqual("users_username", d.getPivot(map[string]string{"username": username}), func(key, val string) bool {
-			json.Unmarshal([]byte(val), u)
+			if err := json.Unmarshal([]byte(val), u); err != nil {
+				return false
+			}
 			found = true
 			return false
 		})
@@ -78,7 +80,9 @@ func (d *Database) usersGetById(id int) (*User, error) {
 	err := d.db.View(func(tx *buntdb.Tx) error {
 		found := false
 		err := tx.AscendEqual("users_id", d.getPivot(map[string]int{"id": id}), func(key, val string) bool {
-			json.Unmarshal([]byte(val), u)
+			if err := json.Unmarshal([]byte(val), u); err != nil {
+				return false
+			}
 			found = true
 			return false
 		})

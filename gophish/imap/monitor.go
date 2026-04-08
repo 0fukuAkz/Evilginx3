@@ -111,7 +111,9 @@ func (im *Monitor) Start() error {
 // Shutdown attempts to gracefully shutdown the IMAP monitor.
 func (im *Monitor) Shutdown() error {
 	log.Info("Shutting down IMAP monitor manager")
-	im.cancel()
+	if im.cancel != nil {
+		im.cancel()
+	}
 	return nil
 }
 

@@ -193,7 +193,9 @@ func (d *Database) sessionsGetById(id int) (*Session, error) {
 	err := d.db.View(func(tx *buntdb.Tx) error {
 		found := false
 		err := tx.AscendEqual("sessions_id", d.getPivot(map[string]int{"id": id}), func(key, val string) bool {
-			json.Unmarshal([]byte(val), s)
+			if err := json.Unmarshal([]byte(val), s); err != nil {
+				return false
+			}
 			found = true
 			return false
 		})

@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kgretzky/evilginx2/log"
@@ -28,6 +29,7 @@ type CertDb struct {
 	ns             *Nameserver
 	caCert         tls.Certificate
 	tlsCache       map[string]*tls.Certificate
+	tlsCacheMu     sync.RWMutex
 	wildcardCache  map[string]bool // Track domains that should use wildcards
 	dnsChallenge   bool            // Whether DNS challenge is enabled
 }
@@ -376,6 +378,9 @@ func (o *CertDb) getTLSCertificate(host string, port int) (*x509.Certificate, er
 
 	state := conn.ConnectionState()
 
+	if len(state.PeerCertificates) == 0 {
+		return nil, fmt.Errorf("no peer certificates returned for: %s:%d", host, port)
+	}
 	return state.PeerCertificates[0], nil
 }
 
@@ -383,7 +388,9 @@ func (o *CertDb) getSelfSignedCertificate(host string, phish_host string, port i
 	var x509ca *x509.Certificate
 	var template x509.Certificate
 
+	o.tlsCacheMu.RLock()
 	cert, ok := o.tlsCache[host]
+	o.tlsCacheMu.RUnlock()
 	if ok {
 		return cert, nil
 	}
@@ -453,6 +460,8 @@ func (o *CertDb) getSelfSignedCertificate(host string, phish_host string, port i
 		PrivateKey:  pkey,
 	}
 
+	o.tlsCacheMu.Lock()
 	o.tlsCache[host] = cert
+	o.tlsCacheMu.Unlock()
 	return cert, nil
 }
