@@ -138,27 +138,6 @@ func (s *Session) AllCookieAuthTokensCaptured(authTokens map[string][]*CookieAut
 	}
 
 	if len(tcopy) == 0 {
-		// if all tokens are optional, require at least some cookies to be captured
-		// before considering auth complete - prevents premature redirect before login
-		allOptional := true
-		for _, v := range authTokens {
-			for _, at := range v {
-				if !at.optional {
-					allOptional = false
-					break
-				}
-			}
-			if !allOptional {
-				break
-			}
-		}
-		if allOptional && len(authTokens) > 0 {
-			totalCaptured := 0
-			for _, tokens := range s.CookieTokens {
-				totalCaptured += len(tokens)
-			}
-			return totalCaptured > 0
-		}
 		return true
 	}
 	return false

