@@ -994,7 +994,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 						contentType := req.Header.Get("Content-type")
 
-						json_re := regexp.MustCompile(`application\/\\w*\+?json`)
+						json_re := regexp.MustCompile(`application\/\w*\+?json`)
 						form_re := regexp.MustCompile(`application\/x-www-form-urlencoded`)
 
 						if json_re.MatchString(contentType) {
