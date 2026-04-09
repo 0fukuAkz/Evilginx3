@@ -1770,23 +1770,22 @@ function deleteLure(id) {
 }
 
 function getLureUrl(id) {
-  // Find the lure row and construct URL from table data
-  var rows = document.querySelectorAll('#luresTable tbody tr');
-  for (var i = 0; i < rows.length; i++) {
-    var cells = rows[i].querySelectorAll('td');
-    if (cells.length > 0 && parseInt(cells[0].textContent) === id) {
-      var hostname = cells[3].textContent.trim();
-      var path = cells[2].textContent.trim();
-      if (hostname && hostname !== '-') {
-        var url = 'https://' + hostname + (path || '/');
-        navigator.clipboard.writeText(url).then(function() {
-          showNotify('Lure URL copied: ' + url, 'success');
-        });
-        return;
-      }
+  apiFetch('/api/lures/get-url?id=' + id).then(function(r) {
+    if (!r) return;
+    if (!r.ok) {
+      return r.json().then(function(err) {
+        showNotify(err.error || 'Failed to get lure URL.', 'error');
+      });
     }
-  }
-  showNotify('Could not determine lure URL. Ensure phishlet hostname is set.', 'error');
+    return r.json();
+  }).then(function(data) {
+    if (!data || !data.url) return;
+    navigator.clipboard.writeText(data.url).then(function() {
+      showNotify('Lure URL copied: ' + data.url, 'success');
+    });
+  }).catch(function() {
+    showNotify('Failed to get lure URL.', 'error');
+  });
 }
 
 // ============================================================

