@@ -7,7 +7,6 @@ import (
 	log "github.com/kgretzky/evilginx2/gophish/logger"
 	"github.com/kgretzky/evilginx2/gophish/mailer"
 	"github.com/kgretzky/evilginx2/gophish/models"
-	"github.com/sirupsen/logrus"
 )
 
 // Worker is an interface that defines the operations needed for a background worker
@@ -90,7 +89,7 @@ func (w *DefaultWorker) processCampaigns(t time.Time) error {
 					return
 				}
 			}
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"num_emails": len(msc),
 			}).Info("Sending emails to mailer for processing")
 			w.mailer.Queue(msc)

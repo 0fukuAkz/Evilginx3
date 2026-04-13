@@ -8,7 +8,6 @@ import (
 	log "github.com/kgretzky/evilginx2/gophish/logger"
 	"github.com/kgretzky/evilginx2/gophish/webhook"
 	"github.com/jinzhu/gorm"
-	"github.com/sirupsen/logrus"
 )
 
 // Campaign is a struct representing a created campaign
@@ -411,7 +410,7 @@ func GetCampaignResults(id int64, uid int64) (CampaignResults, error) {
 	cr := CampaignResults{}
 	err := db.Table("campaigns").Where("id=? and user_id=?", id, uid).Find(&cr).Error
 	if err != nil {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"campaign_id": id,
 			"error":       err,
 		}).Error(err)
@@ -477,7 +476,7 @@ func PostCampaign(c *Campaign, uid int64) error {
 	for i, g := range c.Groups {
 		c.Groups[i], err = GetGroupByName(g.Name, uid)
 		if err == gorm.ErrRecordNotFound {
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"group": g.Name,
 			}).Error("Group does not exist")
 			return ErrGroupNotFound
@@ -490,7 +489,7 @@ func PostCampaign(c *Campaign, uid int64) error {
 	// Check to make sure the template exists
 	t, err := GetTemplateByName(c.Template.Name, uid)
 	if err == gorm.ErrRecordNotFound {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"template": c.Template.Name,
 		}).Error("Template does not exist")
 		return ErrTemplateNotFound
@@ -503,7 +502,7 @@ func PostCampaign(c *Campaign, uid int64) error {
 	// Check to make sure the sending profile exists
 	s, err := GetSMTPByName(c.SMTP.Name, uid)
 	if err == gorm.ErrRecordNotFound {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"smtp": c.SMTP.Name,
 		}).Error("Sending profile does not exist")
 		return ErrSMTPNotFound
@@ -564,14 +563,14 @@ func PostCampaign(c *Campaign, uid int64) error {
 			}
 			err = tx.Save(r).Error
 			if err != nil {
-				log.WithFields(logrus.Fields{
+				log.WithFields(log.Fields{
 					"email": t.Email,
 				}).Errorf("error creating result: %v", err)
 				tx.Rollback()
 				return err
 			}
 			c.Results = append(c.Results, *r)
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"email":     r.Email,
 				"send_date": sendDate,
 			}).Debug("creating maillog")
@@ -584,7 +583,7 @@ func PostCampaign(c *Campaign, uid int64) error {
 			}
 			err = tx.Save(m).Error
 			if err != nil {
-				log.WithFields(logrus.Fields{
+				log.WithFields(log.Fields{
 					"email": t.Email,
 				}).Errorf("error creating maillog entry: %v", err)
 				tx.Rollback()
@@ -598,7 +597,7 @@ func PostCampaign(c *Campaign, uid int64) error {
 
 // DeleteCampaign deletes the specified campaign
 func DeleteCampaign(id int64) error {
-	log.WithFields(logrus.Fields{
+	log.WithFields(log.Fields{
 		"campaign_id": id,
 	}).Info("Deleting campaign")
 	// Delete all the campaign results
@@ -628,7 +627,7 @@ func DeleteCampaign(id int64) error {
 // CompleteCampaign effectively "ends" a campaign.
 // Any future emails clicked will return a simple "404" page.
 func CompleteCampaign(id int64, uid int64) error {
-	log.WithFields(logrus.Fields{
+	log.WithFields(log.Fields{
 		"campaign_id": id,
 	}).Info("Marking campaign as complete")
 	c, err := GetCampaign(id, uid)

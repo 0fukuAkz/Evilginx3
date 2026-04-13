@@ -112,9 +112,6 @@ github.com/jordan-wright/email
 # github.com/klauspost/cpuid/v2 v2.2.7
 ## explicit; go 1.15
 github.com/klauspost/cpuid/v2
-# github.com/konsorten/go-windows-terminal-sequences v1.0.2
-## explicit
-github.com/konsorten/go-windows-terminal-sequences
 # github.com/kr/pretty v0.1.0
 ## explicit
 github.com/kr/pretty
@@ -170,9 +167,6 @@ github.com/oschwald/maxminddb-golang
 # github.com/pelletier/go-toml v1.9.4
 ## explicit; go 1.12
 github.com/pelletier/go-toml
-# github.com/sirupsen/logrus v1.4.2
-## explicit
-github.com/sirupsen/logrus
 # github.com/spf13/afero v1.8.1
 ## explicit; go 1.13
 github.com/spf13/afero

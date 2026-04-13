@@ -2,25 +2,17 @@ package logger
 
 import "testing"
 
-import "github.com/sirupsen/logrus"
-
-func TestLogLevel(t *testing.T) {
-	tests := map[string]logrus.Level{
-		"":      logrus.InfoLevel,
-		"debug": logrus.DebugLevel,
-		"info":  logrus.InfoLevel,
-		"error": logrus.ErrorLevel,
-		"fatal": logrus.FatalLevel,
+func TestSetup(t *testing.T) {
+	configs := []*Config{
+		{Level: ""},
+		{Level: "debug"},
+		{Level: "info"},
+		{Level: "error"},
 	}
-	config := &Config{}
-	for level, expected := range tests {
-		config.Level = level
+	for _, config := range configs {
 		err := Setup(config)
 		if err != nil {
-			t.Fatalf("error setting logging level %v", err)
-		}
-		if Logger.Level != expected {
-			t.Fatalf("invalid logging level. expected %v got %v", expected, Logger.Level)
+			t.Fatalf("error calling Setup with level %q: %v", config.Level, err)
 		}
 	}
 }

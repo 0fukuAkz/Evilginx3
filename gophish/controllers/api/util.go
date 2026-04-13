@@ -9,7 +9,6 @@ import (
 	log "github.com/kgretzky/evilginx2/gophish/logger"
 	"github.com/kgretzky/evilginx2/gophish/models"
 	"github.com/jinzhu/gorm"
-	"github.com/sirupsen/logrus"
 )
 
 // SendTestEmail sends a test email using the template name
@@ -49,7 +48,7 @@ func (as *Server) SendTestEmail(w http.ResponseWriter, r *http.Request) {
 		// Get the Template requested by name
 		s.Template, err = models.GetTemplateByName(s.Template.Name, s.UserId)
 		if err == gorm.ErrRecordNotFound {
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"template": s.Template.Name,
 			}).Error("Template does not exist")
 			JSONResponse(w, models.Response{Success: false, Message: models.ErrTemplateNotFound.Error()}, http.StatusBadRequest)

@@ -28,7 +28,6 @@ require (
 	github.com/miekg/dns v1.1.58
 	github.com/mwitkow/go-http-dialer v0.0.0-20161116154839-378f744fb2b8
 	github.com/oschwald/maxminddb-golang v1.13.1
-	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/viper v1.10.1
 	github.com/tidwall/buntdb v1.1.0
 	go.uber.org/zap v1.27.0
@@ -48,7 +47,6 @@ require (
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.7 // indirect
-	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/kylelemons/go-gypsy v1.0.0 // indirect

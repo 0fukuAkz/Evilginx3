@@ -8,7 +8,6 @@ import (
 
 	log "github.com/kgretzky/evilginx2/gophish/logger"
 	"github.com/jinzhu/gorm"
-	"github.com/sirupsen/logrus"
 )
 
 // Group contains the fields needed for a user -> group mapping
@@ -228,7 +227,7 @@ func PutGroup(g *Group) error {
 	// Fetch group's existing targets from database.
 	ts, err := GetTargets(g.Id)
 	if err != nil {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"group_id": g.Id,
 		}).Error("Error getting targets from group")
 		return err
@@ -255,7 +254,7 @@ func PutGroup(g *Group) error {
 		err := tx.Where("group_id=? and target_id=?", g.Id, t.Id).Delete(&GroupTarget{}).Error
 		if err != nil {
 			tx.Rollback()
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"email": t.Email,
 			}).Error("Error deleting email")
 		}
@@ -314,14 +313,14 @@ func DeleteGroup(g *Group) error {
 
 func insertTargetIntoGroup(tx *gorm.DB, t Target, gid int64) error {
 	if _, err := mail.ParseAddress(t.Email); err != nil {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"email": t.Email,
 		}).Error("Invalid email")
 		return err
 	}
 	err := tx.Where(t).FirstOrCreate(&t).Error
 	if err != nil {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"email": t.Email,
 		}).Error(err)
 		return err
@@ -343,7 +342,7 @@ func UpdateTarget(tx *gorm.DB, target Target) error {
 	}
 	err := tx.Model(&target).Where("id = ?", target.Id).Updates(targetInfo).Error
 	if err != nil {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"email": target.Email,
 		}).Error("Error updating target information")
 	}

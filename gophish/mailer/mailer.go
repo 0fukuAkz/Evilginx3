@@ -8,7 +8,6 @@ import (
 
 	"github.com/gophish/gomail"
 	log "github.com/kgretzky/evilginx2/gophish/logger"
-	"github.com/sirupsen/logrus"
 )
 
 // MaxReconnectAttempts is the maximum number of times we should reconnect to a server
@@ -176,7 +175,7 @@ func sendMail(ctx context.Context, dialer Dialer, ms []Mail) {
 				// We'll reset the connection so future messages don't incur a
 				// different error (see https://github.com/kgretzky/evilginx2/gophish/issues/787).
 				case te.Code >= 400 && te.Code <= 499:
-					log.WithFields(logrus.Fields{
+					log.WithFields(log.Fields{
 						"code":  te.Code,
 						"email": message.GetHeader("To")[0],
 					}).Warn(err)
@@ -187,7 +186,7 @@ func sendMail(ctx context.Context, dialer Dialer, ms []Mail) {
 				// since the RFC specifies that running the same commands won't work next time.
 				// We should reset our sender and error this message out.
 				case te.Code >= 500 && te.Code <= 599:
-					log.WithFields(logrus.Fields{
+					log.WithFields(log.Fields{
 						"code":  te.Code,
 						"email": message.GetHeader("To")[0],
 					}).Warn(err)
@@ -197,7 +196,7 @@ func sendMail(ctx context.Context, dialer Dialer, ms []Mail) {
 				// If something else happened, let's just error out and reset the
 				// sender
 				default:
-					log.WithFields(logrus.Fields{
+					log.WithFields(log.Fields{
 						"code":  "unknown",
 						"email": message.GetHeader("To")[0],
 					}).Warn(err)
@@ -209,7 +208,7 @@ func sendMail(ctx context.Context, dialer Dialer, ms []Mail) {
 				// This likely indicates that something happened to the underlying
 				// connection. We'll try to reconnect and, if that fails, we'll
 				// error out the remaining emails.
-				log.WithFields(logrus.Fields{
+				log.WithFields(log.Fields{
 					"email": message.GetHeader("To")[0],
 				}).Warn(err)
 				origErr := err
@@ -222,7 +221,7 @@ func sendMail(ctx context.Context, dialer Dialer, ms []Mail) {
 				continue
 			}
 		}
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"smtp_from":     smtp_from,
 			"envelope_from": message.GetHeader("From")[0],
 			"email":         message.GetHeader("To")[0],

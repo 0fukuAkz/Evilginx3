@@ -204,22 +204,13 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 			}
 		}
 		go func() {
-			// Recover from panics to prevent crashing the entire proxy.
-			// Malformed TLS records (e.g. from scanners/bots) can cause
-			// slice bounds panics in crypto/tls during handshake.
-			defer func() {
-				if r := recover(); r != nil {
-					ctx.Warnf("Recovered from panic in HTTPS MITM handler: %v", r)
-				}
-			}()
-
 			//TODO: cache connections to the remote website
 			rawClientTls := tls.Server(proxyClient, tlsConfig)
-			defer rawClientTls.Close()
 			if err := rawClientTls.Handshake(); err != nil {
 				ctx.Warnf("Cannot handshake client %v %v", r.Host, err)
 				return
 			}
+			defer rawClientTls.Close()
 			clientTlsReader := bufio.NewReader(rawClientTls)
 			for !isEof(clientTlsReader) {
 				req, err := http.ReadRequest(clientTlsReader)
