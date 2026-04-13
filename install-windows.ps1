@@ -83,7 +83,7 @@ function Show-Banner {
 ║     ╚══════╝  ╚═══╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝  ║
 ║                                                                   ║
 ║          Windows Service Installer - Private Dev Edition         ║
-║                         Version 3.3.1                             ║
+║                         Version 3.5.4                             ║
 ║                                                                   ║
 ╚═══════════════════════════════════════════════════════════════════╝
 "@
@@ -231,12 +231,12 @@ function Build-Evilginx {
     Push-Location $scriptDir
     
     try {
-        Write-Info "Downloading Go modules..."
-        & "C:\Program Files\Go\bin\go.exe" mod download
-        Write-Success "Dependencies downloaded"
-        
         Write-Info "Compiling Evilginx..."
-        & "C:\Program Files\Go\bin\go.exe" build -o "build\evilginx.exe" main.go
+        # CGO_ENABLED=1 is required for go-sqlite3 (CGo-based SQLite driver)
+        # -mod=vendor uses the checked-in vendor/ directory (no network needed)
+        $env:CGO_ENABLED = "1"
+        New-Item -ItemType Directory -Path "build" -Force | Out-Null
+        & "C:\Program Files\Go\bin\go.exe" build -mod=vendor -o "build\evilginx.exe" main.go
         
         if (-not (Test-Path "build\evilginx.exe")) {
             Write-Error "Build failed - binary not created"
@@ -266,12 +266,21 @@ function Install-Files {
     if (Test-Path "$scriptDir\post_redirectors") {
         Copy-Item "$scriptDir\post_redirectors" "$INSTALL_DIR\" -Recurse -Force
     }
-    
+    if (Test-Path "$scriptDir\web") {
+        Copy-Item "$scriptDir\web" "$INSTALL_DIR\" -Recurse -Force
+    }
+    if (Test-Path "$scriptDir\gophish\static") {
+        Write-Info "Installing GoPhish static files and GeoIP database..."
+        Copy-Item "$scriptDir\gophish\static" "$INSTALL_DIR\" -Recurse -Force
+    }
+
     # Copy documentation
     Copy-Item "$scriptDir\README.md" "$INSTALL_DIR\" -ErrorAction SilentlyContinue
-    Copy-Item "$scriptDir\DEPLOYMENT_GUIDE.md" "$INSTALL_DIR\" -ErrorAction SilentlyContinue
-    Copy-Item "$scriptDir\LURE_RANDOMIZATION_GUIDE.md" "$INSTALL_DIR\" -ErrorAction SilentlyContinue
-    
+    Copy-Item "$scriptDir\DEPLOYMENT.md" "$INSTALL_DIR\" -ErrorAction SilentlyContinue
+    Copy-Item "$scriptDir\DOMAIN-ROTATION-GUIDE.md" "$INSTALL_DIR\" -ErrorAction SilentlyContinue
+    Copy-Item "$scriptDir\cloudflare-workers-deployment.md" "$INSTALL_DIR\" -ErrorAction SilentlyContinue
+    Copy-Item "$scriptDir\LICENSE" "$INSTALL_DIR\" -ErrorAction SilentlyContinue
+
     Write-Success "Files installed to $INSTALL_DIR"
 }
 
@@ -286,20 +295,28 @@ function Configure-Firewall {
     Remove-NetFirewallRule -DisplayName "Evilginx DNS UDP" -ErrorAction SilentlyContinue
     Remove-NetFirewallRule -DisplayName "Evilginx HTTP" -ErrorAction SilentlyContinue
     Remove-NetFirewallRule -DisplayName "Evilginx HTTPS" -ErrorAction SilentlyContinue
-    
+    Remove-NetFirewallRule -DisplayName "Evilginx Admin API" -ErrorAction SilentlyContinue
+    Remove-NetFirewallRule -DisplayName "Evilginx GoPhish Admin" -ErrorAction SilentlyContinue
+
     # Add new rules
     New-NetFirewallRule -DisplayName "Evilginx DNS TCP" -Direction Inbound -Protocol TCP -LocalPort 53 -Action Allow | Out-Null
     Write-Success "Firewall rule added: DNS TCP (port 53)"
-    
+
     New-NetFirewallRule -DisplayName "Evilginx DNS UDP" -Direction Inbound -Protocol UDP -LocalPort 53 -Action Allow | Out-Null
     Write-Success "Firewall rule added: DNS UDP (port 53)"
-    
+
     New-NetFirewallRule -DisplayName "Evilginx HTTP" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow | Out-Null
     Write-Success "Firewall rule added: HTTP (port 80)"
-    
+
     New-NetFirewallRule -DisplayName "Evilginx HTTPS" -Direction Inbound -Protocol TCP -LocalPort 443 -Action Allow | Out-Null
     Write-Success "Firewall rule added: HTTPS (port 443)"
-    
+
+    New-NetFirewallRule -DisplayName "Evilginx Admin API" -Direction Inbound -Protocol TCP -LocalPort 2030 -Action Allow | Out-Null
+    Write-Success "Firewall rule added: Admin API (port 2030)"
+
+    New-NetFirewallRule -DisplayName "Evilginx GoPhish Admin" -Direction Inbound -Protocol TCP -LocalPort 3333 -Action Allow | Out-Null
+    Write-Success "Firewall rule added: GoPhish Admin (port 3333)"
+
     Write-Success "Windows Firewall configured"
 }
 
@@ -329,7 +346,7 @@ function Create-Service {
     # Configure service parameters
     & $nssmExe set $SERVICE_NAME AppParameters "-p `"$PHISHLETS_DIR`" -t `"$REDIRECTORS_DIR`" -c `"$CONFIG_DIR`""
     & $nssmExe set $SERVICE_NAME AppDirectory "$INSTALL_DIR"
-    & $nssmExe set $SERVICE_NAME DisplayName "Evilginx 3.3.1 - Private Dev Edition"
+    & $nssmExe set $SERVICE_NAME DisplayName "Evilginx 3.5.4 - Private Dev Edition"
     & $nssmExe set $SERVICE_NAME Description "Evilginx - Advanced phishing framework for authorized security testing"
     & $nssmExe set $SERVICE_NAME Start SERVICE_AUTO_START
     & $nssmExe set $SERVICE_NAME AppStdout "$LOG_DIR\service.log"
@@ -433,10 +450,12 @@ function Show-Completion {
     Write-Output ""
     
     Write-ColorOutput Cyan "Firewall Rules (Windows Firewall):"
-    Write-Output "  • Port 53/tcp  - DNS (allow)"
-    Write-Output "  • Port 53/udp  - DNS (allow)"
-    Write-Output "  • Port 80/tcp  - HTTP (allow)"
-    Write-Output "  • Port 443/tcp - HTTPS (allow)"
+    Write-Output "  • Port 53/tcp   - DNS (allow)"
+    Write-Output "  • Port 53/udp   - DNS (allow)"
+    Write-Output "  • Port 80/tcp   - HTTP (allow)"
+    Write-Output "  • Port 443/tcp  - HTTPS (allow)"
+    Write-Output "  • Port 2030/tcp - Admin API (allow)"
+    Write-Output "  • Port 3333/tcp - GoPhish Admin (allow)"
     Write-Output ""
     
     Write-ColorOutput Cyan "Available Commands:"
@@ -461,10 +480,9 @@ function Show-Completion {
     Write-Output "   Run: evilginx-console"
     Write-Output ""
     Write-Output "2. In the Evilginx console, configure:"
-    Write-Output "   config domain yourdomain.com"
+    Write-Output "   domains set yourdomain.com"
     Write-Output "   config ipv4 external YOUR_PUBLIC_IP"
     Write-Output "   config autocert on"
-    Write-Output "   config lure_strategy realistic"
     Write-Output ""
     Write-Output "3. Enable a phishlet:"
     Write-Output "   phishlets hostname o365 login.yourdomain.com"
@@ -484,12 +502,18 @@ function Show-Completion {
     Write-Output "  • Configure Cloudflare DNS for your domain"
     Write-Output "  • Enable advanced features (ML, JA3, Sandbox detection)"
     Write-Output "  • Set up Telegram notifications for monitoring"
-    Write-Output "  • Review DEPLOYMENT_GUIDE.md for complete setup"
+    Write-Output "  • Review DEPLOYMENT.md for complete setup"
     Write-Output ""
-    
+
+    Write-ColorOutput Cyan "Integrated GoPhish:"
+    Write-Output "  • Admin UI (local):     http://127.0.0.1:3333"
+    Write-Output "  • GoPhish Database:     $CONFIG_DIR\gophish.db"
+    Write-Output ""
+
     Write-ColorOutput Green "Documentation:"
-    Write-Output "  • Main Guide:           $INSTALL_DIR\DEPLOYMENT_GUIDE.md"
-    Write-Output "  • Lure Randomization:   $INSTALL_DIR\LURE_RANDOMIZATION_GUIDE.md"
+    Write-Output "  • Deployment Guide:     $INSTALL_DIR\DEPLOYMENT.md"
+    Write-Output "  • Domain Rotation:      $INSTALL_DIR\DOMAIN-ROTATION-GUIDE.md"
+    Write-Output "  • Cloudflare Workers:   $INSTALL_DIR\cloudflare-workers-deployment.md"
     Write-Output "  • README:               $INSTALL_DIR\README.md"
     Write-Output ""
     
