@@ -164,12 +164,12 @@ sudo ./install.sh
 
 - ✅ Validates OS and architecture, runs pre-flight connectivity and disk checks
 - ✅ Repairs interrupted dpkg and waits for apt/dpkg locks (VPS-safe)
-- ✅ Installs system dependencies (~20 packages: curl, wget, ufw, fail2ban, build-essential, libsqlite3-dev, etc.)
+- ✅ Installs system dependencies (~20 packages: curl, wget, ufw, fail2ban, ca-certificates, etc.)
 - ✅ Downloads and installs Go 1.25.1 with SHA256 checksum verification against go.dev
 - ✅ Creates dedicated `evilginx` service user (no login shell, least-privilege)
 - ✅ Stops and disables conflicting services (apache2, nginx, bind9, systemd-resolved)
 - ✅ Disables systemd-resolved and writes static `/etc/resolv.conf` (frees port 53)
-- ✅ Builds Evilginx from source (`CGO_ENABLED=1 go build -mod=vendor`)
+- ✅ Builds Evilginx from source (`CGO_ENABLED=0 go build -mod=vendor`)
 - ✅ Installs binary, phishlets, redirectors, post-redirectors, web UI, GoPhish static files, GeoIP DB, and documentation to `/opt/evilginx/`
 - ✅ Creates system-wide wrapper at `/usr/local/bin/evilginx` (auto-loads paths)
 - ✅ Sets `CAP_NET_BIND_SERVICE` capability (bind ports 53/80/443 without root)
@@ -219,7 +219,7 @@ cd C:\path\to\Evilginx3
 **The installer automatically:**
 
 - ✅ Installs Go 1.25.1 (if missing)
-- ✅ Builds from source (`CGO_ENABLED=1 go build -mod=vendor`)
+- ✅ Builds from source (`CGO_ENABLED=0 go build -mod=vendor`)
 - ✅ Installs binary, phishlets, redirectors, post-redirectors, web UI, GoPhish static files, and documentation to `C:\Evilginx\`
 - ✅ Installs NSSM and creates a Windows Service with auto-start and log rotation
 - ✅ Configures Windows Firewall (ports 53, 80, 443, 2030, 3333)
@@ -246,15 +246,12 @@ sudo rm -rf /usr/local/go
 sudo tar -C /usr/local -xzf go1.25.1.linux-amd64.tar.gz
 export PATH=$PATH:/usr/local/go/bin
 
-# Install build dependencies (required for CGo / go-sqlite3)
-sudo apt install -y build-essential libsqlite3-dev
-
 # Build
-# CGO_ENABLED=1 is required — go-sqlite3 uses CGo
+# Pure Go build — no CGo or C compiler required (uses modernc.org/sqlite)
 # -mod=vendor uses the checked-in vendor/ directory (no network needed)
 cd Evilginx3
 mkdir -p build
-CGO_ENABLED=1 go build -mod=vendor -o build/evilginx main.go
+CGO_ENABLED=0 go build -mod=vendor -o build/evilginx main.go
 
 # Install
 sudo cp build/evilginx /usr/local/bin/

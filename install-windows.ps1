@@ -232,9 +232,9 @@ function Build-Evilginx {
     
     try {
         Write-Info "Compiling Evilginx..."
-        # CGO_ENABLED=1 is required for go-sqlite3 (CGo-based SQLite driver)
+        # Pure Go build — no CGo or C compiler required (uses modernc.org/sqlite)
         # -mod=vendor uses the checked-in vendor/ directory (no network needed)
-        $env:CGO_ENABLED = "1"
+        $env:CGO_ENABLED = "0"
         New-Item -ItemType Directory -Path "build" -Force | Out-Null
         & "C:\Program Files\Go\bin\go.exe" build -mod=vendor -o "build\evilginx.exe" main.go
         

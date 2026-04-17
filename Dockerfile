@@ -1,22 +1,22 @@
 # Build Stage
 FROM golang:1.25-alpine AS builder
 
-# Install build dependencies (gcc + musl-dev + sqlite-dev required for CGo / go-sqlite3)
-RUN apk add --no-cache git make gcc musl-dev sqlite-dev
+# Install build dependencies
+RUN apk add --no-cache git make
 
 WORKDIR /app
 
 # Copy source (includes vendor directory for reproducible builds)
 COPY . .
 
-# Build with CGo enabled (required for go-sqlite3 driver)
-RUN CGO_ENABLED=1 go build -mod=vendor -o evilginx .
+# Build (pure Go — no CGo or C compiler required)
+RUN CGO_ENABLED=0 go build -mod=vendor -o evilginx .
 
 # Runtime Stage
 FROM alpine:latest
 
-# Install runtime dependencies (sqlite-libs needed by CGo-linked go-sqlite3)
-RUN apk add --no-cache ca-certificates tzdata sqlite-libs
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates tzdata
 
 WORKDIR /root/
 

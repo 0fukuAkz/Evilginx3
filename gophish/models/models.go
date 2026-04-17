@@ -17,7 +17,7 @@ import (
 
 	log "github.com/kgretzky/evilginx2/gophish/logger"
 	"github.com/jinzhu/gorm"
-	_ "github.com/mattn/go-sqlite3" // Blank import needed to import sqlite3
+	_ "github.com/kgretzky/evilginx2/database/sqlite3compat" // Pure-Go SQLite driver registered as "sqlite3"
 )
 
 var db *gorm.DB
@@ -85,7 +85,7 @@ func chooseDBDriver(name, openStr string) goose.DBDriver {
 
 	// Default database is sqlite3
 	default:
-		d.Import = "github.com/mattn/go-sqlite3"
+		d.Import = "github.com/kgretzky/evilginx2/database/sqlite3compat"
 		d.Dialect = &goose.Sqlite3Dialect{}
 	}
 

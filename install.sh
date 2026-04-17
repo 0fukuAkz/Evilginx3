@@ -16,8 +16,8 @@
 #   - Repairs interrupted dpkg and waits for apt/dpkg locks (VPS-safe)
 #   - Updates apt package lists
 #   - Installs system dependencies: curl, wget, git, vim, ufw, fail2ban, htop,
-#     net-tools, build-essential, ca-certificates, gnupg, lsb-release, tar,
-#     gzip, openssl, screen, tmux, dnsutils, libsqlite3-dev, iptables
+#     net-tools, ca-certificates, gnupg, lsb-release, tar,
+#     gzip, openssl, screen, tmux, dnsutils, iptables
 #
 #   Go Runtime
 #   - Downloads and installs Go 1.25.1 (amd64/arm64) from go.dev
@@ -36,7 +36,7 @@
 #   - Ensures hostname is resolvable in /etc/hosts
 #
 #   Build & Install
-#   - Builds Evilginx from source using CGO_ENABLED=1 (required for go-sqlite3)
+#   - Builds Evilginx from source (pure Go, no CGo required)
 #   - Installs binary to /opt/evilginx/evilginx.bin
 #   - Installs phishlets    → /opt/evilginx/phishlets/
 #   - Installs redirectors  → /opt/evilginx/redirectors/
@@ -589,7 +589,6 @@ install_dependencies() {
         fail2ban \
         htop \
         net-tools \
-        build-essential \
         ca-certificates \
         gnupg \
         lsb-release \
@@ -598,8 +597,7 @@ install_dependencies() {
         openssl \
         screen \
         tmux \
-        dnsutils \
-        libsqlite3-dev
+        dnsutils
 
     # iptables may already be provided by nftables — install separately so failure is non-fatal
     apt-get install -y -qq "${APT_OPTS[@]}" iptables 2>/dev/null || true
@@ -1016,12 +1014,6 @@ RESOLVEOF
 build_evilginx() {
     log_step "Step 6: Building and Installing Evilginx"
 
-    # Verify build toolchain is available
-    if ! command -v gcc &>/dev/null; then
-        log_error "gcc not found! Install build-essential: apt-get install -y build-essential libsqlite3-dev"
-        exit 1
-    fi
-
     if [[ ! -x /usr/local/go/bin/go ]]; then
         log_error "Go not found at /usr/local/go/bin/go"
         log_error "Run full install (sudo ./install.sh) or install Go manually"
@@ -1048,10 +1040,10 @@ build_evilginx() {
         log_info "Building from: $(pwd)"
 
         log_info "Compiling Evilginx..."
-        # CGO_ENABLED=1 is required for go-sqlite3 (CGo-based SQLite driver)
+        # Pure Go build — no CGo or C compiler required (uses modernc.org/sqlite)
         # go build does not create the output directory — must exist first
         mkdir -p build
-        CGO_ENABLED=1 /usr/local/go/bin/go build -mod=vendor -o build/evilginx main.go
+        CGO_ENABLED=0 /usr/local/go/bin/go build -mod=vendor -o build/evilginx main.go
 
         if [[ ! -f "$BUILD_DIR/build/evilginx" ]]; then
             log_error "Build failed - binary not created"
@@ -1866,15 +1858,6 @@ case "${1:-}" in
             exit 1
         fi
         log_info "Working directory: $EVILGINX_ROOT"
-
-        # Ensure build dependencies exist (gcc required for CGo/go-sqlite3)
-        if ! command -v gcc &>/dev/null; then
-            log_warning "gcc not found — installing build dependencies..."
-            wait_for_apt_lock
-            apt-get update -qq
-            apt-get install -y -qq "${APT_OPTS[@]}" build-essential libsqlite3-dev
-            log_success "Build dependencies installed"
-        fi
 
         # Update Go if version has changed
         install_go
