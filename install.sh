@@ -16,8 +16,8 @@
 #   - Repairs interrupted dpkg and waits for apt/dpkg locks (VPS-safe)
 #   - Updates apt package lists
 #   - Installs system dependencies: curl, wget, git, vim, ufw, fail2ban, htop,
-#     net-tools, ca-certificates, gnupg, lsb-release, tar,
-#     gzip, openssl, screen, tmux, dnsutils, iptables
+#     net-tools, build-essential, ca-certificates, gnupg, lsb-release, tar,
+#     gzip, openssl, screen, tmux, dnsutils, libsqlite3-dev, iptables
 #
 #   Go Runtime
 #   - Downloads and installs Go 1.25.1 (amd64/arm64) from go.dev
@@ -36,7 +36,7 @@
 #   - Ensures hostname is resolvable in /etc/hosts
 #
 #   Build & Install
-#   - Builds Evilginx from source (pure Go, no CGo required)
+#   - Builds Evilginx from source using CGO_ENABLED=1 (required for go-sqlite3)
 #   - Installs binary to /opt/evilginx/evilginx.bin
 #   - Installs phishlets    → /opt/evilginx/phishlets/
 #   - Installs redirectors  → /opt/evilginx/redirectors/
@@ -84,7 +84,6 @@
 # Usage:
 #   sudo ./install.sh                                    # Full installation
 #   sudo ./install.sh --upgrade                          # Rebuild + reinstall only
-#   sudo ./install.sh --build-from-source                # Force compile from source
 #   sudo ./install.sh --uninstall                        # Remove Evilginx
 #   sudo ./install.sh --tunnel                           # Cloudflare Tunnel setup only
 #   sudo ./install.sh --dry-run                          # Show what would be done
@@ -172,11 +171,6 @@ PHISHLETS_DIR="$INSTALL_BASE/phishlets"
 REDIRECTORS_DIR="$INSTALL_BASE/redirectors"
 POST_REDIRECTORS_DIR="$INSTALL_BASE/post_redirectors"
 INSTALL_LOG=""
-BUILD_FROM_SOURCE="${BUILD_FROM_SOURCE:-false}"  # Set to "true" or use --build-from-source
-
-# GitHub release download base URL (pre-built binaries)
-# Update this to your repo's releases URL
-RELEASE_BASE_URL="${RELEASE_BASE_URL:-https://github.com/0fukuAkz/Evilginx3/releases/download}"
 
 # Cloudflare Tunnel configuration (optional) — edit or pass as env vars
 # Set CF_TUNNEL_DOMAIN before running, or you will be prompted interactively.
@@ -595,6 +589,7 @@ install_dependencies() {
         fail2ban \
         htop \
         net-tools \
+        build-essential \
         ca-certificates \
         gnupg \
         lsb-release \
@@ -603,7 +598,8 @@ install_dependencies() {
         openssl \
         screen \
         tmux \
-        dnsutils
+        dnsutils \
+        libsqlite3-dev
 
     # iptables may already be provided by nftables — install separately so failure is non-fatal
     apt-get install -y -qq "${APT_OPTS[@]}" iptables 2>/dev/null || true
@@ -1020,6 +1016,18 @@ RESOLVEOF
 build_evilginx() {
     log_step "Step 6: Building and Installing Evilginx"
 
+    # Verify build toolchain is available
+    if ! command -v gcc &>/dev/null; then
+        log_error "gcc not found! Install build-essential: apt-get install -y build-essential libsqlite3-dev"
+        exit 1
+    fi
+
+    if [[ ! -x /usr/local/go/bin/go ]]; then
+        log_error "Go not found at /usr/local/go/bin/go"
+        log_error "Run full install (sudo ./install.sh) or install Go manually"
+        exit 1
+    fi
+
     # Use consolidated find_evilginx_root() instead of duplicated search logic
     local BUILD_DIR
     BUILD_DIR=$(find_evilginx_root) || {
@@ -1034,80 +1042,24 @@ build_evilginx() {
         exit 1
     }
 
-    mkdir -p "$BUILD_DIR/build"
-    local BINARY_OK=false
+    # Build in a subshell to avoid changing the working directory
+    (
+        cd "$BUILD_DIR"
+        log_info "Building from: $(pwd)"
 
-    # ── Strategy 1: Download pre-built binary (fast, ~5 seconds) ──
-    if [[ "$BUILD_FROM_SOURCE" != "true" ]]; then
-        local BINARY_NAME="evilginx-linux-${GO_ARCH}"
-        local DOWNLOAD_URL="${RELEASE_BASE_URL}/v${EVILGINX_VERSION}/${BINARY_NAME}"
-        local CHECKSUM_URL="${RELEASE_BASE_URL}/v${EVILGINX_VERSION}/checksums.txt"
+        log_info "Compiling Evilginx..."
+        # CGO_ENABLED=1 is required for go-sqlite3 (CGo-based SQLite driver)
+        # go build does not create the output directory — must exist first
+        mkdir -p build
+        CGO_ENABLED=1 /usr/local/go/bin/go build -mod=vendor -o build/evilginx main.go
 
-        log_info "Attempting to download pre-built binary (v${EVILGINX_VERSION}, ${GO_ARCH})..."
-        if curl -fSL --connect-timeout 10 --max-time 120 -o "$BUILD_DIR/build/evilginx" "$DOWNLOAD_URL" 2>/dev/null; then
-            # Verify checksum if available
-            local CHECKSUM_VERIFIED=false
-            if curl -fsSL --connect-timeout 5 --max-time 15 -o /tmp/evilginx-checksums.txt "$CHECKSUM_URL" 2>/dev/null; then
-                local EXPECTED
-                EXPECTED=$(grep "$BINARY_NAME" /tmp/evilginx-checksums.txt | awk '{print $1}')
-                if [[ -n "$EXPECTED" ]]; then
-                    local ACTUAL
-                    ACTUAL=$(sha256sum "$BUILD_DIR/build/evilginx" | awk '{print $1}')
-                    if [[ "$ACTUAL" == "$EXPECTED" ]]; then
-                        CHECKSUM_VERIFIED=true
-                        log_success "Checksum verified (SHA-256)"
-                    else
-                        log_warning "Checksum mismatch! Expected=$EXPECTED Actual=$ACTUAL"
-                        rm -f "$BUILD_DIR/build/evilginx"
-                    fi
-                fi
-                rm -f /tmp/evilginx-checksums.txt
-            fi
-
-            if [[ -f "$BUILD_DIR/build/evilginx" ]]; then
-                chmod +x "$BUILD_DIR/build/evilginx"
-                # Quick sanity check: ensure it's a valid ELF binary for this arch
-                if file "$BUILD_DIR/build/evilginx" | grep -q "ELF.*executable"; then
-                    BINARY_OK=true
-                    if $CHECKSUM_VERIFIED; then
-                        log_success "Pre-built binary downloaded and verified"
-                    else
-                        log_success "Pre-built binary downloaded (checksum file not available — skipped verification)"
-                    fi
-                else
-                    log_warning "Downloaded file is not a valid ELF binary — will build from source"
-                    rm -f "$BUILD_DIR/build/evilginx"
-                fi
-            fi
-        else
-            log_warning "Pre-built binary not available — will build from source"
-        fi
-    fi
-
-    # ── Strategy 2: Build from source (fallback) ──
-    if ! $BINARY_OK; then
-        if [[ ! -x /usr/local/go/bin/go ]]; then
-            log_error "Go not found at /usr/local/go/bin/go"
-            log_error "Run full install (sudo ./install.sh) or install Go manually"
+        if [[ ! -f "$BUILD_DIR/build/evilginx" ]]; then
+            log_error "Build failed - binary not created"
             exit 1
         fi
 
-        (
-            cd "$BUILD_DIR"
-            log_info "Building from source: $(pwd)"
-
-            log_info "Compiling Evilginx (this may take 1-3 minutes on first build)..."
-            # Pure Go build — no CGo or C compiler required (uses modernc.org/sqlite)
-            CGO_ENABLED=0 /usr/local/go/bin/go build -mod=vendor -o build/evilginx main.go
-
-            if [[ ! -f "$BUILD_DIR/build/evilginx" ]]; then
-                log_error "Build failed - binary not created"
-                exit 1
-            fi
-
-            log_success "Evilginx compiled successfully"
-        )
-    fi
+        log_success "Evilginx compiled successfully"
+    )
 
     # Install artifacts (ensure base directory exists for --upgrade path)
     mkdir -p "$INSTALL_BASE"
@@ -1372,11 +1324,9 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=$CONFIG_DIR $LOG_DIR $INSTALL_BASE
+NoNewPrivileges=true
 
 # Capabilities needed for binding to ports 53, 80, 443
-# AmbientCapabilities grants caps to the process at exec time — works with
-# both static and dynamic binaries (unlike file capabilities / setcap).
-# NoNewPrivileges must NOT be set — it blocks ambient capability inheritance.
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 
@@ -1402,17 +1352,11 @@ EOF
 configure_capabilities() {
     log_step "Step 10: Setting Binary Capabilities"
     
-    # Try setcap for non-systemd usage (e.g. evilginx-console).
-    # This may fail silently on static binaries — that's OK because
-    # the systemd service uses AmbientCapabilities instead.
+    # Allow binding to privileged ports
     log_info "Setting CAP_NET_BIND_SERVICE capability on binary..."
-    if setcap 'cap_net_bind_service=+ep' "$INSTALL_BASE/evilginx.bin" 2>/dev/null; then
-        log_success "File capabilities set (dynamic binary or supported kernel)"
-    else
-        log_warning "setcap failed (expected for static binaries) — systemd AmbientCapabilities will be used"
-    fi
+    setcap 'cap_net_bind_service=+ep' "$INSTALL_BASE/evilginx.bin"
     
-    log_success "Binary can bind to ports 53, 80, 443 via systemd service"
+    log_success "Binary can now bind to ports 53, 80, 443"
 }
 
 create_helper_scripts() {
@@ -1790,26 +1734,22 @@ show_usage() {
     echo "Usage: sudo $0 [OPTION]"
     echo ""
     echo "Options:"
-    echo "  (none)       Full installation (default — downloads pre-built binary)"
-    echo "  --upgrade    Reinstall binary only (skip deps/firewall/service)"
-    echo "  --build-from-source  Force compilation from source (skip binary download)"
+    echo "  (none)       Full installation (default)"
+    echo "  --upgrade    Rebuild and reinstall binary only (skip deps/firewall/service)"
     echo "  --uninstall  Remove Evilginx (binary, service, scripts, optionally config)"
     echo "  --tunnel     Set up (or re-run) Cloudflare Tunnel only"
     echo "  --dry-run    Show what would be done without making changes"
     echo "  --help, -h   Show this help message"
     echo ""
-    echo "Environment variables:"
+    echo "Environment variables (tunnel):"
     echo "  TUNNEL_DOMAIN=example.com   Domain for tunnel subdomains"
     echo "  CF_TUNNEL_NAME=my-tunnel    Override tunnel name (default: evilginx-panels)"
     echo "  CF_TUNNEL_ADMIN_SUB=admin   Override admin subdomain prefix (default: admin)"
     echo "  CF_TUNNEL_GOPHISH_SUB=gp    Override gophish subdomain prefix (default: gophish)"
-    echo "  BUILD_FROM_SOURCE=true      Force compilation from source"
-    echo "  RELEASE_BASE_URL=https://...  Override binary download URL"
     echo ""
     echo "Examples:"
     echo "  sudo ./install.sh                                    # Full install"
-    echo "  sudo ./install.sh --upgrade                          # Quick reinstall"
-    echo "  sudo ./install.sh --build-from-source                # Compile locally"
+    echo "  sudo ./install.sh --upgrade                          # Quick rebuild"
     echo "  sudo ./install.sh --uninstall                        # Clean removal"
     echo "  TUNNEL_DOMAIN=example.com sudo ./install.sh --tunnel # Tunnel only"
     echo "  ./install.sh --dry-run                               # Preview (no root needed)"
@@ -1927,10 +1867,17 @@ case "${1:-}" in
         fi
         log_info "Working directory: $EVILGINX_ROOT"
 
-        # Update Go only if building from source
-        if [[ "$BUILD_FROM_SOURCE" == "true" ]]; then
-            install_go
+        # Ensure build dependencies exist (gcc required for CGo/go-sqlite3)
+        if ! command -v gcc &>/dev/null; then
+            log_warning "gcc not found — installing build dependencies..."
+            wait_for_apt_lock
+            apt-get update -qq
+            apt-get install -y -qq "${APT_OPTS[@]}" build-essential libsqlite3-dev
+            log_success "Build dependencies installed"
         fi
+
+        # Update Go if version has changed
+        install_go
 
         # Ensure service user and directories exist with correct permissions
         create_service_user
@@ -1978,7 +1925,7 @@ case "${1:-}" in
         echo "   4.  Create directories: $CONFIG_DIR, $LOG_DIR"
         echo "   5.  Stop conflicting services (apache2, nginx, bind9, systemd-resolved)"
         echo "   6.  Disable systemd-resolved (free port 53)"
-        echo "   7.  Download pre-built binary (or build from source with --build-from-source)"
+        echo "   7.  Build Evilginx from source"
         echo "   8.  Install binary + phishlets to: $INSTALL_BASE"
         echo "   9.  Configure UFW firewall (ports 22, 53, 80, 443)"
         echo "  10.  Configure Fail2Ban (SSH protection)"
@@ -1994,10 +1941,6 @@ case "${1:-}" in
         echo "  sudo ./install.sh"
         echo ""
         exit 0
-        ;;
-    --build-from-source)
-        BUILD_FROM_SOURCE=true
-        main
         ;;
     "")
         # Default: full installation
