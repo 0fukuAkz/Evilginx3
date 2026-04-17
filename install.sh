@@ -1372,9 +1372,11 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=$CONFIG_DIR $LOG_DIR $INSTALL_BASE
-NoNewPrivileges=true
 
 # Capabilities needed for binding to ports 53, 80, 443
+# AmbientCapabilities grants caps to the process at exec time — works with
+# both static and dynamic binaries (unlike file capabilities / setcap).
+# NoNewPrivileges must NOT be set — it blocks ambient capability inheritance.
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 
@@ -1400,11 +1402,17 @@ EOF
 configure_capabilities() {
     log_step "Step 10: Setting Binary Capabilities"
     
-    # Allow binding to privileged ports
+    # Try setcap for non-systemd usage (e.g. evilginx-console).
+    # This may fail silently on static binaries — that's OK because
+    # the systemd service uses AmbientCapabilities instead.
     log_info "Setting CAP_NET_BIND_SERVICE capability on binary..."
-    setcap 'cap_net_bind_service=+ep' "$INSTALL_BASE/evilginx.bin"
+    if setcap 'cap_net_bind_service=+ep' "$INSTALL_BASE/evilginx.bin" 2>/dev/null; then
+        log_success "File capabilities set (dynamic binary or supported kernel)"
+    else
+        log_warning "setcap failed (expected for static binaries) — systemd AmbientCapabilities will be used"
+    fi
     
-    log_success "Binary can now bind to ports 53, 80, 443"
+    log_success "Binary can bind to ports 53, 80, 443 via systemd service"
 }
 
 create_helper_scripts() {
