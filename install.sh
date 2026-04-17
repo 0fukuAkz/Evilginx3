@@ -176,7 +176,7 @@ BUILD_FROM_SOURCE="${BUILD_FROM_SOURCE:-false}"  # Set to "true" or use --build-
 
 # GitHub release download base URL (pre-built binaries)
 # Update this to your repo's releases URL
-RELEASE_BASE_URL="${RELEASE_BASE_URL:-https://github.com/kgretzky/evilginx2/releases/download}"
+RELEASE_BASE_URL="${RELEASE_BASE_URL:-https://github.com/0fukuAkz/Evilginx3/releases/download}"
 
 # Cloudflare Tunnel configuration (optional) — edit or pass as env vars
 # Set CF_TUNNEL_DOMAIN before running, or you will be prompted interactively.
