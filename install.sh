@@ -1047,18 +1047,25 @@ build_evilginx() {
         cd "$BUILD_DIR"
         log_info "Building from: $(pwd)"
 
-        log_info "Compiling Evilginx..."
+        log_info "Compiling Evilginx (this may take 1-3 minutes on first build)..."
+        log_info "CGo is enabled — compiling SQLite C library (266K lines)..."
         # CGO_ENABLED=1 is required for go-sqlite3 (CGo-based SQLite driver)
         # go build does not create the output directory — must exist first
         mkdir -p build
-        CGO_ENABLED=1 /usr/local/go/bin/go build -mod=vendor -o build/evilginx main.go
+        local BUILD_START=$SECONDS
+        CGO_ENABLED=1 /usr/local/go/bin/go build -mod=vendor -v -o build/evilginx main.go 2>&1 | while IFS= read -r line; do
+            # Show package names as they compile
+            printf "\r\033[K  ${BLUE}⟳${NC} Compiling: %s" "$line"
+        done
+        printf "\r\033[K"  # Clear the last line
+        local BUILD_ELAPSED=$(( SECONDS - BUILD_START ))
 
         if [[ ! -f "$BUILD_DIR/build/evilginx" ]]; then
             log_error "Build failed - binary not created"
             exit 1
         fi
 
-        log_success "Evilginx compiled successfully"
+        log_success "Evilginx compiled successfully (${BUILD_ELAPSED}s)"
     )
 
     # Install artifacts (ensure base directory exists for --upgrade path)
