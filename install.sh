@@ -1486,40 +1486,51 @@ for t in tunnels:
 
     # ── Authenticate ─────────────────────────────────────────
     log_step "Step 12.2: Authenticate with Cloudflare"
-    if [[ -f "$HOME/.cloudflared/cert.pem" ]]; then
-        log_success "Already authenticated (cert.pem exists)"
+    # Always re-authenticate to ensure credentials match the target zone
+    rm -f "$HOME/.cloudflared/cert.pem"
+    echo ""
+    log_info "[ACTION REQUIRED] A browser URL will appear below."
+    log_info "  1. Copy the URL and open it in your browser"
+    log_info "  2. Log in to Cloudflare"
+    log_info "  3. Select the zone: ${TDOMAIN}"
+    log_info "  4. Return here — it will continue automatically"
+    echo ""
+    cloudflared tunnel login
+    log_success "Authentication complete"
+
+    # ── Remove old tunnels ────────────────────────────────────
+    log_step "Step 12.3: Cleaning up old tunnels"
+    local OLD_TUNNEL_ID
+    OLD_TUNNEL_ID=$(_get_tunnel_id "${TNAME}")
+
+    if [[ -n "$OLD_TUNNEL_ID" ]]; then
+        log_info "Removing existing tunnel '${TNAME}' (ID: ${OLD_TUNNEL_ID})..."
+        # Stop any running cloudflared service first
+        systemctl stop cloudflared 2>/dev/null || true
+        # Clean up old connections before deleting
+        cloudflared tunnel cleanup "${TNAME}" 2>/dev/null || true
+        cloudflared tunnel delete "${TNAME}" 2>/dev/null || true
+        # Remove stale credentials file
+        rm -f "$HOME/.cloudflared/${OLD_TUNNEL_ID}.json" "/root/.cloudflared/${OLD_TUNNEL_ID}.json" 2>/dev/null
+        log_success "Old tunnel removed"
     else
-        echo ""
-        log_info "[ACTION REQUIRED] A browser URL will appear below."
-        log_info "  1. Copy the URL and open it in your browser"
-        log_info "  2. Log in to Cloudflare"
-        log_info "  3. Select the zone: ${TDOMAIN}"
-        log_info "  4. Return here — it will continue automatically"
-        echo ""
-        cloudflared tunnel login
-        log_success "Authentication complete"
+        log_info "No existing tunnel '${TNAME}' found"
     fi
 
     # ── Create tunnel ─────────────────────────────────────────
-    log_step "Step 12.3: Creating tunnel '${TNAME}'"
+    log_step "Step 12.4: Creating tunnel '${TNAME}'"
+    log_info "Creating tunnel..."
+    cloudflared tunnel create "${TNAME}"
     local TUNNEL_ID
     TUNNEL_ID=$(_get_tunnel_id "${TNAME}")
-
-    if [[ -n "$TUNNEL_ID" ]]; then
-        log_success "Tunnel '${TNAME}' already exists (ID: ${TUNNEL_ID})"
-    else
-        log_info "Creating tunnel..."
-        cloudflared tunnel create "${TNAME}"
-        TUNNEL_ID=$(_get_tunnel_id "${TNAME}")
-        if [[ -z "$TUNNEL_ID" ]]; then
-            log_error "Failed to retrieve tunnel ID after creation"
-            return 1
-        fi
+    if [[ -z "$TUNNEL_ID" ]]; then
+        log_error "Failed to retrieve tunnel ID after creation"
+        return 1
     fi
     log_info "Tunnel ID: ${TUNNEL_ID}"
 
     # ── Write config ──────────────────────────────────────────
-    log_step "Step 12.4: Writing tunnel config"
+    log_step "Step 12.5: Writing tunnel config"
     local CRED_FILE=""
     if [[ -f "$HOME/.cloudflared/${TUNNEL_ID}.json" ]]; then
         CRED_FILE="$HOME/.cloudflared/${TUNNEL_ID}.json"
@@ -1545,7 +1556,52 @@ CFEOF
     log_success "Config written to $HOME/.cloudflared/config.yml"
 
     # ── DNS routes ────────────────────────────────────────────
-    log_step "Step 12.5: Creating DNS routes"
+    log_step "Step 12.6: Creating DNS routes"
+
+    # Helper: delete existing DNS records for a hostname using Cloudflare API
+    # The cert.pem from `cloudflared tunnel login` contains zone/account/token info
+    _delete_cf_dns_record() {
+        local hostname="$1"
+        local cert_json
+        cert_json=$(awk '/BEGIN ARGO TUNNEL TOKEN/{found=1;next} /END ARGO TUNNEL TOKEN/{found=0} found' \
+            "$HOME/.cloudflared/cert.pem" | base64 -d 2>/dev/null) || return 0
+
+        local zone_id account_id api_token
+        zone_id=$(echo "$cert_json" | python3 -c "import sys,json;print(json.load(sys.stdin)['zoneID'])" 2>/dev/null) || return 0
+        api_token=$(echo "$cert_json" | python3 -c "import sys,json;print(json.load(sys.stdin)['apiToken'])" 2>/dev/null) || return 0
+
+        if [[ -z "$zone_id" || -z "$api_token" ]]; then
+            return 0
+        fi
+
+        # Find existing records for this hostname
+        local records
+        records=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/zones/${zone_id}/dns_records?name=${hostname}" \
+            -H "Authorization: Bearer ${api_token}" \
+            -H "Content-Type: application/json" 2>/dev/null)
+
+        # Extract record IDs and delete them
+        echo "$records" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for r in data.get('result', []):
+    print(r['id'])
+" 2>/dev/null | while read -r record_id; do
+            if [[ -n "$record_id" ]]; then
+                log_info "Deleting old DNS record ${record_id} for ${hostname}..."
+                curl -s -X DELETE \
+                    "https://api.cloudflare.com/client/v4/zones/${zone_id}/dns_records/${record_id}" \
+                    -H "Authorization: Bearer ${api_token}" \
+                    -H "Content-Type: application/json" >/dev/null 2>&1
+            fi
+        done
+    }
+
+    # Remove stale DNS records before creating new routes
+    _delete_cf_dns_record "${ADMIN_SUB}.${TDOMAIN}"
+    _delete_cf_dns_record "${GOPHISH_SUB}.${TDOMAIN}"
+
     log_info "Routing ${ADMIN_SUB}.${TDOMAIN} → tunnel..."
     cloudflared tunnel route dns "${TNAME}" "${ADMIN_SUB}.${TDOMAIN}" 2>/dev/null || \
         log_warning "DNS route may already exist for ${ADMIN_SUB}.${TDOMAIN}"
@@ -1556,15 +1612,34 @@ CFEOF
     log_success "DNS routes created"
 
     # ── System service ────────────────────────────────────────
-    log_step "Step 12.6: Installing cloudflared as system service"
+    log_step "Step 12.7: Installing cloudflared as system service"
     systemctl stop cloudflared 2>/dev/null || true
-    cloudflared service install 2>/dev/null || log_info "Service may already be installed"
+    cloudflared service uninstall 2>/dev/null || true
 
     mkdir -p /etc/cloudflared
     cp "$HOME/.cloudflared/config.yml" /etc/cloudflared/config.yml
     cp "${CRED_FILE}" "/etc/cloudflared/${TUNNEL_ID}.json"
     sed -i "s|credentials-file:.*|credentials-file: /etc/cloudflared/${TUNNEL_ID}.json|" /etc/cloudflared/config.yml
 
+    # Create systemd unit directly (cloudflared service install can silently fail)
+    cat > /etc/systemd/system/cloudflared.service <<SVCEOF
+[Unit]
+Description=cloudflared tunnel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+TimeoutStartSec=0
+ExecStart=$(command -v cloudflared) --no-autoupdate tunnel run
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+
+    systemctl daemon-reload
     systemctl enable cloudflared
     systemctl restart cloudflared
     log_success "cloudflared service started and enabled on boot"
