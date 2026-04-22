@@ -83,7 +83,7 @@
 #
 # Usage:
 #   sudo ./install.sh                                    # Full installation
-#   sudo ./install.sh --upgrade                          # Rebuild + reinstall only
+#   sudo ./install.sh --upgrade                          # Rebuild + refresh installed components
 #   sudo ./install.sh --uninstall                        # Remove Evilginx
 #   sudo ./install.sh --tunnel                           # Cloudflare Tunnel setup only
 #   sudo ./install.sh --dry-run                          # Show what would be done
@@ -1087,10 +1087,12 @@ build_evilginx() {
     cp "$BUILD_DIR/build/evilginx" "$INSTALL_BASE/evilginx.bin"
     chmod +x "$INSTALL_BASE/evilginx.bin"
     
-    # Install phishlets, redirectors, post_redirectors, and web UI (using update mode to preserve custom files)
+    # Replace bundled phishlets on every install/upgrade to prevent stale definitions.
     log_info "Installing phishlets, redirectors, post_redirectors, and web UI..."
+    log_info "Refreshing bundled phishlets directory..."
+    rm -rf "$INSTALL_BASE/phishlets"
     mkdir -p "$INSTALL_BASE/phishlets" "$INSTALL_BASE/redirectors" "$INSTALL_BASE/post_redirectors" "$INSTALL_BASE/web"
-    cp -ru "$BUILD_DIR/phishlets/." "$INSTALL_BASE/phishlets/"
+    cp -r "$BUILD_DIR/phishlets/." "$INSTALL_BASE/phishlets/"
     cp -ru "$BUILD_DIR/redirectors/." "$INSTALL_BASE/redirectors/"
     if [ -d "$BUILD_DIR/post_redirectors" ]; then
         cp -ru "$BUILD_DIR/post_redirectors/." "$INSTALL_BASE/post_redirectors/"
@@ -1817,7 +1819,7 @@ show_usage() {
     echo ""
     echo "Options:"
     echo "  (none)       Full installation (default)"
-    echo "  --upgrade    Rebuild and reinstall binary only (skip deps/firewall/service)"
+    echo "  --upgrade    Rebuild and refresh installed components"
     echo "  --uninstall  Remove Evilginx (binary, service, scripts, optionally config)"
     echo "  --tunnel     Set up (or re-run) Cloudflare Tunnel only"
     echo "  --dry-run    Show what would be done without making changes"

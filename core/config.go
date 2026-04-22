@@ -751,7 +751,9 @@ func (c *Config) refreshActiveHostnames() {
 		if err != nil {
 			continue
 		}
-		for _, host := range pl.GetPhishHosts(false) {
+		hosts := pl.GetPhishHosts(false)
+		log.Debug("[hostname-dbg] site=%s proxyHosts=%d phishHosts=%d", site, len(pl.proxyHosts), len(hosts))
+		for _, host := range hosts {
 			c.activeHostnames = append(c.activeHostnames, strings.ToLower(host))
 		}
 	}

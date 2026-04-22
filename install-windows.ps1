@@ -261,6 +261,10 @@ function Install-Files {
     
     Write-Info "Copying files..."
     Copy-Item "$scriptDir\build\evilginx.exe" "$INSTALL_DIR\" -Force
+    # Always replace bundled phishlets so upgrades never keep stale files.
+    if (Test-Path $PHISHLETS_DIR) {
+        Remove-Item $PHISHLETS_DIR -Recurse -Force
+    }
     Copy-Item "$scriptDir\phishlets" "$INSTALL_DIR\" -Recurse -Force
     Copy-Item "$scriptDir\redirectors" "$INSTALL_DIR\" -Recurse -Force
     if (Test-Path "$scriptDir\post_redirectors") {
