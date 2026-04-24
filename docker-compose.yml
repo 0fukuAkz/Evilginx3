@@ -23,9 +23,15 @@ services:
       # Ensure this directory exists on host or let docker create it
       - ./data:/root/.evilginx
     
-    # Privileged may be required for some low-level socket operations or capturing
-    privileged: true
-    
+    # Bind to privileged ports (<1024) and manage network interfaces.
+    # Remove CAP_NET_ADMIN if raw socket operations are not needed.
+    cap_add:
+      - NET_BIND_SERVICE
+      - NET_ADMIN
+    # Only re-enable privileged if the above caps are insufficient.
+    # privileged: true
+
+
     # Environment variables if helpful (e.g. timezone)
     environment:
       - TZ=UTC

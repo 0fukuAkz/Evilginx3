@@ -7,8 +7,11 @@ import (
 	"github.com/fatih/color"
 )
 
-const (
+// VERSION and COMMIT are injected at build time via -ldflags.
+// Fallback values are used for local `go run` invocations.
+var (
 	VERSION = "3.5.4"
+	COMMIT  = "dev"
 )
 
 func putAsciiArt(s string) {
