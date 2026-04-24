@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & publish release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install CGO deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y gcc libc6-dev gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+
+      - name: Build Linux amd64
+        env:
+          GOOS: linux
+          GOARCH: amd64
+          CGO_ENABLED: "1"
+        run: |
+          make build
+          cp build/evilginx build/evilginx-linux-amd64
+
+      - name: Build Linux arm64
+        env:
+          GOOS: linux
+          GOARCH: arm64
+          CGO_ENABLED: "1"
+          CC: aarch64-linux-gnu-gcc
+        run: |
+          make build
+          cp build/evilginx build/evilginx-linux-arm64
+
+      - name: Generate checksums
+        run: |
+          cd build
+          sha256sum evilginx-linux-amd64 evilginx-linux-arm64 > checksums.txt
+          cat checksums.txt
+
+      - name: Build Docker image & push
+        if: ${{ vars.DOCKERHUB_USERNAME != '' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ vars.DOCKERHUB_USERNAME }}/evilginx3:${{ github.ref_name }}
+            ${{ vars.DOCKERHUB_USERNAME }}/evilginx3:latest
+          secrets: |
+            DOCKERHUB_TOKEN=${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/evilginx-linux-amd64
+            build/evilginx-linux-arm64
+            build/checksums.txt
+          generate_release_notes: true
+          fail_on_unmatched_files: true
