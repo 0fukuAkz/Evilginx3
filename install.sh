@@ -82,7 +82,9 @@
 #   - Domain configurable via TUNNEL_DOMAIN env var or interactive prompt
 #
 # Usage:
-#   sudo ./install.sh                                    # Full installation
+#   sudo ./install.sh                                    # Full installation (prompted: download or build)
+#   sudo ./install.sh --prebuilt                         # Skip prompt — download pre-built binary
+#   sudo ./install.sh --source                           # Skip prompt — build from source
 #   sudo ./install.sh --upgrade                          # Rebuild + refresh installed components
 #   sudo ./install.sh --uninstall                        # Remove Evilginx
 #   sudo ./install.sh --tunnel                           # Cloudflare Tunnel setup only
@@ -158,6 +160,13 @@ fi
 if [[ -z "$SCRIPT_DIR" ]] || [[ ! -d "$SCRIPT_DIR" ]]; then
     SCRIPT_DIR="$(pwd)"
 fi
+
+# GitHub release download settings
+GITHUB_REPO="0fukuAkz/Evilginx3"
+RELEASE_BASE_URL="https://github.com/${GITHUB_REPO}/releases/download"
+
+# Build method: "download" | "source" — set by --prebuilt/--source flags or choose_install_method()
+BUILD_METHOD=""
 
 # Configuration
 EVILGINX_VERSION="3.5.4"
@@ -739,6 +748,135 @@ GOEOF
     /usr/local/go/bin/go version
 }
 
+#############################################################################
+# Install Method Selection
+#############################################################################
+
+choose_install_method() {
+    # Already set via CLI flag — skip the prompt
+    if [[ -n "$BUILD_METHOD" ]]; then
+        return 0
+    fi
+
+    # Map GO_ARCH to release asset suffix (only amd64 and arm64 have pre-built binaries)
+    local RELEASE_ARCH
+    case "$GO_ARCH" in
+        amd64)  RELEASE_ARCH="amd64" ;;
+        arm64)  RELEASE_ARCH="arm64" ;;
+        *)      RELEASE_ARCH="" ;;
+    esac
+
+    echo ""
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}▶ Install Method${NC}"
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+    echo ""
+
+    if [[ -z "$RELEASE_ARCH" ]]; then
+        log_warning "No pre-built binary available for architecture '$GO_ARCH' — building from source."
+        BUILD_METHOD="source"
+        return 0
+    fi
+
+    echo -e "  ${GREEN}[1]${NC} Download pre-built binary  ${YELLOW}(faster — ~30 seconds)${NC}"
+    echo -e "       Binary for linux-${RELEASE_ARCH} from GitHub Releases v${EVILGINX_VERSION}"
+    echo ""
+    echo -e "  ${GREEN}[2]${NC} Build from source          ${YELLOW}(slower — 1-3 minutes, requires gcc)${NC}"
+    echo -e "       Compiles locally with CGO_ENABLED=1 (go-sqlite3)"
+    echo ""
+
+    local choice
+    read -r -p "$(echo -e "${CYAN}Choose install method [1/2] (default: 1): ${NC}")" choice < /dev/tty
+    choice="${choice:-1}"
+
+    case "$choice" in
+        1) BUILD_METHOD="download" ;;
+        2) BUILD_METHOD="source" ;;
+        *)
+            log_warning "Invalid choice '$choice' — defaulting to download."
+            BUILD_METHOD="download"
+            ;;
+    esac
+
+    echo ""
+}
+
+download_evilginx() {
+    log_step "Step 6: Downloading Pre-Built Evilginx Binary"
+
+    local RELEASE_ARCH
+    case "$GO_ARCH" in
+        amd64)  RELEASE_ARCH="amd64" ;;
+        arm64)  RELEASE_ARCH="arm64" ;;
+        *)      log_error "No pre-built binary for architecture '$GO_ARCH'. Use --source instead."; exit 1 ;;
+    esac
+
+    local ASSET_NAME="evilginx-linux-${RELEASE_ARCH}"
+    local ASSET_URL="${RELEASE_BASE_URL}/v${EVILGINX_VERSION}/${ASSET_NAME}"
+    local CHECKSUMS_URL="${RELEASE_BASE_URL}/v${EVILGINX_VERSION}/checksums.txt"
+    local TMP_BIN="/tmp/evilginx-download-$$"
+    local TMP_CHECKSUMS="/tmp/evilginx-checksums-$$"
+
+    log_info "Downloading ${ASSET_NAME} from GitHub Releases v${EVILGINX_VERSION}..."
+
+    if ! curl -fSL --progress-bar --max-time 120 "$ASSET_URL" -o "$TMP_BIN"; then
+        log_warning "Download failed — falling back to build from source."
+        rm -f "$TMP_BIN"
+        BUILD_METHOD="source"
+        build_evilginx
+        return
+    fi
+
+    # Verify checksum
+    log_info "Verifying SHA256 checksum..."
+    if curl -fsSL --max-time 30 "$CHECKSUMS_URL" -o "$TMP_CHECKSUMS" 2>/dev/null; then
+        local EXPECTED_SHA
+        EXPECTED_SHA=$(grep "${ASSET_NAME}" "$TMP_CHECKSUMS" | awk '{print $1}')
+        if [[ -n "$EXPECTED_SHA" ]]; then
+            local ACTUAL_SHA
+            ACTUAL_SHA=$(sha256sum "$TMP_BIN" | awk '{print $1}')
+            if [[ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]]; then
+                log_error "SHA256 checksum mismatch for ${ASSET_NAME}!"
+                log_error "  Expected: $EXPECTED_SHA"
+                log_error "  Got:      $ACTUAL_SHA"
+                rm -f "$TMP_BIN" "$TMP_CHECKSUMS"
+                log_warning "Falling back to build from source."
+                BUILD_METHOD="source"
+                build_evilginx
+                return
+            fi
+            log_success "SHA256 checksum verified"
+        else
+            log_warning "Asset not found in checksums.txt — skipping checksum check"
+        fi
+    else
+        log_warning "Could not fetch checksums.txt — skipping checksum verification"
+    fi
+    rm -f "$TMP_CHECKSUMS"
+
+    # Install artifacts from repo (phishlets, web, etc.) and the downloaded binary
+    local BUILD_DIR
+    BUILD_DIR=$(find_evilginx_root) || {
+        log_error "Cannot find Evilginx root directory with main.go"
+        exit 1
+    }
+
+    mkdir -p "$INSTALL_BASE"
+
+    # Remove old binaries
+    rm -f "$INSTALL_BASE/evilginx.bin" /usr/local/bin/evilginx
+
+    # Install binary
+    log_info "Installing binary to $INSTALL_BASE..."
+    install -m 755 "$TMP_BIN" "$INSTALL_BASE/evilginx.bin"
+    rm -f "$TMP_BIN"
+
+    # Install data files (shared with build path)
+    _install_data_files "$BUILD_DIR"
+
+    log_success "Evilginx ${EVILGINX_VERSION} (pre-built linux-${RELEASE_ARCH}) installed successfully"
+}
+
 create_service_user() {
     log_step "Creating Dedicated Service User"
     
@@ -1013,8 +1151,54 @@ RESOLVEOF
     fi
 }
 
+# Shared helper: install data files (phishlets, redirectors, web UI, docs) from repo
+# Called by both build_evilginx() and download_evilginx() to avoid duplication.
+_install_data_files() {
+    local BUILD_DIR="$1"
+    log_info "Installing phishlets, redirectors, post_redirectors, and web UI..."
+    log_info "Refreshing bundled phishlets directory..."
+    rm -rf "$INSTALL_BASE/phishlets"
+    mkdir -p "$INSTALL_BASE/phishlets" "$INSTALL_BASE/redirectors" "$INSTALL_BASE/post_redirectors" "$INSTALL_BASE/web"
+    cp -r "$BUILD_DIR/phishlets/." "$INSTALL_BASE/phishlets/"
+    cp -ru "$BUILD_DIR/redirectors/." "$INSTALL_BASE/redirectors/"
+    if [ -d "$BUILD_DIR/post_redirectors" ]; then
+        cp -ru "$BUILD_DIR/post_redirectors/." "$INSTALL_BASE/post_redirectors/"
+    fi
+    if [ -d "$BUILD_DIR/web" ]; then
+        cp -ru "$BUILD_DIR/web/." "$INSTALL_BASE/web/"
+    fi
+
+    # GoPhish static files + GeoIP
+    if [ -d "$BUILD_DIR/gophish/static" ]; then
+        log_info "Installing Gophish static files and GeoIP database..."
+        mkdir -p "$INSTALL_BASE/static"
+        cp -ru "$BUILD_DIR/gophish/static/." "$INSTALL_BASE/static/"
+    fi
+
+    log_info "Creating system-wide wrapper script..."
+    cat > /usr/local/bin/evilginx << WRAPEOF
+#!/bin/bash
+exec $INSTALL_BASE/evilginx.bin -p $INSTALL_BASE/phishlets -t $INSTALL_BASE/redirectors "\$@"
+WRAPEOF
+    chmod +x /usr/local/bin/evilginx
+
+    chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_BASE" 2>/dev/null || true
+    chmod -R 755 "$INSTALL_BASE" 2>/dev/null || true
+    chmod -R 755 "$INSTALL_BASE/phishlets" 2>/dev/null || true
+
+    log_info "Copying documentation to $INSTALL_BASE..."
+    for docfile in README.md DEPLOYMENT.md LICENSE; do
+        [[ -f "$BUILD_DIR/$docfile" ]] && cp "$BUILD_DIR/$docfile" "$INSTALL_BASE/" || true
+    done
+    for docfile in DOMAIN-ROTATION-GUIDE.md cloudflare-workers-deployment.md; do
+        [[ -f "$BUILD_DIR/$docfile" ]] && cp "$BUILD_DIR/$docfile" "$INSTALL_BASE/" || true
+    done
+
+    log_success "Data files installed"
+}
+
 build_evilginx() {
-    log_step "Step 6: Building and Installing Evilginx"
+    log_step "Step 6: Building and Installing Evilginx from Source"
 
     # Verify build toolchain is available
     if ! command -v gcc &>/dev/null; then
@@ -1086,110 +1270,21 @@ build_evilginx() {
     log_info "Installing binary to $INSTALL_BASE..."
     cp "$BUILD_DIR/build/evilginx" "$INSTALL_BASE/evilginx.bin"
     chmod +x "$INSTALL_BASE/evilginx.bin"
-    
-    # Replace bundled phishlets on every install/upgrade to prevent stale definitions.
-    log_info "Installing phishlets, redirectors, post_redirectors, and web UI..."
-    log_info "Refreshing bundled phishlets directory..."
-    rm -rf "$INSTALL_BASE/phishlets"
-    mkdir -p "$INSTALL_BASE/phishlets" "$INSTALL_BASE/redirectors" "$INSTALL_BASE/post_redirectors" "$INSTALL_BASE/web"
-    cp -r "$BUILD_DIR/phishlets/." "$INSTALL_BASE/phishlets/"
-    cp -ru "$BUILD_DIR/redirectors/." "$INSTALL_BASE/redirectors/"
-    if [ -d "$BUILD_DIR/post_redirectors" ]; then
-        cp -ru "$BUILD_DIR/post_redirectors/." "$INSTALL_BASE/post_redirectors/"
-    fi
-    if [ -d "$BUILD_DIR/web" ]; then
-        cp -ru "$BUILD_DIR/web/." "$INSTALL_BASE/web/"
-    fi
-    if [ -d "$BUILD_DIR/gophish/static" ]; then
-        log_info "Installing Gophish static files and GeoIP database..."
-        mkdir -p "$INSTALL_BASE/static"
-        cp -ru "$BUILD_DIR/gophish/static/." "$INSTALL_BASE/static/"
-    fi
-    
-    # Create wrapper script with default paths at /usr/local/bin/evilginx
-    log_info "Creating system-wide wrapper script..."
-    cat > /usr/local/bin/evilginx << 'WRAPPEREOF'
-#!/bin/bash
-# Evilginx wrapper script with default paths
-# Automatically loads phishlets and redirectors from system directories
 
-# Default paths
-PHISHLETS_PATH="/opt/evilginx/phishlets"
-REDIRECTORS_PATH="/opt/evilginx/redirectors"
-POST_REDIRECTORS_PATH="/opt/evilginx/post_redirectors"
-CONFIG_PATH="/etc/evilginx"
-
-# Check if user provided paths, otherwise use defaults
-ARGS=()
-HAS_P_FLAG=false
-HAS_T_FLAG=false
-HAS_U_FLAG=false
-HAS_C_FLAG=false
-
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        -p)
-            HAS_P_FLAG=true
-            ARGS+=("$1" "$2")
-            shift 2
-            ;;
-        -t)
-            HAS_T_FLAG=true
-            ARGS+=("$1" "$2")
-            shift 2
-            ;;
-        -u)
-            HAS_U_FLAG=true
-            ARGS+=("$1" "$2")
-            shift 2
-            ;;
-        -c)
-            HAS_C_FLAG=true
-            ARGS+=("$1" "$2")
-            shift 2
-            ;;
-        *)
-            ARGS+=("$1")
-            shift
-            ;;
-    esac
-done
-
-# Add default paths if not provided
-if [ "$HAS_P_FLAG" = false ]; then
-    ARGS=("-p" "$PHISHLETS_PATH" "${ARGS[@]}")
-fi
-if [ "$HAS_T_FLAG" = false ]; then
-    ARGS=("-t" "$REDIRECTORS_PATH" "${ARGS[@]}")
-fi
-if [ "$HAS_U_FLAG" = false ]; then
-    ARGS=("-u" "$POST_REDIRECTORS_PATH" "${ARGS[@]}")
-fi
-if [ "$HAS_C_FLAG" = false ]; then
-    ARGS=("-c" "$CONFIG_PATH" "${ARGS[@]}")
-fi
-
-# Run evilginx binary with constructed arguments
-exec /opt/evilginx/evilginx.bin "${ARGS[@]}"
-WRAPPEREOF
-    chmod +x /usr/local/bin/evilginx
-    
-    # Copy all documentation
-    log_info "Copying documentation to $INSTALL_BASE..."
-    cp "$BUILD_DIR/README.md" "$INSTALL_BASE/" 2>/dev/null || true
-    cp "$BUILD_DIR/DEPLOYMENT.md" "$INSTALL_BASE/" 2>/dev/null || true
-    cp "$BUILD_DIR/DOMAIN-ROTATION-GUIDE.md" "$INSTALL_BASE/" 2>/dev/null || true
-    cp "$BUILD_DIR/LICENSE" "$INSTALL_BASE/" 2>/dev/null || true
-    cp "$BUILD_DIR/cloudflare-workers-deployment.md" "$INSTALL_BASE/" 2>/dev/null || true
-    
-    chmod -R 755 "$PHISHLETS_DIR"
-    chmod -R 755 "$REDIRECTORS_DIR"
-    chmod -R 755 "$POST_REDIRECTORS_DIR"
-    chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_BASE"
-    
-    log_success "Files installed to $INSTALL_DIR"
-    log_success "System-wide command 'evilginx' is now available"
+    # Install data files via shared helper
+    _install_data_files "$BUILD_DIR"
 }
+
+# Dispatcher: called from main() and --upgrade — routes to download or build path
+install_evilginx() {
+    if [[ "$BUILD_METHOD" == "download" ]]; then
+        download_evilginx
+    else
+        build_evilginx
+    fi
+}
+
+
 
 configure_firewall() {
     log_step "Step 7: Configuring Firewall (UFW)"
@@ -1818,8 +1913,10 @@ show_usage() {
     echo "Usage: sudo $0 [OPTION]"
     echo ""
     echo "Options:"
-    echo "  (none)       Full installation (default)"
-    echo "  --upgrade    Rebuild and refresh installed components"
+    echo "  (none)       Full installation (prompted: download pre-built or build from source)"
+    echo "  --prebuilt   Download pre-built binary from GitHub Releases (skip prompt)"
+    echo "  --source     Build from source with CGO_ENABLED=1 (skip prompt)"
+    echo "  --upgrade    Update binary + refresh installed components"
     echo "  --uninstall  Remove Evilginx (binary, service, scripts, optionally config)"
     echo "  --tunnel     Set up (or re-run) Cloudflare Tunnel only"
     echo "  --dry-run    Show what would be done without making changes"
@@ -1832,8 +1929,10 @@ show_usage() {
     echo "  CF_TUNNEL_GOPHISH_SUB=gp    Override gophish subdomain prefix (default: gophish)"
     echo ""
     echo "Examples:"
-    echo "  sudo ./install.sh                                    # Full install"
-    echo "  sudo ./install.sh --upgrade                          # Quick rebuild"
+    echo "  sudo ./install.sh                                    # Full install (prompted)"
+    echo "  sudo ./install.sh --prebuilt                         # Download pre-built binary"
+    echo "  sudo ./install.sh --source                           # Build from source"
+    echo "  sudo ./install.sh --upgrade                          # Quick update"
     echo "  sudo ./install.sh --uninstall                        # Clean removal"
     echo "  TUNNEL_DOMAIN=example.com sudo ./install.sh --tunnel # Tunnel only"
     echo "  ./install.sh --dry-run                               # Preview (no root needed)"
@@ -1882,7 +1981,8 @@ main() {
     setup_directories
     stop_conflicting_services
     disable_systemd_resolved
-    build_evilginx
+    choose_install_method
+    install_evilginx
     configure_firewall
     configure_fail2ban
     create_systemd_service
@@ -1909,6 +2009,14 @@ case "${1:-}" in
     --help|-h)
         show_usage
         exit 0
+        ;;
+    --prebuilt)
+        BUILD_METHOD="download"
+        main
+        ;;
+    --source)
+        BUILD_METHOD="source"
+        main
         ;;
     --uninstall)
         check_root
@@ -1951,8 +2059,8 @@ case "${1:-}" in
         fi
         log_info "Working directory: $EVILGINX_ROOT"
 
-        # Ensure build dependencies exist (gcc required for CGo/go-sqlite3)
-        if ! command -v gcc &>/dev/null; then
+        # Ensure build dependencies exist (gcc required for CGo/go-sqlite3 when building from source)
+        if [[ "$BUILD_METHOD" != "download" ]] && ! command -v gcc &>/dev/null; then
             log_warning "gcc not found — installing build dependencies..."
             wait_for_apt_lock
             apt-get update -qq
@@ -1967,9 +2075,10 @@ case "${1:-}" in
         create_service_user
         setup_directories
 
-        # Stop services, rebuild, reinstall
+        # Stop services, update binary, reinstall
         stop_conflicting_services
-        build_evilginx
+        choose_install_method
+        install_evilginx
         configure_capabilities
 
         # Refresh systemd service file (picks up any new flags/settings)
@@ -2009,7 +2118,7 @@ case "${1:-}" in
         echo "   4.  Create directories: $CONFIG_DIR, $LOG_DIR"
         echo "   5.  Stop conflicting services (apache2, nginx, bind9, systemd-resolved)"
         echo "   6.  Disable systemd-resolved (free port 53)"
-        echo "   7.  Build Evilginx from source"
+        echo "   7.  Choose install method: download pre-built binary OR build from source"
         echo "   8.  Install binary + phishlets to: $INSTALL_BASE"
         echo "   9.  Configure UFW firewall (ports 22, 53, 80, 443)"
         echo "  10.  Configure Fail2Ban (SSH protection)"
