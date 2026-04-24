@@ -17,6 +17,7 @@ type User struct {
 	Role         string `json:"role"`
 	CreatedAt    int64  `json:"created_at"`
 	LastLogin    int64  `json:"last_login"`
+	MustChangePassword bool `json:"must_change_password"`
 }
 
 func (d *Database) usersInit() {
@@ -39,6 +40,7 @@ func (d *Database) usersCreate(username string, passwordHash string, role string
 		Role:         role,
 		CreatedAt:    time.Now().UTC().Unix(),
 		LastLogin:    0,
+		MustChangePassword: false,
 	}
 
 	jf, _ := json.Marshal(u)

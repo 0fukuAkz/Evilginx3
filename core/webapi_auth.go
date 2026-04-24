@@ -55,9 +55,14 @@ func (w *WebAPI) initAuth() {
 			log.Error("webapi: failed to hash admin password: %v", err)
 			return
 		}
-		_, err = w.db.CreateUser("admin", string(hash), "admin")
+		user, err := w.db.CreateUser("admin", string(hash), "admin")
 		if err != nil {
 			log.Error("webapi: failed to create admin user: %v", err)
+			return
+		}
+		user.MustChangePassword = true
+		if err := w.db.UpdateUser(user.Id, user); err != nil {
+			log.Error("webapi: failed to mark admin password change as required: %v", err)
 			return
 		}
 		w.adminPass = pass
@@ -67,6 +72,15 @@ func (w *WebAPI) initAuth() {
 		log.Important("  Password: %s", pass)
 		log.Important("==============================================")
 	}
+}
+
+func writePasswordChangeRequired(rw http.ResponseWriter) {
+	rw.Header().Set("Content-Type", "application/json")
+	rw.WriteHeader(http.StatusForbidden)
+	json.NewEncoder(rw).Encode(map[string]interface{}{
+		"error":                "password change required",
+		"must_change_password": true,
+	})
 }
 
 // storeAuthSession saves a session token in BuntDB mapped to a username.
@@ -104,11 +118,15 @@ func (w *WebAPI) getUserFromRequest(req *http.Request) (*database.User, error) {
 // requireAuth wraps an http.HandlerFunc with authentication checking.
 func (w *WebAPI) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(rw http.ResponseWriter, req *http.Request) {
-		_, err := w.getUserFromRequest(req)
+		user, err := w.getUserFromRequest(req)
 		if err != nil {
 			rw.Header().Set("Content-Type", "application/json")
 			rw.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(rw).Encode(map[string]string{"error": "unauthorized"})
+			return
+		}
+		if user.MustChangePassword {
+			writePasswordChangeRequired(rw)
 			return
 		}
 		next(rw, req)
@@ -123,6 +141,10 @@ func (w *WebAPI) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 			rw.Header().Set("Content-Type", "application/json")
 			rw.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(rw).Encode(map[string]string{"error": "unauthorized"})
+			return
+		}
+		if user.MustChangePassword {
+			writePasswordChangeRequired(rw)
 			return
 		}
 		if user.Role != "admin" {
@@ -144,6 +166,10 @@ func (w *WebAPI) requireOperator(next http.HandlerFunc) http.HandlerFunc {
 			rw.Header().Set("Content-Type", "application/json")
 			rw.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(rw).Encode(map[string]string{"error": "unauthorized"})
+			return
+		}
+		if user.MustChangePassword {
+			writePasswordChangeRequired(rw)
 			return
 		}
 		if user.Role != "admin" && user.Role != "operator" {
@@ -267,9 +293,10 @@ func (w *WebAPI) handleLogin(rw http.ResponseWriter, req *http.Request) {
 
 	rw.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(rw).Encode(map[string]interface{}{
-		"message":  "login successful",
-		"username": user.Username,
-		"role":     user.Role,
+		"message":              "login successful",
+		"username":             user.Username,
+		"role":                 user.Role,
+		"must_change_password": user.MustChangePassword,
 	})
 }
 
@@ -313,9 +340,10 @@ func (w *WebAPI) handleAuthCheck(rw http.ResponseWriter, req *http.Request) {
 	}
 	rw.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(rw).Encode(map[string]interface{}{
-		"authenticated": true,
-		"username":      user.Username,
-		"role":          user.Role,
+		"authenticated":         true,
+		"username":              user.Username,
+		"role":                  user.Role,
+		"must_change_password":  user.MustChangePassword,
 	})
 }
 
@@ -361,6 +389,7 @@ func (w *WebAPI) handleChangePassword(rw http.ResponseWriter, req *http.Request)
 	}
 
 	user.PasswordHash = string(hash)
+	user.MustChangePassword = false
 	if err := w.db.UpdateUser(user.Id, user); err != nil {
 		rw.Header().Set("Content-Type", "application/json")
 		rw.WriteHeader(http.StatusInternalServerError)
@@ -397,6 +426,7 @@ func (w *WebAPI) handleListUsers(rw http.ResponseWriter, req *http.Request) {
 		Role      string `json:"role"`
 		CreatedAt int64  `json:"created_at"`
 		LastLogin int64  `json:"last_login"`
+		MustChangePassword bool `json:"must_change_password"`
 	}
 	safe := make([]safeUser, 0, len(users))
 	for _, u := range users {
@@ -406,6 +436,7 @@ func (w *WebAPI) handleListUsers(rw http.ResponseWriter, req *http.Request) {
 			Role:      u.Role,
 			CreatedAt: u.CreatedAt,
 			LastLogin: u.LastLogin,
+			MustChangePassword: u.MustChangePassword,
 		})
 	}
 

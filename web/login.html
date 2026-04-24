@@ -23,12 +23,48 @@
                 <p id="errorMsg" class="err"></p>
                 <button type="submit">Login</button>
             </form>
+            <form id="changePasswordForm" autocomplete="off" style="display:none;">
+                <p id="changePasswordInfo" style="margin: 0 0 12px; text-align: center;">
+                    Change the default admin password before using the web admin UI.
+                </p>
+                <div class="details">
+                    <input type="password" id="currentPassword" name="currentPassword" placeholder="Current Password" required>
+                </div>
+                <div class="details">
+                    <input type="password" id="replacementPassword" name="replacementPassword" placeholder="New Password" required>
+                </div>
+                <p id="changePasswordError" class="err"></p>
+                <button type="submit">Change Password</button>
+            </form>
         </div>
     </div>
     <script>
-        document.getElementById('loginForm').addEventListener('submit', function (e) {
+        var loginForm = document.getElementById('loginForm');
+        var changePasswordForm = document.getElementById('changePasswordForm');
+        var errorMsg = document.getElementById('errorMsg');
+        var changePasswordError = document.getElementById('changePasswordError');
+        var currentPasswordInput = document.getElementById('currentPassword');
+        var replacementPasswordInput = document.getElementById('replacementPassword');
+
+        function showLoginForm() {
+            loginForm.style.display = '';
+            changePasswordForm.style.display = 'none';
+            errorMsg.textContent = '';
+            changePasswordError.textContent = '';
+        }
+
+        function showChangePasswordForm(currentPassword) {
+            loginForm.style.display = 'none';
+            changePasswordForm.style.display = '';
+            errorMsg.textContent = '';
+            changePasswordError.textContent = '';
+            currentPasswordInput.value = currentPassword || '';
+            replacementPasswordInput.value = '';
+            replacementPasswordInput.focus();
+        }
+
+        loginForm.addEventListener('submit', function (e) {
             e.preventDefault();
-            var errorMsg = document.getElementById('errorMsg');
             errorMsg.textContent = '';
 
             var username = document.getElementById('username').value.trim();
@@ -45,20 +81,79 @@
                 body: JSON.stringify({ username: username, password: password })
             })
             .then(function (res) {
-                if (res.ok) {
-                    window.location.href = '/';
-                } else {
-                    return res.json().then(function (data) {
-                        errorMsg.textContent = data.error || 'Invalid credentials';
-                    }).catch(function () {
-                        errorMsg.textContent = 'Invalid credentials';
-                    });
-                }
+                return res.json().then(function (data) {
+                    if (res.ok) {
+                        if (data.must_change_password) {
+                            showChangePasswordForm(password);
+                            return;
+                        }
+                        window.location.href = '/';
+                        return;
+                    }
+                    errorMsg.textContent = data.error || 'Invalid credentials';
+                }).catch(function () {
+                    errorMsg.textContent = 'Invalid credentials';
+                });
             })
             .catch(function () {
                 errorMsg.textContent = 'Connection error';
             });
         });
+
+        changePasswordForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            changePasswordError.textContent = '';
+
+            var currentPassword = currentPasswordInput.value;
+            var replacementPassword = replacementPasswordInput.value;
+
+            if (!currentPassword || !replacementPassword) {
+                changePasswordError.textContent = 'Please fill in all fields';
+                return;
+            }
+
+            fetch('/api/auth/change-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ old_password: currentPassword, new_password: replacementPassword })
+            })
+            .then(function (res) {
+                return res.json().then(function (data) {
+                    if (res.ok) {
+                        window.location.href = '/';
+                        return;
+                    }
+                    changePasswordError.textContent = data.error || 'Failed to change password';
+                }).catch(function () {
+                    changePasswordError.textContent = 'Failed to change password';
+                });
+            })
+            .catch(function () {
+                changePasswordError.textContent = 'Connection error';
+            });
+        });
+
+        fetch('/api/auth/check')
+            .then(function (res) {
+                if (res.status === 401) {
+                    showLoginForm();
+                    return null;
+                }
+                return res.json().catch(function () { return null; });
+            })
+            .then(function (data) {
+                if (!data || !data.authenticated) {
+                    return;
+                }
+                if (data.must_change_password) {
+                    showChangePasswordForm('');
+                    return;
+                }
+                window.location.href = '/';
+            })
+            .catch(function () {
+                showLoginForm();
+            });
     </script>
 </body>
 </html>

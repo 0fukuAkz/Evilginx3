@@ -258,9 +258,21 @@ function savePasswordChange() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ old_password: oldPassword, new_password: newPassword })
   })
-    .then(function (response) { return response.json(); })
-    .then(function (result) {
-      showNotify(result.message || "Password updated", "success");
+    .then(function (response) {
+      return response.json().then(function (result) {
+        return { ok: response.ok, result: result };
+      });
+    })
+    .then(function (payload) {
+      if (!payload.ok) {
+        showNotify(payload.result.error || "Failed to update password.", "error");
+        return;
+      }
+      showNotify(payload.result.message || "Password updated", "success");
+      var overlay = document.getElementById("settingsOverlay");
+      if (overlay) overlay.classList.add("hidden");
+      document.getElementById("oldPassword").value = "";
+      document.getElementById("newPassword").value = "";
     })
     .catch(function () {
       showNotify("Failed to update password.", "error");

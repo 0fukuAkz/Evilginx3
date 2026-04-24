@@ -23,6 +23,10 @@ type WebAPI struct {
 	adminPass string
 }
 
+func (w *WebAPI) GetAdminPass() string {
+	return w.adminPass
+}
+
 func NewWebAPI(db *database.Database, cfg *Config, ns *Nameserver, hp *HttpProxy) *WebAPI {
 	return &WebAPI{
 		db:  db,
@@ -49,7 +53,7 @@ func (w *WebAPI) Start(port int) {
 
 	// Auth management (auth required)
 	mux.HandleFunc("/api/auth/logout", w.requireAuth(w.handleLogoutAPI))
-	mux.HandleFunc("/api/auth/change-password", w.requireAuth(w.handleChangePassword))
+	mux.HandleFunc("/api/auth/change-password", w.handleChangePassword)
 
 	// User management (admin only)
 	mux.HandleFunc("/api/users", w.requireAdmin(func(rw http.ResponseWriter, req *http.Request) {
@@ -137,8 +141,12 @@ func (w *WebAPI) handleIndex(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	// Redirect to login if not authenticated
-	_, err := w.getUserFromRequest(req)
+	user, err := w.getUserFromRequest(req)
 	if err != nil {
+		http.Redirect(rw, req, "/login", http.StatusFound)
+		return
+	}
+	if user.MustChangePassword {
 		http.Redirect(rw, req, "/login", http.StatusFound)
 		return
 	}

@@ -1026,6 +1026,16 @@ async function apiFetch(url, options) {
       window.location.href = '/login';
       return null;
     }
+    if (resp.status === 403) {
+      try {
+        const data = await resp.clone().json();
+        if (data && data.must_change_password) {
+          window.location.href = '/login';
+          return null;
+        }
+      } catch (err) {
+      }
+    }
     return resp;
   } catch (err) {
     console.error('apiFetch error:', err);
@@ -1039,7 +1049,12 @@ async function apiFetch(url, options) {
 (async function checkAuth() {
   try {
     const resp = await fetch('/api/auth/check');
-    if (resp.status === 401) {
+    if (resp.status === 401 || resp.status === 403) {
+      window.location.href = '/login';
+      return;
+    }
+    const data = await resp.json();
+    if (data.must_change_password) {
       window.location.href = '/login';
     }
   } catch (e) {
