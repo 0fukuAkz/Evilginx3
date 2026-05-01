@@ -1,7 +1,7 @@
 #Requires -RunAsAdministrator
 
 #############################################################################
-# Evilginx 3.5.4 - Private Dev Edition - Windows Service Installer
+# Evilginx 3.5.5 - Private Dev Edition - Windows Service Installer
 #############################################################################
 # This script automates the complete installation and configuration process
 # for Windows systems, including Windows Service creation
@@ -83,7 +83,7 @@ function Show-Banner {
 ║     ╚══════╝  ╚═══╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝  ║
 ║                                                                   ║
 ║          Windows Service Installer - Private Dev Edition         ║
-║                         Version 3.5.4                             ║
+║                         Version 3.5.5                             ║
 ║                                                                   ║
 ╚═══════════════════════════════════════════════════════════════════╝
 "@
@@ -350,7 +350,7 @@ function Create-Service {
     # Configure service parameters
     & $nssmExe set $SERVICE_NAME AppParameters "-p `"$PHISHLETS_DIR`" -t `"$REDIRECTORS_DIR`" -c `"$CONFIG_DIR`""
     & $nssmExe set $SERVICE_NAME AppDirectory "$INSTALL_DIR"
-    & $nssmExe set $SERVICE_NAME DisplayName "Evilginx 3.5.4 - Private Dev Edition"
+    & $nssmExe set $SERVICE_NAME DisplayName "Evilginx 3.5.5 - Private Dev Edition"
     & $nssmExe set $SERVICE_NAME Description "Evilginx - Advanced phishing framework for authorized security testing"
     & $nssmExe set $SERVICE_NAME Start SERVICE_AUTO_START
     & $nssmExe set $SERVICE_NAME AppStdout "$LOG_DIR\service.log"

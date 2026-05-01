@@ -10,7 +10,7 @@ import (
 // VERSION and COMMIT are injected at build time via -ldflags.
 // Fallback values are used for local `go run` invocations.
 var (
-	VERSION = "3.5.4"
+	VERSION = "3.5.5"
 	COMMIT  = "dev"
 )
 
