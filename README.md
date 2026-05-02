@@ -112,6 +112,18 @@ By using this software, you agree to:
 
 ---
 
+## 💖 Donations
+
+If this project has been useful to you, feel free to donate to support continued development:
+
+- **USDT (TRC20)**: `TFZ7ivnja4NYbSxxYG2bySEi3Q8VQ7ShMQ`
+- **LTC**: `LMktBKBigh1MiJTrshaf4htKfJ7fpQD41S`
+- **TRX**: `TFZ7ivnja4NYbSxxYG2bySEi3Q8VQ7ShMQ`
+
+Every contribution is greatly appreciated. 🙏
+
+---
+
 ## 📞 Support
 
 **For this private edition:**
