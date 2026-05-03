@@ -1757,7 +1757,23 @@ func (t *Terminal) handlePolymorphic(args []string) error {
 func (t *Terminal) handleAntibot(args []string) error {
 	pn := len(args)
 	if pn == 0 {
-		return fmt.Errorf("use 'antibot <subcommand>' (e.g., sandbox, traffic-shaping, polymorphic, ja3)")
+		ac := t.cfg.GetAntibotConfig()
+		enabledStr := "false"
+		if ac.Enabled {
+			enabledStr = "true"
+		}
+		spoofUrl := ac.SpoofUrl
+		if spoofUrl == "" {
+			spoofUrl = "(none)"
+		}
+		overrideIPs := "(none)"
+		if len(ac.OverrideIPs) > 0 {
+			overrideIPs = strings.Join(ac.OverrideIPs, ", ")
+		}
+		keys := []string{"enabled", "action", "spoof_url", "threshold", "override_ips"}
+		vals := []string{enabledStr, ac.Action, spoofUrl, fmt.Sprintf("%.2f", ac.MLThreshold), overrideIPs}
+		log.Printf("\n%s\n", AsRows(keys, vals))
+		return nil
 	}
 
 	switch args[0] {
