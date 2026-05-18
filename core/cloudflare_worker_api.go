@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"mime/multipart"
 	"net/textproto"
 	"net/http"
@@ -112,7 +112,7 @@ func (c *CloudflareWorkerAPI) makeRequest(method, endpoint string, body interfac
 	}
 	defer resp.Body.Close()
 
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %v", err)
 	}
@@ -155,7 +155,7 @@ func (c *CloudflareWorkerAPI) makeScriptRequest(method, endpoint string, script 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create multipart metadata part: %v", err)
 	}
-	metaPart.Write([]byte(`{ "main_module": "worker.js" }`))
+	metaPart.Write([]byte(`{"bindings":[],"body_part":"worker.js"}`))
 
 	writer.Close()
 
@@ -173,7 +173,7 @@ func (c *CloudflareWorkerAPI) makeScriptRequest(method, endpoint string, script 
 	}
 	defer resp.Body.Close()
 
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %v", err)
 	}

