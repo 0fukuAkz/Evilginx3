@@ -219,20 +219,12 @@ DISTRO_VER=""
 
 # Repair interrupted dpkg and wait for apt/dpkg locks (common on fresh VPS)
 wait_for_apt_lock() {
-    # Fix interrupted dpkg first — this is the #1 cause of apt failures on VPS
-    # (unattended-upgrades crashes or gets killed mid-run on first boot)
-    if dpkg --audit 2>&1 | grep -q .; then
-        log_warning "dpkg was interrupted — running automatic repair..."
-        dpkg --configure -a --force-confold --force-confdef
-        log_success "dpkg repaired"
-    fi
-
     local max_wait=120  # seconds
     local waited=0
 
-    # Check for apt/dpkg locks (fuser may not exist on minimal systems)
-    while { command -v fuser &>/dev/null && fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock &>/dev/null; } || \
-          { [[ -f /var/lib/dpkg/lock-frontend ]] && ! apt-get check &>/dev/null; }; do
+    # Wait for locks FIRST before attempting any dpkg operations
+    # Check for apt/dpkg locks using fuser (psmisc) or lsof as fallback
+    while _dpkg_is_locked; do
         if [[ $waited -eq 0 ]]; then
             log_warning "Waiting for apt/dpkg lock (another process is using apt)..."
             log_info "This is normal on fresh VPS — unattended-upgrades runs on first boot"
@@ -249,6 +241,47 @@ wait_for_apt_lock() {
     if [[ $waited -gt 0 ]]; then
         log_success "apt lock released after ${waited}s"
     fi
+
+    # Now that the lock is free, repair any interrupted dpkg state
+    if dpkg --audit 2>&1 | grep -q .; then
+        log_warning "dpkg was interrupted — running automatic repair..."
+        # Force flags must precede the action for portability on Debian 11
+        if dpkg --force-confold --force-confdef --configure -a; then
+            log_success "dpkg repaired"
+        else
+            log_error "dpkg --configure -a failed — manual intervention may be needed"
+            log_info "Try: sudo dpkg --configure -a && sudo apt-get install -f"
+            exit 1
+        fi
+    fi
+}
+
+# Returns 0 (true) if any apt/dpkg lock is currently held
+_dpkg_is_locked() {
+    local lock_files=(/var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock)
+
+    if command -v fuser &>/dev/null; then
+        fuser "${lock_files[@]}" &>/dev/null
+        return $?
+    fi
+
+    # fuser not available — use lsof as fallback
+    if command -v lsof &>/dev/null; then
+        for f in "${lock_files[@]}"; do
+            lsof "$f" &>/dev/null && return 0
+        done
+        return 1
+    fi
+
+    # Last resort: try flock to non-blockingly test the frontend lock
+    if [[ -f /var/lib/dpkg/lock-frontend ]]; then
+        # flock -n returns 1 if the lock is held, 0 if we acquired it
+        flock -n /var/lib/dpkg/lock-frontend true 2>/dev/null
+        local rc=$?
+        [[ $rc -ne 0 ]] && return 0  # lock held
+    fi
+
+    return 1  # assume no lock
 }
 
 # Consolidated function to find the Evilginx root directory
@@ -1583,7 +1616,10 @@ for t in tunnels:
         log_info "Downloading cloudflared for ${CF_ARCH}..."
         curl -sL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${CF_ARCH}.deb" \
             -o /tmp/cloudflared.deb
-        dpkg -i /tmp/cloudflared.deb
+        if ! dpkg -i /tmp/cloudflared.deb; then
+            log_warning "dpkg reported dependency issues — running apt-get install -f to resolve..."
+            apt-get install -f -y -qq "${APT_OPTS[@]}"
+        fi
         rm -f /tmp/cloudflared.deb
         log_success "cloudflared installed: $(cloudflared --version)"
     fi
