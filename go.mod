@@ -12,7 +12,7 @@ require (
 	github.com/emersion/go-message v0.18.2
 	github.com/fatih/color v1.13.0
 	github.com/go-acme/lego/v3 v3.1.0
-	github.com/go-sql-driver/mysql v1.9.3
+	github.com/go-sql-driver/mysql v1.10.0
 	github.com/gophish/gomail v0.0.0-20200818021916-1f6d0dfd512e
 	github.com/gorilla/context v1.1.1
 	github.com/gorilla/csrf v1.7.3
