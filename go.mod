@@ -11,7 +11,7 @@ require (
 	github.com/emersion/go-imap v1.2.1
 	github.com/emersion/go-message v0.18.2
 	github.com/fatih/color v1.13.0
-	github.com/go-acme/lego/v3 v3.1.0
+	github.com/go-acme/lego/v3 v3.9.0
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/gophish/gomail v0.0.0-20200818021916-1f6d0dfd512e
 	github.com/gorilla/context v1.1.1
@@ -33,13 +33,14 @@ require (
 	golang.org/x/crypto v0.50.0
 	golang.org/x/net v0.53.0
 	golang.org/x/time v0.5.0
-	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127
+	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15
 )
+
+require github.com/cenkalti/backoff/v4 v4.0.0 // indirect
 
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
-	github.com/cenkalti/backoff/v3 v3.0.0 // indirect
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
