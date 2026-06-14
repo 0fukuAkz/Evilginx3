@@ -1,8 +1,5 @@
-# bitbucket.org/liamstask/goose v0.0.0-20150115234039-8488cc47d90c => ./pkg/goose
-## explicit; go 1.25.1
-bitbucket.org/liamstask/goose/lib/goose
-# filippo.io/edwards25519 v1.1.0
-## explicit; go 1.20
+# filippo.io/edwards25519 v1.2.0
+## explicit; go 1.24.0
 filippo.io/edwards25519
 filippo.io/edwards25519/field
 # github.com/NYTimes/gziphandler v1.1.1
@@ -44,7 +41,7 @@ github.com/emersion/go-sasl
 # github.com/fatih/color v1.13.0
 ## explicit; go 1.13
 github.com/fatih/color
-# github.com/felixge/httpsnoop v1.0.3
+# github.com/felixge/httpsnoop v1.0.4
 ## explicit; go 1.13
 github.com/felixge/httpsnoop
 # github.com/fsnotify/fsnotify v1.5.1
@@ -118,21 +115,8 @@ github.com/kr/pretty
 # github.com/kr/text v0.2.0
 ## explicit
 github.com/kr/text
-# github.com/kylelemons/go-gypsy v1.0.0
-## explicit; go 1.5
-github.com/kylelemons/go-gypsy/yaml
 # github.com/lib/pq v1.12.0
 ## explicit; go 1.21
-github.com/lib/pq
-github.com/lib/pq/internal/pgpass
-github.com/lib/pq/internal/pgservice
-github.com/lib/pq/internal/pqsql
-github.com/lib/pq/internal/pqtime
-github.com/lib/pq/internal/pqutil
-github.com/lib/pq/internal/proto
-github.com/lib/pq/oid
-github.com/lib/pq/pqerror
-github.com/lib/pq/scram
 # github.com/libdns/libdns v0.2.1
 ## explicit; go 1.14
 github.com/libdns/libdns
@@ -142,12 +126,15 @@ github.com/magiconair/properties
 # github.com/mattn/go-colorable v0.1.12
 ## explicit; go 1.13
 github.com/mattn/go-colorable
-# github.com/mattn/go-isatty v0.0.14
-## explicit; go 1.12
+# github.com/mattn/go-isatty v0.0.21
+## explicit; go 1.21
 github.com/mattn/go-isatty
 # github.com/mattn/go-sqlite3 v1.14.37
 ## explicit; go 1.19
 github.com/mattn/go-sqlite3
+# github.com/mfridman/interpolate v0.0.2
+## explicit; go 1.19
+github.com/mfridman/interpolate
 # github.com/mholt/acmez v1.2.0
 ## explicit; go 1.20
 github.com/mholt/acmez
@@ -167,6 +154,22 @@ github.com/oschwald/maxminddb-golang
 # github.com/pelletier/go-toml v1.9.4
 ## explicit; go 1.12
 github.com/pelletier/go-toml
+# github.com/pressly/goose/v3 v3.27.1
+## explicit; go 1.25.7
+github.com/pressly/goose/v3
+github.com/pressly/goose/v3/database
+github.com/pressly/goose/v3/database/dialect
+github.com/pressly/goose/v3/internal/controller
+github.com/pressly/goose/v3/internal/dialects
+github.com/pressly/goose/v3/internal/gooseutil
+github.com/pressly/goose/v3/internal/legacystore
+github.com/pressly/goose/v3/internal/sqlparser
+github.com/pressly/goose/v3/lock
+github.com/pressly/goose/v3/lock/internal/store
+github.com/pressly/goose/v3/lock/internal/table
+# github.com/sethvargo/go-retry v0.3.0
+## explicit; go 1.21
+github.com/sethvargo/go-retry
 # github.com/spf13/afero v1.8.1
 ## explicit; go 1.13
 github.com/spf13/afero
@@ -228,11 +231,6 @@ github.com/zeebo/blake3/internal/alg/hash/hash_avx2
 github.com/zeebo/blake3/internal/alg/hash/hash_pure
 github.com/zeebo/blake3/internal/consts
 github.com/zeebo/blake3/internal/utils
-# github.com/ziutek/mymysql v1.5.4
-## explicit
-github.com/ziutek/mymysql/godrv
-github.com/ziutek/mymysql/mysql
-github.com/ziutek/mymysql/native
 # go.uber.org/multierr v1.11.0
 ## explicit; go 1.19
 go.uber.org/multierr
@@ -247,7 +245,7 @@ go.uber.org/zap/internal/exit
 go.uber.org/zap/internal/pool
 go.uber.org/zap/internal/stacktrace
 go.uber.org/zap/zapcore
-# golang.org/x/crypto v0.49.0
+# golang.org/x/crypto v0.50.0
 ## explicit; go 1.25.0
 golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blowfish
@@ -256,10 +254,10 @@ golang.org/x/crypto/cryptobyte/asn1
 golang.org/x/crypto/ed25519
 golang.org/x/crypto/ocsp
 golang.org/x/crypto/pbkdf2
-# golang.org/x/mod v0.33.0
-## explicit; go 1.24.0
+# golang.org/x/mod v0.34.0
+## explicit; go 1.25.0
 golang.org/x/mod/semver
-# golang.org/x/net v0.52.0
+# golang.org/x/net v0.53.0
 ## explicit; go 1.25.0
 golang.org/x/net/bpf
 golang.org/x/net/html
@@ -274,11 +272,11 @@ golang.org/x/net/proxy
 # golang.org/x/sync v0.20.0
 ## explicit; go 1.25.0
 golang.org/x/sync/errgroup
-# golang.org/x/sys v0.42.0
+# golang.org/x/sys v0.43.0
 ## explicit; go 1.25.0
 golang.org/x/sys/unix
 golang.org/x/sys/windows
-# golang.org/x/text v0.35.0
+# golang.org/x/text v0.36.0
 ## explicit; go 1.25.0
 golang.org/x/text/encoding
 golang.org/x/text/encoding/charmap
@@ -304,8 +302,8 @@ golang.org/x/text/unicode/norm
 # golang.org/x/time v0.5.0
 ## explicit; go 1.18
 golang.org/x/time/rate
-# golang.org/x/tools v0.42.0
-## explicit; go 1.24.0
+# golang.org/x/tools v0.43.0
+## explicit; go 1.25.0
 golang.org/x/tools/go/ast/edge
 golang.org/x/tools/go/ast/inspector
 golang.org/x/tools/go/gcexportdata
@@ -343,4 +341,3 @@ gopkg.in/square/go-jose.v2/json
 ## explicit; go 1.15
 gopkg.in/yaml.v2
 # github.com/elazarl/goproxy => github.com/kgretzky/goproxy v0.0.0-20220622134552-7d0e0c658440
-# bitbucket.org/liamstask/goose => ./pkg/goose

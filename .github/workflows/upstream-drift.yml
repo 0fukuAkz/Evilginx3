@@ -1,0 +1,85 @@
+name: GoPhish upstream drift check
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"  # every Monday at 09:00 UTC
+  workflow_dispatch:      # allow manual trigger
+
+jobs:
+  drift:
+    name: Check upstream GoPhish drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add GoPhish upstream remote
+        run: |
+          git remote add gophish-upstream https://github.com/gophish/gophish
+          git fetch gophish-upstream --tags --depth=1
+
+      - name: Identify changed upstream files
+        id: drift
+        run: |
+          # Compare files under gophish/ against upstream master.
+          # Files that exist locally and have changed upstream appear in the diff.
+          CHANGED=$(git diff --name-only gophish-upstream/master HEAD -- gophish/ \
+            | grep -v '^gophish/evilginx/' \
+            | grep -v '^gophish/FORK_STATUS.md' \
+            || true)
+
+          if [ -z "$CHANGED" ]; then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+            echo "No upstream drift detected."
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            echo "CHANGED_FILES<<EOF" >> "$GITHUB_OUTPUT"
+            echo "$CHANGED" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+            echo "Upstream drift detected in:"
+            echo "$CHANGED"
+          fi
+
+      - name: Create drift issue
+        if: steps.drift.outputs.drift == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const files = `${{ steps.drift.outputs.CHANGED_FILES }}`;
+            const body = [
+              '## GoPhish upstream drift detected',
+              '',
+              'The following files under `/gophish/` differ from `gophish/gophish:master`.',
+              'Review each for security fixes or breaking changes that should be merged.',
+              '',
+              '```',
+              files,
+              '```',
+              '',
+              'See [`gophish/FORK_STATUS.md`](../blob/main/gophish/FORK_STATUS.md) for merge instructions.',
+            ].join('\n');
+
+            // Check for an existing open drift issue to avoid duplicates
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'upstream-drift',
+            });
+
+            if (issues.data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: 'GoPhish upstream drift detected',
+                body,
+                labels: ['upstream-drift', 'dependencies'],
+              });
+            } else {
+              // Update the existing issue body
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issues.data[0].number,
+                body,
+              });
+            }

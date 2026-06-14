@@ -224,15 +224,7 @@ func (o *CertDb) initDNSProvider() error {
 		if dnsConfig.ApiKey == "" || dnsConfig.Email == "" {
 			return fmt.Errorf("cloudflare DNS provider requires api_key and email")
 		}
-		
-		// Mark that DNS challenge is enabled
-		o.dnsChallenge = true
-		
-		// TODO: Initialize actual Cloudflare provider when dependencies are added
-		// For now, just log that it would be enabled
-		log.Info("DNS challenge mode enabled for wildcard certificates (provider: cloudflare)")
-		log.Warning("Note: Actual DNS provider integration requires additional dependencies")
-		
+		return fmt.Errorf("cloudflare DNS provider is configured but not yet integrated; wildcard certificates require manual placement under %s/sites/", o.cache_dir)
 	default:
 		return fmt.Errorf("unsupported DNS provider: %s", dnsConfig.Provider)
 	}
@@ -362,8 +354,7 @@ func (o *CertDb) setUnmanagedSync(verbose bool) error {
 }
 
 func (o *CertDb) reloadCertificates() error {
-	// TODO: load private certificates from disk
-	return nil
+	return o.setUnmanagedSync(false)
 }
 
 func (o *CertDb) getTLSCertificate(host string, port int) (*x509.Certificate, error) {

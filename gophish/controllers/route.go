@@ -202,49 +202,49 @@ func newTemplateParams(r *http.Request) templateParams {
 func (as *AdminServer) Base(w http.ResponseWriter, r *http.Request) {
 	params := newTemplateParams(r)
 	params.Title = "Dashboard"
-	getTemplate(w, "dashboard").ExecuteTemplate(w, "base", params)
+	renderTemplate(w, "dashboard", params)
 }
 
 // Campaigns handles the default path and template execution
 func (as *AdminServer) Campaigns(w http.ResponseWriter, r *http.Request) {
 	params := newTemplateParams(r)
 	params.Title = "Campaigns"
-	getTemplate(w, "campaigns").ExecuteTemplate(w, "base", params)
+	renderTemplate(w, "campaigns", params)
 }
 
 // CampaignID handles the default path and template execution
 func (as *AdminServer) CampaignID(w http.ResponseWriter, r *http.Request) {
 	params := newTemplateParams(r)
 	params.Title = "Campaign Results"
-	getTemplate(w, "campaign_results").ExecuteTemplate(w, "base", params)
+	renderTemplate(w, "campaign_results", params)
 }
 
 // Templates handles the default path and template execution
 func (as *AdminServer) Templates(w http.ResponseWriter, r *http.Request) {
 	params := newTemplateParams(r)
 	params.Title = "Email Templates"
-	getTemplate(w, "templates").ExecuteTemplate(w, "base", params)
+	renderTemplate(w, "templates", params)
 }
 
 // Groups handles the default path and template execution
 func (as *AdminServer) Groups(w http.ResponseWriter, r *http.Request) {
 	params := newTemplateParams(r)
 	params.Title = "Users & Groups"
-	getTemplate(w, "groups").ExecuteTemplate(w, "base", params)
+	renderTemplate(w, "groups", params)
 }
 
 // LandingPages handles the default path and template execution
 func (as *AdminServer) LandingPages(w http.ResponseWriter, r *http.Request) {
 	params := newTemplateParams(r)
 	params.Title = "Landing Pages"
-	getTemplate(w, "landing_pages").ExecuteTemplate(w, "base", params)
+	renderTemplate(w, "landing_pages", params)
 }
 
 // SendingProfiles handles the default path and template execution
 func (as *AdminServer) SendingProfiles(w http.ResponseWriter, r *http.Request) {
 	params := newTemplateParams(r)
 	params.Title = "Sending Profiles"
-	getTemplate(w, "sending_profiles").ExecuteTemplate(w, "base", params)
+	renderTemplate(w, "sending_profiles", params)
 }
 
 // Settings handles the changing of settings
@@ -255,7 +255,7 @@ func (as *AdminServer) Settings(w http.ResponseWriter, r *http.Request) {
 		params.Title = "Settings"
 		session := ctx.Get(r, "session").(*sessions.Session)
 		session.Save(r, w)
-		getTemplate(w, "settings").ExecuteTemplate(w, "base", params)
+		renderTemplate(w, "settings", params)
 	case r.Method == "POST":
 		u := ctx.Get(r, "user").(models.User)
 		currentPw := r.FormValue("current_password")
@@ -293,7 +293,7 @@ func (as *AdminServer) Settings(w http.ResponseWriter, r *http.Request) {
 func (as *AdminServer) UserManagement(w http.ResponseWriter, r *http.Request) {
 	params := newTemplateParams(r)
 	params.Title = "User Management"
-	getTemplate(w, "users").ExecuteTemplate(w, "base", params)
+	renderTemplate(w, "users", params)
 }
 
 func (as *AdminServer) nextOrIndex(w http.ResponseWriter, r *http.Request) {
@@ -333,7 +333,7 @@ func (as *AdminServer) handleInvalidLogin(w http.ResponseWriter, r *http.Request
 func (as *AdminServer) Webhooks(w http.ResponseWriter, r *http.Request) {
 	params := newTemplateParams(r)
 	params.Title = "Webhooks"
-	getTemplate(w, "webhooks").ExecuteTemplate(w, "base", params)
+	renderTemplate(w, "webhooks", params)
 }
 
 // Impersonate allows an admin to login to a user account without needing the password
@@ -442,7 +442,7 @@ func (as *AdminServer) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodGet:
 		params.Flashes = session.Flashes()
 		session.Save(r, w)
-		getTemplate(w, "reset_password").ExecuteTemplate(w, "base", params)
+		renderTemplate(w, "reset_password", params)
 		return
 	case r.Method == http.MethodPost:
 		newPassword := r.FormValue("password")
@@ -453,7 +453,7 @@ func (as *AdminServer) ResetPassword(w http.ResponseWriter, r *http.Request) {
 			params.Flashes = session.Flashes()
 			session.Save(r, w)
 			w.WriteHeader(http.StatusBadRequest)
-			getTemplate(w, "reset_password").ExecuteTemplate(w, "base", params)
+			renderTemplate(w, "reset_password", params)
 			return
 		}
 		u.PasswordChangeRequired = false
@@ -463,21 +463,15 @@ func (as *AdminServer) ResetPassword(w http.ResponseWriter, r *http.Request) {
 			params.Flashes = session.Flashes()
 			session.Save(r, w)
 			w.WriteHeader(http.StatusInternalServerError)
-			getTemplate(w, "reset_password").ExecuteTemplate(w, "base", params)
+			renderTemplate(w, "reset_password", params)
 			return
 		}
-		// TODO: We probably want to flash a message here that the password was
-		// changed successfully. The problem is that when the user resets their
-		// password on first use, they will see two flashes on the dashboard-
-		// one for their password reset, and one for the "no campaigns created".
-		//
-		// The solution to this is to revamp the empty page to be more useful,
-		// like a wizard or something.
+		Flash(w, r, "success", "Your password has been successfully changed")
+		session.Save(r, w)
 		as.nextOrIndex(w, r)
 	}
 }
 
-// TODO: Make this execute the template, too
 func getTemplate(w http.ResponseWriter, tmpl string) *template.Template {
 	templates := template.New("template")
 	_, err := templates.ParseFS(gophish.TemplatesFS, "templates/base.html", "templates/nav.html", "templates/"+tmpl+".html", "templates/flashes.html")
@@ -485,6 +479,10 @@ func getTemplate(w http.ResponseWriter, tmpl string) *template.Template {
 		log.Error(err)
 	}
 	return template.Must(templates, err)
+}
+
+func renderTemplate(w http.ResponseWriter, tmpl string, params interface{}) {
+	getTemplate(w, tmpl).ExecuteTemplate(w, "base", params)
 }
 
 // Flash handles the rendering flash messages

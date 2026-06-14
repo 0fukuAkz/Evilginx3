@@ -1,11 +1,5 @@
 package imap
 
-/* TODO:
-*		 - Have a counter per config for number of consecutive login errors and backoff (e.g if supplied creds are incorrect)
-*		 - Have a DB field "last_login_error" if last login failed
-*		 - DB counter for non-campaign emails that the admin should investigate
-*		 - Add field to User for numner of non-campaign emails reported
- */
 import (
 	"bytes"
 	"context"
@@ -62,6 +56,9 @@ func (im *Monitor) start(ctx context.Context) {
 // monitor will continuously login to the IMAP settings associated to the supplied user id (if the user account has IMAP settings, and they're enabled.)
 // It also verifies the user account exists, and returns if not (for the case of a user being deleted).
 func monitor(uid int64, ctx context.Context) {
+	const maxBackoff = 5 * time.Minute
+	consecutiveErrors := 0
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -84,7 +81,17 @@ func monitor(uid int64, ctx context.Context) {
 				// 3. Check if IMAP is enabled
 				if im.Enabled {
 					log.Debug("Checking IMAP for user ", uid, ": ", im.Username, " -> ", im.Host)
-					checkForNewEmails(im)
+					if err := checkForNewEmails(im); err != nil {
+						consecutiveErrors++
+						backoff := time.Duration(1<<uint(consecutiveErrors)) * time.Second
+						if backoff > maxBackoff {
+							backoff = maxBackoff
+						}
+						log.Warn("IMAP error for user ", uid, " (", consecutiveErrors, " consecutive): ", err, "; retrying in ", backoff)
+						time.Sleep(backoff)
+						continue
+					}
+					consecutiveErrors = 0
 					time.Sleep((time.Duration(im.IMAPFreq) - 10) * time.Second) // Subtract 10 to compensate for the default sleep of 10 at the bottom
 				}
 			}
@@ -118,8 +125,9 @@ func (im *Monitor) Shutdown() error {
 }
 
 // checkForNewEmails logs into an IMAP account and checks unread emails
-//  for the rid campaign identifier.
-func checkForNewEmails(im models.IMAP) {
+// for the rid campaign identifier. Returns a non-nil error on connection/login
+// failure so the caller can apply backoff.
+func checkForNewEmails(im models.IMAP) error {
 	im.Host = im.Host + ":" + strconv.Itoa(int(im.Port)) // Append port
 	mailServer := Mailbox{
 		Host:             im.Host,
@@ -133,7 +141,7 @@ func checkForNewEmails(im models.IMAP) {
 	msgs, err := mailServer.GetUnread(true, false)
 	if err != nil {
 		log.Error(err)
-		return
+		return err
 	}
 	// Update last_succesful_login here via im.Host
 	err = models.SuccessfulLogin(&im)
@@ -143,7 +151,9 @@ func checkForNewEmails(im models.IMAP) {
 		var reportingFailed []uint32 // SeqNums of emails that were unable to be reported to phishing server, mark as unread
 		var deleteEmails []uint32    // SeqNums of campaign emails. If DeleteReportedCampaignEmail is true, we will delete these
 		for _, m := range msgs {
-			// Check if sender is from company's domain, if enabled. TODO: Make this an IMAP filter
+			// Filter by sender domain when RestrictDomain is set. An IMAP
+			// server-side HEADER search on "From" is unreliable across providers,
+			// so we keep this as a post-fetch filter.
 			if im.RestrictDomain != "" { // e.g domainResitct = widgets.com
 				splitEmail := strings.Split(m.Email.From, "@")
 				senderDomain := splitEmail[len(splitEmail)-1]
@@ -202,6 +212,7 @@ func checkForNewEmails(im models.IMAP) {
 	} else {
 		log.Debug("No new emails for ", im.Username)
 	}
+	return nil
 }
 
 func checkRIDs(em *email.Email, rids map[string]bool) {

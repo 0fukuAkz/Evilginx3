@@ -4,7 +4,7 @@ VERSION = $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 COMMIT  = $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 LDFLAGS = -ldflags "-X $(MODULE)/core.VERSION=$(VERSION) -X $(MODULE)/core.COMMIT=$(COMMIT)"
 
-.PHONY: all build test vet fmt lint vuln clean
+.PHONY: all build test vet fmt lint vuln audit clean
 
 all: build
 
@@ -25,6 +25,10 @@ lint:
 	@golangci-lint run ./...
 
 vuln:
+	@govulncheck ./...
+
+audit:
+	@go mod verify
 	@govulncheck ./...
 
 clean:

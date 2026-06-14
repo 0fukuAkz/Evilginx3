@@ -9,8 +9,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"bitbucket.org/liamstask/goose/lib/goose"
-
 	mysql "github.com/go-sql-driver/mysql"
 	"github.com/kgretzky/evilginx2/gophish/auth"
 	"github.com/kgretzky/evilginx2/gophish/config"
@@ -18,6 +16,7 @@ import (
 	log "github.com/kgretzky/evilginx2/gophish/logger"
 	"github.com/jinzhu/gorm"
 	_ "github.com/mattn/go-sqlite3" // Blank import needed to import sqlite3
+	"github.com/pressly/goose/v3"
 )
 
 var db *gorm.DB
@@ -75,21 +74,16 @@ type Response struct {
 
 
 
-func chooseDBDriver(name, openStr string) goose.DBDriver {
-	d := goose.DBDriver{Name: name, OpenStr: openStr}
-
+// gooseDialect returns the pressly/goose dialect string for the given DB driver name.
+func gooseDialect(name string) string {
 	switch name {
 	case "mysql":
-		d.Import = "github.com/go-sql-driver/mysql"
-		d.Dialect = &goose.MySqlDialect{}
-
-	// Default database is sqlite3
+		return "mysql"
+	case "postgres":
+		return "postgres"
 	default:
-		d.Import = "github.com/mattn/go-sqlite3"
-		d.Dialect = &goose.Sqlite3Dialect{}
+		return "sqlite3"
 	}
-
-	return d
 }
 
 func createTemporaryPassword(u *User) error {
@@ -127,15 +121,8 @@ func createTemporaryPassword(u *User) error {
 func Setup(c *config.Config) error {
 	// Setup the package-scoped config
 	conf = c
-	// Setup the goose configuration
-	migrateConf := &goose.DBConf{
-		MigrationsDir: conf.MigrationsPath,
-		Env:           "production",
-		Driver:        chooseDBDriver(conf.DBName, conf.DBPath),
-	}
-	// Get the latest possible migration
-	latest, err := goose.GetMostRecentDBVersion(migrateConf.MigrationsDir)
-	if err != nil {
+	// Configure goose dialect to match the chosen database driver
+	if err := goose.SetDialect(gooseDialect(conf.DBName)); err != nil {
 		log.Error(err)
 		return err
 	}
@@ -177,6 +164,7 @@ func Setup(c *config.Config) error {
 		}
 	}
 
+	var err error
 	i := 0
 	for {
 		db, err = gorm.Open(conf.DBName, conf.DBPath)
@@ -202,8 +190,7 @@ func Setup(c *config.Config) error {
 	db.Exec("PRAGMA busy_timeout=5000;")
 	db.Exec("PRAGMA synchronous=NORMAL;")
 	// Migrate up to the latest version
-	err = goose.RunMigrationsOnDb(migrateConf, migrateConf.MigrationsDir, latest, db.DB())
-	if err != nil {
+	if err = goose.Up(db.DB(), conf.MigrationsPath); err != nil {
 		log.Error(err)
 		return err
 	}

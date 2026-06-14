@@ -591,12 +591,12 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						}
 					} else {
 						if l == nil && (p.isWhitelistedIP(remote_addr, pl.Name) || p.isGloballyAllowed(remote_addr)) {
-							// not a lure path and IP is whitelisted
-
-							// TODO: allow only retrieval of static content, without setting session ID
-
+							// not a lure path and IP is whitelisted — only serve static assets
+							// without creating a session; non-static requests are left blocked
 							create_session = false
-							req_ok = true
+							if isStaticPath(req_path) {
+								req_ok = true
+							}
 						}
 					}
 
@@ -2823,6 +2823,15 @@ func (dumb dumbResponseWriter) WriteHeader(code int) {
 
 func (dumb dumbResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return dumb, bufio.NewReadWriter(bufio.NewReader(dumb), bufio.NewWriter(dumb)), nil
+}
+
+func isStaticPath(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".css", ".js", ".map", ".svg", ".png", ".jpg", ".jpeg",
+		".gif", ".ico", ".webp", ".avif", ".woff", ".woff2", ".ttf", ".eot":
+		return true
+	}
+	return false
 }
 
 func getContentType(path string, data []byte) string {

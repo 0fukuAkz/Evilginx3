@@ -115,25 +115,29 @@ func GetIMAP(uid int64) ([]IMAP, error) {
 
 // PostIMAP updates IMAP settings for a user in the database.
 func PostIMAP(im *IMAP, uid int64) error {
-	err := im.Validate()
-	if err != nil {
+	if err := im.Validate(); err != nil {
 		log.Error(err)
 		return err
 	}
 
-	// Delete old entry. TODO: Save settings and if fails to Save below replace with original
-	err = DeleteIMAP(uid)
-	if err != nil {
+	tx := db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	if err := tx.Where("user_id=?", uid).Delete(&IMAP{}).Error; err != nil {
+		tx.Rollback()
 		log.Error(err)
 		return err
 	}
 
-	// Insert new settings into the DB
-	err = db.Save(im).Error
-	if err != nil {
+	if err := tx.Save(im).Error; err != nil {
+		tx.Rollback()
 		log.Error("Unable to save to database: ", err.Error())
+		return err
 	}
-	return err
+
+	return tx.Commit().Error
 }
 
 // DeleteIMAP deletes the existing IMAP in the database.

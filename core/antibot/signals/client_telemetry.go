@@ -154,7 +154,7 @@ func (fe *FeatureExtractor) ExtractRequestFeatures(req *http.Request, tlsState *
 		FocusEvents:    len(profile.FocusEvents),
 
 		// Network features
-		ConnectionReuse: false, // TODO: implement connection tracking
+		ConnectionReuse: exists, // true when the client profile already existed (prior request on same connection)
 		HTTP2Enabled:    req.ProtoMajor == 2,
 		TLSVersion:      0,
 		CipherStrength:  0,

@@ -11,7 +11,10 @@
       "Bash(xargs cat:*)",
       "Bash(find /Users/macbook/Desktop/GitHub/Evilginx3 -name \"*.go\" -type f -exec grep -l \"VERSION\" {} \\\\;)",
       "Bash(find /Users/macbook/Desktop/GitHub/Evilginx3/core -name \"*.go\" -exec grep -l \"cookieAuthTokens\\\\|getAuthToken\" {} \\\\;)",
-      "Bash(echo \"exit=$?\")"
+      "Bash(echo \"exit=$?\")",
+      "Bash(go test *)",
+      "Bash(awk '{print $1}')",
+      "Bash(awk -F: '{sum+=$2} END{print \"total lines:\", sum}')"
     ]
   }
 }

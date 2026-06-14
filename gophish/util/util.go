@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -30,11 +31,10 @@ var (
 	positionRegex  = regexp.MustCompile(`(?i)position`)
 )
 
-// ParseMail takes in an HTTP Request and returns an Email object
-// TODO: This function will likely be changed to take in a []byte
-func ParseMail(r *http.Request) (email.Email, error) {
+// ParseMail parses a raw email from the supplied bytes and returns an Email object.
+func ParseMail(b []byte) (email.Email, error) {
 	e := email.Email{}
-	m, err := mail.ReadMessage(r.Body)
+	m, err := mail.ReadMessage(bytes.NewReader(b))
 	if err != nil {
 		return e, err
 	}
