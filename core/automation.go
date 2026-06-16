@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kgretzky/evilginx2/log"
 	gp_models "github.com/kgretzky/evilginx2/gophish/models"
+	"github.com/kgretzky/evilginx2/log"
 )
 
 const autoUID int64 = 1

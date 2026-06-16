@@ -1,7 +1,7 @@
 package response
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/elazarl/goproxy"
@@ -10,8 +10,8 @@ import (
 
 // SpoofManager handles generating spoofed and honeypot responses for detected bots
 type SpoofManager struct {
-	spoofUrl      string
-	honeypotHTML  string
+	spoofUrl     string
+	honeypotHTML string
 }
 
 // NewSpoofManager creates a new spoof response manager
@@ -52,7 +52,7 @@ func (sm *SpoofManager) ServeSpoofResponse(req *http.Request) (*http.Request, *h
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Error("Failed to read spoof content: %v", err)
 		return req, goproxy.NewResponse(req, "text/plain", http.StatusNotFound, "Not Found")

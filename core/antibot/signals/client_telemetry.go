@@ -443,10 +443,6 @@ func (fe *FeatureExtractor) cleanupProfiles() {
 	}
 }
 
-
-
-
-
 // MLBotDetector implements machine learning based bot detection
 const mlCacheMaxSize = 10000
 
@@ -981,9 +977,6 @@ type EnvDetectionResult struct {
 	ClientData *ClientDetectionData `json:"client_data,omitempty"`
 }
 
-
-
-
 // TelemetryVerdict defines the combined result of ML behavior and environment analysis
 type TelemetryVerdict struct {
 	Score  float64
@@ -1143,7 +1136,7 @@ func (s *TelemetrySignal) ProcessTelemetry(data []byte, clientID string, clientI
 			}
 			result.Reasons = append(result.Reasons, "debugger_detected")
 		}
-		
+
 		if payload.Environment.AutomationDetected {
 			result.IsSandbox = true
 			if result.Confidence < 0.95 {
@@ -1169,12 +1162,12 @@ func (s *TelemetrySignal) ProcessTelemetry(data []byte, clientID string, clientI
 func (s *TelemetrySignal) GetStats() map[string]interface{} {
 	s.cacheMutex.RLock()
 	defer s.cacheMutex.RUnlock()
-	
+
 	sandboxes := 0
 	vms := 0
 	debuggers := 0
 	automation := 0
-	
+
 	for _, result := range s.cache {
 		if result.IsSandbox {
 			sandboxes++
@@ -1191,16 +1184,16 @@ func (s *TelemetrySignal) GetStats() map[string]interface{} {
 			}
 		}
 	}
-	
+
 	stats := map[string]interface{}{
-		"total_checks":       len(s.cache),
-		"sandbox_detected":   sandboxes,
-		"vm_detected":        vms,
-		"debugger_detected":  debuggers,
+		"total_checks":        len(s.cache),
+		"sandbox_detected":    sandboxes,
+		"vm_detected":         vms,
+		"debugger_detected":   debuggers,
 		"automation_detected": automation,
-		"cache_size":         len(s.cache),
+		"cache_size":          len(s.cache),
 	}
-	
+
 	return stats
 }
 
@@ -1401,4 +1394,3 @@ func (s *TelemetrySignal) TelemetryJS(sessionID string) string {
 })();
 `, sessionID)
 }
-

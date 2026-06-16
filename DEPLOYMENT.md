@@ -165,7 +165,7 @@ sudo ./install.sh
 - ✅ Validates OS and architecture, runs pre-flight connectivity and disk checks
 - ✅ Repairs interrupted dpkg and waits for apt/dpkg locks (VPS-safe)
 - ✅ Installs system dependencies (~20 packages: curl, wget, ufw, fail2ban, build-essential, libsqlite3-dev, etc.)
-- ✅ Downloads and installs Go 1.25.1 with SHA256 checksum verification against go.dev
+- ✅ Downloads and installs Go 1.25.7 with SHA256 checksum verification against go.dev
 - ✅ Creates dedicated `evilginx` service user (no login shell, least-privilege)
 - ✅ Stops and disables conflicting services (apache2, nginx, bind9, systemd-resolved)
 - ✅ Disables systemd-resolved and writes static `/etc/resolv.conf` (frees port 53)
@@ -218,7 +218,7 @@ cd C:\path\to\Evilginx3
 
 **The installer automatically:**
 
-- ✅ Installs Go 1.25.1 (if missing)
+- ✅ Installs Go 1.25.7 (if missing)
 - ✅ Builds from source (`CGO_ENABLED=1 go build -mod=vendor`)
 - ✅ Installs binary, phishlets, redirectors, post-redirectors, web UI, GoPhish static files, and documentation to `C:\Evilginx\`
 - ✅ Installs NSSM and creates a Windows Service with auto-start and log rotation
@@ -240,10 +240,10 @@ evilginx-logs       # Monitor logs
 If you prefer to build manually:
 
 ```bash
-# Install Go (Linux) — must match go.mod requirement (1.25.1+)
-wget https://go.dev/dl/go1.25.1.linux-amd64.tar.gz
+# Install Go (Linux) — must match go.mod requirement (1.25.7+)
+wget https://go.dev/dl/go1.25.7.linux-amd64.tar.gz
 sudo rm -rf /usr/local/go
-sudo tar -C /usr/local -xzf go1.25.1.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.25.7.linux-amd64.tar.gz
 export PATH=$PATH:/usr/local/go/bin
 
 # Install build dependencies (required for CGo / go-sqlite3)

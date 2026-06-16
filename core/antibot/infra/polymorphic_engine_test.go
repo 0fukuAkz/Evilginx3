@@ -23,8 +23,8 @@ func fullConfig() *PolymorphicConfig {
 // predictable pass-through for cache and stats tests.
 func noopConfig() *PolymorphicConfig {
 	return &PolymorphicConfig{
-		Enabled:      true,
-		CacheEnabled: true,
+		Enabled:       true,
+		CacheEnabled:  true,
 		CacheDuration: 1,
 		EnabledMutations: map[string]bool{
 			"variables":   false,

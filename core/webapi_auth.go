@@ -340,10 +340,10 @@ func (w *WebAPI) handleAuthCheck(rw http.ResponseWriter, req *http.Request) {
 	}
 	rw.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(rw).Encode(map[string]interface{}{
-		"authenticated":         true,
-		"username":              user.Username,
-		"role":                  user.Role,
-		"must_change_password":  user.MustChangePassword,
+		"authenticated":        true,
+		"username":             user.Username,
+		"role":                 user.Role,
+		"must_change_password": user.MustChangePassword,
 	})
 }
 
@@ -421,21 +421,21 @@ func (w *WebAPI) handleListUsers(rw http.ResponseWriter, req *http.Request) {
 
 	// Strip password hashes from response
 	type safeUser struct {
-		Id        int    `json:"id"`
-		Username  string `json:"username"`
-		Role      string `json:"role"`
-		CreatedAt int64  `json:"created_at"`
-		LastLogin int64  `json:"last_login"`
-		MustChangePassword bool `json:"must_change_password"`
+		Id                 int    `json:"id"`
+		Username           string `json:"username"`
+		Role               string `json:"role"`
+		CreatedAt          int64  `json:"created_at"`
+		LastLogin          int64  `json:"last_login"`
+		MustChangePassword bool   `json:"must_change_password"`
 	}
 	safe := make([]safeUser, 0, len(users))
 	for _, u := range users {
 		safe = append(safe, safeUser{
-			Id:        u.Id,
-			Username:  u.Username,
-			Role:      u.Role,
-			CreatedAt: u.CreatedAt,
-			LastLogin: u.LastLogin,
+			Id:                 u.Id,
+			Username:           u.Username,
+			Role:               u.Role,
+			CreatedAt:          u.CreatedAt,
+			LastLogin:          u.LastLogin,
 			MustChangePassword: u.MustChangePassword,
 		})
 	}

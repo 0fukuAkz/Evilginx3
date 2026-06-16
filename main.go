@@ -7,9 +7,11 @@ import (
 	_log "log"
 	"net"
 	"os"
+	"os/signal"
 	"os/user"
 	"path/filepath"
 	"regexp"
+	"syscall"
 
 	"github.com/caddyserver/certmagic"
 	"github.com/kgretzky/evilginx2/core"
@@ -262,7 +264,7 @@ func main() {
 	// Dump migrations to ~./evilginx/gophish_db to allow goose to read them from disk
 	gophishMigrationsDir := filepath.Join(*cfg_dir, "gophish_db")
 	os.MkdirAll(filepath.Join(gophishMigrationsDir, "db_sqlite3", "migrations"), 0755)
-	
+
 	entries, err := gophish.DBFS.ReadDir("db/db_sqlite3/migrations")
 	if err == nil {
 		for _, entry := range entries {
@@ -307,9 +309,19 @@ func main() {
 	adminOptions := []gp_controllers.AdminServerOption{}
 	adminServer := gp_controllers.NewAdminServer(gpConf.AdminConf, adminOptions...)
 	imapMonitor := gp_imap.NewMonitor()
-	
+
 	go adminServer.Start()
 	go imapMonitor.Start()
+
+	// Graceful shutdown on SIGTERM / SIGINT
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
+	go func() {
+		sig := <-sigCh
+		log.Info("received signal %s — shutting down", sig)
+		db.Flush()
+		os.Exit(0)
+	}()
 
 	// Initialize and start the natively integrated xverg WebAPI
 	webApi := core.NewWebAPI(db, cfg, ns, hp)

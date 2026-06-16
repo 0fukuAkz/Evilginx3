@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
-	"net/textproto"
 	"net/http"
+	"net/textproto"
 	"time"
 
 	"github.com/kgretzky/evilginx2/log"
@@ -19,10 +19,10 @@ const (
 
 // CloudflareWorkerAPI handles Cloudflare Worker deployments
 type CloudflareWorkerAPI struct {
-	AccountID    string
-	APIToken     string
-	ZoneID       string
-	client       *http.Client
+	AccountID string
+	APIToken  string
+	ZoneID    string
+	client    *http.Client
 }
 
 // CloudflareWorkerScript represents a deployed worker
@@ -37,20 +37,20 @@ type CloudflareWorkerScript struct {
 
 // CloudflareWorkerRoute represents a worker route
 type CloudflareWorkerRoute struct {
-	ID         string `json:"id"`
-	Pattern    string `json:"pattern"`
-	Script     string `json:"script"`
-	ZoneID     string `json:"zone_id"`
-	ZoneName   string `json:"zone_name"`
+	ID       string `json:"id"`
+	Pattern  string `json:"pattern"`
+	Script   string `json:"script"`
+	ZoneID   string `json:"zone_id"`
+	ZoneName string `json:"zone_name"`
 }
 
 // CloudflareWorkerDeployment contains deployment details
 type CloudflareWorkerDeployment struct {
-	Name        string
-	Script      string
-	Bindings    []WorkerBinding
-	Routes      []string
-	Subdomain   bool
+	Name      string
+	Script    string
+	Bindings  []WorkerBinding
+	Routes    []string
+	Subdomain bool
 }
 
 // WorkerBinding represents KV namespace or other bindings
@@ -73,7 +73,6 @@ type APIError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 }
-
 
 // NewCloudflareWorkerAPI creates a new Cloudflare Worker API client
 func NewCloudflareWorkerAPI(accountID, apiToken, zoneID string) *CloudflareWorkerAPI {
@@ -205,7 +204,7 @@ func (c *CloudflareWorkerAPI) DeployWorker(deployment *CloudflareWorkerDeploymen
 
 	// Deploy the worker script
 	endpoint := fmt.Sprintf("/accounts/%s/workers/scripts/%s", c.AccountID, deployment.Name)
-	
+
 	_, err := c.makeScriptRequest("PUT", endpoint, deployment.Script)
 	if err != nil {
 		return fmt.Errorf("failed to deploy worker: %v", err)
@@ -219,7 +218,7 @@ func (c *CloudflareWorkerAPI) DeployWorker(deployment *CloudflareWorkerDeploymen
 		subdomainData := map[string]interface{}{
 			"enabled": true,
 		}
-		
+
 		if _, err := c.makeRequest("POST", subdomainEndpoint, subdomainData); err != nil {
 			log.Warning("Failed to enable workers.dev subdomain: %v", err)
 		} else {
@@ -251,7 +250,7 @@ func (c *CloudflareWorkerAPI) UpdateWorker(name string, script string) error {
 	log.Info("Updating Cloudflare Worker: %s", name)
 
 	endpoint := fmt.Sprintf("/accounts/%s/workers/scripts/%s", c.AccountID, name)
-	
+
 	_, err := c.makeScriptRequest("PUT", endpoint, script)
 	if err != nil {
 		return fmt.Errorf("failed to update worker: %v", err)
@@ -270,7 +269,7 @@ func (c *CloudflareWorkerAPI) DeleteWorker(name string) error {
 	log.Info("Deleting Cloudflare Worker: %s", name)
 
 	endpoint := fmt.Sprintf("/accounts/%s/workers/scripts/%s", c.AccountID, name)
-	
+
 	_, err := c.makeRequest("DELETE", endpoint, nil)
 	if err != nil {
 		return fmt.Errorf("failed to delete worker: %v", err)
@@ -283,7 +282,7 @@ func (c *CloudflareWorkerAPI) DeleteWorker(name string) error {
 // ListWorkers returns all deployed workers
 func (c *CloudflareWorkerAPI) ListWorkers() ([]CloudflareWorkerScript, error) {
 	endpoint := fmt.Sprintf("/accounts/%s/workers/scripts", c.AccountID)
-	
+
 	resp, err := c.makeRequest("GET", endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list workers: %v", err)
@@ -306,7 +305,7 @@ func (c *CloudflareWorkerAPI) CreateWorkerRoute(scriptName, pattern string) erro
 	log.Info("Creating route '%s' for worker '%s'", pattern, scriptName)
 
 	endpoint := fmt.Sprintf("/zones/%s/workers/routes", c.ZoneID)
-	
+
 	routeData := map[string]interface{}{
 		"pattern": pattern,
 		"script":  scriptName,
@@ -328,7 +327,7 @@ func (c *CloudflareWorkerAPI) ListWorkerRoutes() ([]CloudflareWorkerRoute, error
 	}
 
 	endpoint := fmt.Sprintf("/zones/%s/workers/routes", c.ZoneID)
-	
+
 	resp, err := c.makeRequest("GET", endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list routes: %v", err)
@@ -349,7 +348,7 @@ func (c *CloudflareWorkerAPI) DeleteWorkerRoute(routeID string) error {
 	}
 
 	endpoint := fmt.Sprintf("/zones/%s/workers/routes/%s", c.ZoneID, routeID)
-	
+
 	_, err := c.makeRequest("DELETE", endpoint, nil)
 	if err != nil {
 		return fmt.Errorf("failed to delete route: %v", err)
@@ -359,12 +358,10 @@ func (c *CloudflareWorkerAPI) DeleteWorkerRoute(routeID string) error {
 	return nil
 }
 
-
-
 // ValidateCredentials checks if the API credentials are valid
 func (c *CloudflareWorkerAPI) ValidateCredentials() error {
 	endpoint := fmt.Sprintf("/accounts/%s", c.AccountID)
-	
+
 	_, err := c.makeRequest("GET", endpoint, nil)
 	if err != nil {
 		return fmt.Errorf("invalid credentials: %v", err)
@@ -377,7 +374,7 @@ func (c *CloudflareWorkerAPI) ValidateCredentials() error {
 // GetWorkerSubdomain returns the workers.dev subdomain for the account
 func (c *CloudflareWorkerAPI) GetWorkerSubdomain() (string, error) {
 	endpoint := fmt.Sprintf("/accounts/%s/workers/subdomain", c.AccountID)
-	
+
 	resp, err := c.makeRequest("GET", endpoint, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to get subdomain: %v", err)
@@ -386,7 +383,7 @@ func (c *CloudflareWorkerAPI) GetWorkerSubdomain() (string, error) {
 	var result struct {
 		Subdomain string `json:"subdomain"`
 	}
-	
+
 	if err := json.Unmarshal(resp.Result, &result); err != nil {
 		return "", fmt.Errorf("failed to parse subdomain: %v", err)
 	}

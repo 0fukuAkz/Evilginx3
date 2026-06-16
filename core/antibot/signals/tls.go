@@ -184,12 +184,12 @@ func (fp *JA3Fingerprinter) loadKnownBotSignatures() {
 			Confidence:  0.90,
 		},
 	}
-	
+
 	// Load signatures into map
 	for _, sig := range signatures {
 		fp.knownBots[sig.JA3Hash] = sig
 	}
-	
+
 	log.Debug("[JA3] Loaded %d known bot signatures", len(fp.knownBots))
 }
 
@@ -197,12 +197,12 @@ func (fp *JA3Fingerprinter) loadKnownBotSignatures() {
 func (fp *JA3Fingerprinter) ComputeJA3(hello *ClientHelloInfo) (string, string) {
 	// Build JA3 string according to spec:
 	// SSLVersion,Ciphers,Extensions,EllipticCurves,EllipticCurvePointFormats
-	
+
 	var parts []string
-	
+
 	// 1. TLS Version
 	parts = append(parts, strconv.Itoa(int(hello.TLSVersion)))
-	
+
 	// 2. Cipher Suites (sorted, comma-separated)
 	ciphers := make([]string, len(hello.CipherSuites))
 	for i, cipher := range hello.CipherSuites {
@@ -211,7 +211,7 @@ func (fp *JA3Fingerprinter) ComputeJA3(hello *ClientHelloInfo) (string, string) 
 	// Remove GREASE values (0x0a0a, 0x1a1a, 0x2a2a, etc.)
 	ciphers = fp.removeGREASE(ciphers)
 	parts = append(parts, strings.Join(ciphers, "-"))
-	
+
 	// 3. Extensions (sorted, comma-separated)
 	extensions := make([]string, len(hello.Extensions))
 	for i, ext := range hello.Extensions {
@@ -219,7 +219,7 @@ func (fp *JA3Fingerprinter) ComputeJA3(hello *ClientHelloInfo) (string, string) 
 	}
 	extensions = fp.removeGREASE(extensions)
 	parts = append(parts, strings.Join(extensions, "-"))
-	
+
 	// 4. Elliptic Curves (sorted, comma-separated)
 	curves := make([]string, len(hello.EllipticCurves))
 	for i, curve := range hello.EllipticCurves {
@@ -227,36 +227,36 @@ func (fp *JA3Fingerprinter) ComputeJA3(hello *ClientHelloInfo) (string, string) 
 	}
 	curves = fp.removeGREASE(curves)
 	parts = append(parts, strings.Join(curves, "-"))
-	
+
 	// 5. EC Point Formats (sorted, comma-separated)
 	points := make([]string, len(hello.EllipticPoints))
 	for i, point := range hello.EllipticPoints {
 		points[i] = strconv.Itoa(int(point))
 	}
 	parts = append(parts, strings.Join(points, "-"))
-	
+
 	// Create JA3 string
 	ja3String := strings.Join(parts, ",")
-	
+
 	// Create MD5 hash
 	hash := md5.Sum([]byte(ja3String))
 	ja3Hash := hex.EncodeToString(hash[:])
-	
+
 	return ja3String, ja3Hash
 }
 
 // ComputeJA3S computes JA3S fingerprint from ServerHello
 func (fp *JA3Fingerprinter) ComputeJA3S(version uint16, cipherSuite uint16, extensions []uint16) (string, string) {
 	// JA3S string: TLSVersion,Cipher,Extensions
-	
+
 	var parts []string
-	
+
 	// 1. TLS Version
 	parts = append(parts, strconv.Itoa(int(version)))
-	
+
 	// 2. Selected Cipher Suite
 	parts = append(parts, strconv.Itoa(int(cipherSuite)))
-	
+
 	// 3. Extensions (sorted, comma-separated)
 	exts := make([]string, len(extensions))
 	for i, ext := range extensions {
@@ -264,21 +264,21 @@ func (fp *JA3Fingerprinter) ComputeJA3S(version uint16, cipherSuite uint16, exte
 	}
 	exts = fp.removeGREASE(exts)
 	parts = append(parts, strings.Join(exts, "-"))
-	
+
 	// Create JA3S string
 	ja3sString := strings.Join(parts, ",")
-	
+
 	// Create MD5 hash
 	hash := md5.Sum([]byte(ja3sString))
 	ja3sHash := hex.EncodeToString(hash[:])
-	
+
 	return ja3sString, ja3sHash
 }
 
 // removeGREASE removes GREASE values from the list
 func (fp *JA3Fingerprinter) removeGREASE(values []string) []string {
 	var filtered []string
-	
+
 	for _, val := range values {
 		intVal, _ := strconv.Atoi(val)
 		// GREASE values are of form 0x0a0a, 0x1a1a, 0x2a2a, etc.
@@ -286,7 +286,7 @@ func (fp *JA3Fingerprinter) removeGREASE(values []string) []string {
 			filtered = append(filtered, val)
 		}
 	}
-	
+
 	return filtered
 }
 
@@ -299,13 +299,13 @@ func (fp *JA3Fingerprinter) AnalyzeFingerprint(ja3Hash string) (*FingerprintResu
 		return cached, nil
 	}
 	fp.cacheMutex.RUnlock()
-	
+
 	result := &FingerprintResult{
 		JA3Hash:   ja3Hash,
 		Timestamp: time.Now(),
 		IsBot:     false,
 	}
-	
+
 	// Check against known bot signatures
 	if bot, ok := fp.knownBots[ja3Hash]; ok {
 		result.IsBot = true
@@ -329,7 +329,7 @@ func (fp *JA3Fingerprinter) AnalyzeFingerprint(ja3Hash string) (*FingerprintResu
 	}
 	fp.cache[ja3Hash] = result
 	fp.cacheMutex.Unlock()
-	
+
 	return result, nil
 }
 
@@ -347,7 +347,7 @@ func (tl *TLSListener) Accept() (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Wrap connection to intercept handshake
 	return &fingerprintConn{
 		Conn:          conn,
@@ -366,19 +366,19 @@ type fingerprintConn struct {
 func (fp *JA3Fingerprinter) GetJA3Stats() map[string]interface{} {
 	fp.cacheMutex.RLock()
 	defer fp.cacheMutex.RUnlock()
-	
+
 	botCount := 0
 	for _, result := range fp.cache {
 		if result.IsBot {
 			botCount++
 		}
 	}
-	
+
 	return map[string]interface{}{
 		"total_fingerprints": len(fp.cache),
-		"known_bots":        len(fp.knownBots),
-		"bots_detected":     botCount,
-		"cache_size":        len(fp.cache),
+		"known_bots":         len(fp.knownBots),
+		"bots_detected":      botCount,
+		"cache_size":         len(fp.cache),
 	}
 }
 
@@ -386,14 +386,14 @@ func (fp *JA3Fingerprinter) GetJA3Stats() map[string]interface{} {
 func (fp *JA3Fingerprinter) AddCustomSignature(name string, ja3Hash string, description string) {
 	fp.cacheMutex.Lock()
 	defer fp.cacheMutex.Unlock()
-	
+
 	fp.knownBots[ja3Hash] = BotSignature{
 		Name:        name,
 		JA3Hash:     ja3Hash,
 		Description: description,
 		Confidence:  0.80,
 	}
-	
+
 	log.Info("[JA3] Added custom signature: %s", name)
 }
 
@@ -401,17 +401,17 @@ func (fp *JA3Fingerprinter) AddCustomSignature(name string, ja3Hash string, desc
 func (fp *JA3Fingerprinter) ExportSignatures() []BotSignature {
 	fp.cacheMutex.RLock()
 	defer fp.cacheMutex.RUnlock()
-	
+
 	signatures := make([]BotSignature, 0, len(fp.knownBots))
 	for _, sig := range fp.knownBots {
 		signatures = append(signatures, sig)
 	}
-	
+
 	// Sort by confidence
 	sort.Slice(signatures, func(i, j int) bool {
 		return signatures[i].Confidence > signatures[j].Confidence
 	})
-	
+
 	return signatures
 }
 
@@ -420,42 +420,42 @@ func ParseClientHello(data []byte) (*ClientHelloInfo, error) {
 	if len(data) < 43 {
 		return nil, fmt.Errorf("data too short to be valid ClientHello")
 	}
-	
+
 	// This is a simplified parser - in production, use a proper TLS parser
 	hello := &ClientHelloInfo{}
-	
+
 	// Skip handshake header (5 bytes) and extract version (2 bytes)
 	if data[0] == 0x16 && data[1] == 0x03 { // TLS handshake
 		offset := 5
-		
+
 		// Check handshake type (1 byte)
 		if data[offset] != 0x01 { // ClientHello
 			return nil, fmt.Errorf("not a ClientHello message")
 		}
 		offset++
-		
+
 		// Skip length (3 bytes)
 		offset += 3
-		
+
 		// TLS version (2 bytes)
 		hello.TLSVersion = uint16(data[offset])<<8 | uint16(data[offset+1])
 		offset += 2
-		
+
 		// Skip random (32 bytes)
 		offset += 32
-		
+
 		// Session ID length (1 byte)
 		sessionIDLen := int(data[offset])
 		offset++
 		offset += sessionIDLen
-		
+
 		// Cipher suites length (2 bytes)
 		if offset+2 > len(data) {
 			return nil, fmt.Errorf("invalid ClientHello format")
 		}
 		cipherLen := int(data[offset])<<8 | int(data[offset+1])
 		offset += 2
-		
+
 		// Extract cipher suites
 		numCiphers := cipherLen / 2
 		hello.CipherSuites = make([]uint16, numCiphers)
@@ -463,11 +463,11 @@ func ParseClientHello(data []byte) (*ClientHelloInfo, error) {
 			hello.CipherSuites[i] = uint16(data[offset])<<8 | uint16(data[offset+1])
 			offset += 2
 		}
-		
+
 		// Continue parsing for extensions, curves, etc.
 		// This is simplified - full implementation would parse all fields
 	}
-	
+
 	return hello, nil
 }
 
@@ -499,10 +499,6 @@ func (fp *JA3Fingerprinter) GetKnownBotCount() int {
 	return len(fp.knownBots)
 }
 
-
-
-
-
 // TLSInterceptor intercepts TLS handshakes to extract JA3 fingerprints
 type TLSInterceptor struct {
 	fingerprinter *JA3Fingerprinter
@@ -513,15 +509,15 @@ type TLSInterceptor struct {
 // InterceptedConn wraps a connection to capture TLS handshake data
 type InterceptedConn struct {
 	net.Conn
-	interceptor    *TLSInterceptor
-	clientHello    []byte
-	clientHelloMu  sync.Mutex
-	remoteAddr     string
-	ja3Result      *FingerprintResult
-	handshakeBuf   []byte // buffer to accumulate fragmented TLS record
-	recordLen      int    // expected TLS record payload length (from header)
-	handshakeDone  bool   // true once we've attempted parsing (success or not)
-	notTLS         bool   // true if first bytes are not a TLS handshake
+	interceptor   *TLSInterceptor
+	clientHello   []byte
+	clientHelloMu sync.Mutex
+	remoteAddr    string
+	ja3Result     *FingerprintResult
+	handshakeBuf  []byte // buffer to accumulate fragmented TLS record
+	recordLen     int    // expected TLS record payload length (from header)
+	handshakeDone bool   // true once we've attempted parsing (success or not)
+	notTLS        bool   // true if first bytes are not a TLS handshake
 }
 
 // NewTLSInterceptor creates a new TLS interceptor

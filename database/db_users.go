@@ -11,13 +11,13 @@ import (
 const UsersTable = "users"
 
 type User struct {
-	Id           int    `json:"id"`
-	Username     string `json:"username"`
-	PasswordHash string `json:"password_hash"`
-	Role         string `json:"role"`
-	CreatedAt    int64  `json:"created_at"`
-	LastLogin    int64  `json:"last_login"`
-	MustChangePassword bool `json:"must_change_password"`
+	Id                 int    `json:"id"`
+	Username           string `json:"username"`
+	PasswordHash       string `json:"password_hash"`
+	Role               string `json:"role"`
+	CreatedAt          int64  `json:"created_at"`
+	LastLogin          int64  `json:"last_login"`
+	MustChangePassword bool   `json:"must_change_password"`
 }
 
 func (d *Database) usersInit() {
@@ -31,19 +31,25 @@ func (d *Database) usersCreate(username string, passwordHash string, role string
 		return nil, fmt.Errorf("user already exists: %s", username)
 	}
 
-	id, _ := d.getNextId(UsersTable)
+	id, err := d.getNextId(UsersTable)
+	if err != nil {
+		return nil, fmt.Errorf("users: getNextId: %w", err)
+	}
 
 	u := &User{
-		Id:           id,
-		Username:     username,
-		PasswordHash: passwordHash,
-		Role:         role,
-		CreatedAt:    time.Now().UTC().Unix(),
-		LastLogin:    0,
+		Id:                 id,
+		Username:           username,
+		PasswordHash:       passwordHash,
+		Role:               role,
+		CreatedAt:          time.Now().UTC().Unix(),
+		LastLogin:          0,
 		MustChangePassword: false,
 	}
 
-	jf, _ := json.Marshal(u)
+	jf, err := json.Marshal(u)
+	if err != nil {
+		return nil, fmt.Errorf("users: marshal: %w", err)
+	}
 
 	err = d.db.Update(func(tx *buntdb.Tx) error {
 		tx.Set(d.genIndex(UsersTable, id), string(jf), nil)
@@ -118,9 +124,12 @@ func (d *Database) usersList() ([]*User, error) {
 }
 
 func (d *Database) usersUpdate(id int, u *User) error {
-	jf, _ := json.Marshal(u)
+	jf, err := json.Marshal(u)
+	if err != nil {
+		return fmt.Errorf("users: marshal: %w", err)
+	}
 
-	err := d.db.Update(func(tx *buntdb.Tx) error {
+	err = d.db.Update(func(tx *buntdb.Tx) error {
 		tx.Set(d.genIndex(UsersTable, id), string(jf), nil)
 		return nil
 	})

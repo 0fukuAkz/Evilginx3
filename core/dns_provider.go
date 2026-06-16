@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -15,42 +15,42 @@ import (
 
 // DNSRecord represents a DNS record
 type DNSRecord struct {
-	Type    string
-	Name    string
-	Value   string
-	TTL     int
-	ID      string
+	Type  string
+	Name  string
+	Value string
+	TTL   int
+	ID    string
 }
 
 // DNSProvider defines the interface for DNS providers
 type DNSProvider interface {
 	// Initialize the provider with credentials
 	Initialize(config map[string]string) error
-	
+
 	// CreateRecord creates a new DNS record
 	CreateRecord(domain string, record *DNSRecord) error
-	
+
 	// UpdateRecord updates an existing DNS record
 	UpdateRecord(domain string, recordID string, record *DNSRecord) error
-	
+
 	// DeleteRecord deletes a DNS record
 	DeleteRecord(domain string, recordID string) error
-	
+
 	// GetRecords returns all DNS records for a domain
 	GetRecords(domain string) ([]*DNSRecord, error)
-	
+
 	// GetRecord returns a specific DNS record
 	GetRecord(domain string, recordID string) (*DNSRecord, error)
-	
+
 	// CreateTXTRecord creates a TXT record (for DNS challenges)
 	CreateTXTRecord(domain string, name string, value string, ttl int) (string, error)
-	
+
 	// DeleteTXTRecord deletes a TXT record by ID
 	DeleteTXTRecord(domain string, recordID string) error
-	
+
 	// GetZoneID returns the zone ID for a domain
 	GetZoneID(domain string) (string, error)
-	
+
 	// Name returns the provider name
 	Name() string
 }
@@ -72,11 +72,11 @@ func NewDNSProviderRegistry() *DNSProviderRegistry {
 func (r *DNSProviderRegistry) Register(name string, provider DNSProvider) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	if _, exists := r.providers[name]; exists {
 		return fmt.Errorf("dns provider '%s' already registered", name)
 	}
-	
+
 	r.providers[name] = provider
 	log.Info("Registered DNS provider: %s", name)
 	return nil
@@ -86,12 +86,12 @@ func (r *DNSProviderRegistry) Register(name string, provider DNSProvider) error 
 func (r *DNSProviderRegistry) Get(name string) (DNSProvider, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	provider, exists := r.providers[name]
 	if !exists {
 		return nil, fmt.Errorf("dns provider '%s' not found", name)
 	}
-	
+
 	return provider, nil
 }
 
@@ -99,12 +99,12 @@ func (r *DNSProviderRegistry) Get(name string) (DNSProvider, error) {
 func (r *DNSProviderRegistry) List() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	names := make([]string, 0, len(r.providers))
 	for name := range r.providers {
 		names = append(names, name)
 	}
-	
+
 	return names
 }
 
@@ -123,22 +123,22 @@ func NewDNSProviderManager(cfg *Config) *DNSProviderManager {
 		registry:       NewDNSProviderRegistry(),
 		domainProvider: make(map[string]DNSProvider),
 	}
-	
+
 	// Initialize providers
 	manager.initializeProviders()
-	
+
 	return manager
 }
 
 // initializeProviders initializes all configured DNS providers
 func (m *DNSProviderManager) initializeProviders() {
 	log.Debug("Initializing DNS providers...")
-	
+
 	dnsConfig := m.cfg.GetDNSProviderConfig()
 	if dnsConfig == nil || !dnsConfig.Enabled {
 		return
 	}
-	
+
 	switch strings.ToLower(dnsConfig.Provider) {
 	case "cloudflare":
 		provider := NewCloudflareDNSProvider()
@@ -162,13 +162,13 @@ func (m *DNSProviderManager) initializeProviders() {
 func (m *DNSProviderManager) GetProviderForDomain(domain string) (DNSProvider, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	// Check if domain has a specific provider
 	provider, exists := m.domainProvider[domain]
 	if exists {
 		return provider, nil
 	}
-	
+
 	// Check parent domains
 	parts := strings.Split(domain, ".")
 	for i := 1; i < len(parts); i++ {
@@ -178,13 +178,13 @@ func (m *DNSProviderManager) GetProviderForDomain(domain string) (DNSProvider, e
 			return provider, nil
 		}
 	}
-	
+
 	// Return default provider if configured
 	defaultProvider := m.cfg.GetDefaultDNSProvider()
 	if defaultProvider != "" {
 		return m.registry.Get(defaultProvider)
 	}
-	
+
 	return nil, fmt.Errorf("no DNS provider configured for domain: %s", domain)
 }
 
@@ -194,13 +194,13 @@ func (m *DNSProviderManager) SetProviderForDomain(domain string, providerName st
 	if err != nil {
 		return err
 	}
-	
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	m.domainProvider[domain] = provider
 	log.Info("Set DNS provider '%s' for domain '%s'", providerName, domain)
-	
+
 	return nil
 }
 
@@ -210,7 +210,7 @@ func (m *DNSProviderManager) CreateRecord(domain string, record *DNSRecord) erro
 	if err != nil {
 		return err
 	}
-	
+
 	return provider.CreateRecord(domain, record)
 }
 
@@ -220,7 +220,7 @@ func (m *DNSProviderManager) UpdateRecord(domain string, recordID string, record
 	if err != nil {
 		return err
 	}
-	
+
 	return provider.UpdateRecord(domain, recordID, record)
 }
 
@@ -230,7 +230,7 @@ func (m *DNSProviderManager) DeleteRecord(domain string, recordID string) error 
 	if err != nil {
 		return err
 	}
-	
+
 	return provider.DeleteRecord(domain, recordID)
 }
 
@@ -240,7 +240,7 @@ func (m *DNSProviderManager) GetRecords(domain string) ([]*DNSRecord, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return provider.GetRecords(domain)
 }
 
@@ -250,18 +250,18 @@ func (m *DNSProviderManager) CreateDNSChallenge(domain string, token string) (st
 	if err != nil {
 		return "", err
 	}
-	
+
 	// Create _acme-challenge TXT record
 	challengeName := "_acme-challenge"
 	if domain != "" {
 		challengeName = "_acme-challenge." + domain
 	}
-	
+
 	recordID, err := provider.CreateTXTRecord(domain, challengeName, token, 60)
 	if err != nil {
 		return "", fmt.Errorf("failed to create DNS challenge: %v", err)
 	}
-	
+
 	log.Info("Created DNS challenge record for %s", domain)
 	return recordID, nil
 }
@@ -272,12 +272,12 @@ func (m *DNSProviderManager) CleanupDNSChallenge(domain string, recordID string)
 	if err != nil {
 		return err
 	}
-	
+
 	err = provider.DeleteTXTRecord(domain, recordID)
 	if err != nil {
 		return fmt.Errorf("failed to cleanup DNS challenge: %v", err)
 	}
-	
+
 	log.Info("Cleaned up DNS challenge record for %s", domain)
 	return nil
 }
@@ -326,7 +326,7 @@ func (p *CloudflareDNSProvider) setAuth(req *http.Request) {
 }
 
 type cfAPIResponse struct {
-	Success bool            `json:"success"`
+	Success bool `json:"success"`
 	Errors  []struct {
 		Message string `json:"message"`
 	} `json:"errors"`
@@ -365,7 +365,7 @@ func (p *CloudflareDNSProvider) doRequest(method, url string, body interface{}) 
 	}
 	defer resp.Body.Close()
 
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("cloudflare: failed to read response: %v", err)
 	}

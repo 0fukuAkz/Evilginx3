@@ -2,6 +2,7 @@ package database
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 
 	"github.com/tidwall/buntdb"
@@ -134,6 +135,10 @@ func (d *Database) getNextId(table_name string) (int, error) {
 }
 
 func (d *Database) getPivot(t interface{}) string {
-	pivot, _ := json.Marshal(t)
+	pivot, err := json.Marshal(t)
+	if err != nil {
+		// json.Marshal on simple map types should never fail; panic would hide the bug silently
+		panic(fmt.Sprintf("database: getPivot: marshal failed: %v", err))
+	}
 	return string(pivot)
 }

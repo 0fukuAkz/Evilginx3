@@ -375,7 +375,6 @@ func (ts *TrafficShaper) Evaluate(req *http.Request, clientIP string) RateVerdic
 		return verdict
 	}
 
-
 	// Queue request if priority rules enabled
 	if ts.priorityQueue != nil {
 		priority := ts.calculatePriority(req, limiter)

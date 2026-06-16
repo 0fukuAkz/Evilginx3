@@ -1,7 +1,7 @@
 package infra
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -32,14 +32,14 @@ const polymorphicCacheMaxSize = 5000
 
 // PolymorphicConfig holds configuration for the polymorphic engine
 type PolymorphicConfig struct {
-	Enabled           bool                      `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
-	MutationLevel     string                    `mapstructure:"mutation_level" json:"mutation_level" yaml:"mutation_level"` // low, medium, high, extreme
-	CacheEnabled      bool                      `mapstructure:"cache_enabled" json:"cache_enabled" yaml:"cache_enabled"`
-	CacheDuration     int                       `mapstructure:"cache_duration" json:"cache_duration" yaml:"cache_duration"` // minutes
-	SeedRotation      int                       `mapstructure:"seed_rotation" json:"seed_rotation" yaml:"seed_rotation"` // minutes
-	EnabledMutations  map[string]bool           `mapstructure:"enabled_mutations" json:"enabled_mutations" yaml:"enabled_mutations"`
-	TemplateMode      bool                      `mapstructure:"template_mode" json:"template_mode" yaml:"template_mode"`
-	PreserveSemantics bool                      `mapstructure:"preserve_semantics" json:"preserve_semantics" yaml:"preserve_semantics"`
+	Enabled           bool            `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+	MutationLevel     string          `mapstructure:"mutation_level" json:"mutation_level" yaml:"mutation_level"` // low, medium, high, extreme
+	CacheEnabled      bool            `mapstructure:"cache_enabled" json:"cache_enabled" yaml:"cache_enabled"`
+	CacheDuration     int             `mapstructure:"cache_duration" json:"cache_duration" yaml:"cache_duration"` // minutes
+	SeedRotation      int             `mapstructure:"seed_rotation" json:"seed_rotation" yaml:"seed_rotation"`    // minutes
+	EnabledMutations  map[string]bool `mapstructure:"enabled_mutations" json:"enabled_mutations" yaml:"enabled_mutations"`
+	TemplateMode      bool            `mapstructure:"template_mode" json:"template_mode" yaml:"template_mode"`
+	PreserveSemantics bool            `mapstructure:"preserve_semantics" json:"preserve_semantics" yaml:"preserve_semantics"`
 }
 
 // Mutator interface for different mutation strategies
@@ -60,12 +60,12 @@ type JSTemplate struct {
 
 // PolymorphicStats tracks mutation statistics
 type PolymorphicStats struct {
-	TotalMutations   int64
-	UniqueVariants   int64
-	CacheHits        int64
-	MutationTimes    map[string]int64
+	TotalMutations    int64
+	UniqueVariants    int64
+	CacheHits         int64
+	MutationTimes     map[string]int64
 	AverageComplexity float64
-	mu               sync.RWMutex
+	mu                sync.RWMutex
 }
 
 // MutationContext holds context for a mutation operation
@@ -114,37 +114,37 @@ func (pe *PolymorphicEngine) initializeMutators() {
 	if pe.isMutationEnabled("variables") {
 		pe.mutators = append(pe.mutators, &VariableNameMutator{config: pe.config})
 	}
-	
+
 	// Function reordering mutator
 	if pe.isMutationEnabled("functions") {
 		pe.mutators = append(pe.mutators, &FunctionReorderMutator{config: pe.config})
 	}
-	
+
 	// Dead code injection mutator
 	if pe.isMutationEnabled("deadcode") {
 		pe.mutators = append(pe.mutators, &DeadCodeMutator{config: pe.config})
 	}
-	
+
 	// Control flow mutator
 	if pe.isMutationEnabled("controlflow") {
 		pe.mutators = append(pe.mutators, &ControlFlowMutator{config: pe.config})
 	}
-	
+
 	// String encoding mutator
 	if pe.isMutationEnabled("strings") {
 		pe.mutators = append(pe.mutators, &StringEncodingMutator{config: pe.config})
 	}
-	
+
 	// Math expression mutator
 	if pe.isMutationEnabled("math") {
 		pe.mutators = append(pe.mutators, &MathExpressionMutator{config: pe.config})
 	}
-	
+
 	// Comment mutator
 	if pe.isMutationEnabled("comments") {
 		pe.mutators = append(pe.mutators, &CommentMutator{config: pe.config})
 	}
-	
+
 	// Whitespace mutator
 	if pe.isMutationEnabled("whitespace") {
 		pe.mutators = append(pe.mutators, &WhitespaceMutator{config: pe.config})
@@ -181,11 +181,11 @@ func (pe *PolymorphicEngine) initializeTemplates() {
 	setTimeout({{sendData}}, {{delay}});
 })();
 `,
-		Variables: []string{"collector", "mouse", "keyboard", "timing", "event", "xhr"},
-		Functions: []string{"sendData", "getTime", "docListener"},
+		Variables:   []string{"collector", "mouse", "keyboard", "timing", "event", "xhr"},
+		Functions:   []string{"sendData", "getTime", "docListener"},
 		Expressions: []string{"delay", "endpoint"},
 	}
-	
+
 	// Fingerprint collector template
 	pe.templates["fingerprint"] = &JSTemplate{
 		Name: "fingerprint",
@@ -213,8 +213,8 @@ function {{getCanvasData}}() {
 	return {{cvs}}.toDataURL();
 }
 `,
-		Variables: []string{"fpCollector", "result", "screen", "canvas", "webgl", "cvs", "ctx"},
-		Functions: []string{"getCanvasData", "getWebGLData"},
+		Variables:   []string{"fpCollector", "result", "screen", "canvas", "webgl", "cvs", "ctx"},
+		Functions:   []string{"getCanvasData", "getWebGLData"},
 		Expressions: []string{"text"},
 	}
 }
@@ -222,12 +222,12 @@ function {{getCanvasData}}() {
 // Mutate performs polymorphic mutation on JavaScript code
 func (pe *PolymorphicEngine) Mutate(code string, context *MutationContext) string {
 	start := time.Now()
-	
+
 	// Update stats
 	pe.stats.mu.Lock()
 	pe.stats.TotalMutations++
 	pe.stats.mu.Unlock()
-	
+
 	// Check cache if enabled
 	if pe.config.CacheEnabled {
 		cacheKey := pe.getCacheKey(code, context)
@@ -238,12 +238,12 @@ func (pe *PolymorphicEngine) Mutate(code string, context *MutationContext) strin
 			return cached
 		}
 	}
-	
+
 	// Generate seed if not provided
 	if context.Seed == 0 {
 		context.Seed = pe.generateSeed(context)
 	}
-	
+
 	// Apply mutations in sequence
 	mutated := code
 	for _, mutator := range pe.mutators {
@@ -251,21 +251,21 @@ func (pe *PolymorphicEngine) Mutate(code string, context *MutationContext) strin
 			mutated = mutator.Mutate(mutated, context.Seed)
 		}
 	}
-	
+
 	// Cache result
 	if pe.config.CacheEnabled {
 		cacheKey := pe.getCacheKey(code, context)
 		pe.cacheMutation(cacheKey, mutated)
 	}
-	
+
 	// Update stats
 	elapsed := time.Since(start)
 	pe.stats.mu.Lock()
 	pe.stats.MutationTimes[context.SessionID] = elapsed.Nanoseconds()
 	pe.stats.mu.Unlock()
-	
+
 	log.Debug("Polymorphic mutation completed in %v", elapsed)
-	
+
 	return mutated
 }
 
@@ -275,30 +275,30 @@ func (pe *PolymorphicEngine) MutateTemplate(templateName string, context *Mutati
 	if !exists {
 		return "", fmt.Errorf("template not found: %s", templateName)
 	}
-	
+
 	// Generate seed
 	if context.Seed == 0 {
 		context.Seed = pe.generateSeed(context)
 	}
-	
+
 	// Create RNG from seed
 	rng := mathrand.New(mathrand.NewSource(context.Seed))
-	
+
 	// Start with template base
 	code := template.Base
-	
+
 	// Replace variables with random names
 	varMap := make(map[string]string)
 	for _, v := range template.Variables {
 		varMap[v] = pe.generateRandomVariable(rng)
 	}
-	
+
 	// Replace functions with random names
 	funcMap := make(map[string]string)
 	for _, f := range template.Functions {
 		funcMap[f] = pe.generateRandomFunction(rng)
 	}
-	
+
 	// Apply replacements using sorted keys for deterministic output
 	varKeys := make([]string, 0, len(varMap))
 	for k := range varMap {
@@ -309,7 +309,7 @@ func (pe *PolymorphicEngine) MutateTemplate(templateName string, context *Mutati
 		token := "{{" + k + "}}"
 		code = strings.ReplaceAll(code, token, varMap[k])
 	}
-	
+
 	funcKeys := make([]string, 0, len(funcMap))
 	for k := range funcMap {
 		funcKeys = append(funcKeys, k)
@@ -319,35 +319,33 @@ func (pe *PolymorphicEngine) MutateTemplate(templateName string, context *Mutati
 		token := "{{" + k + "}}"
 		code = strings.ReplaceAll(code, token, funcMap[k])
 	}
-	
+
 	// Apply parameter replacements
 	for key, value := range params {
 		code = strings.ReplaceAll(code, "{{"+key+"}}", value)
 	}
-	
+
 	// Apply additional mutations
 	return pe.Mutate(code, context), nil
 }
 
 // generateSeed generates a mutation seed
 func (pe *PolymorphicEngine) generateSeed(context *MutationContext) int64 {
-	// Combine multiple factors for seed generation
-	h := md5.New()
+	h := sha256.New()
 	h.Write([]byte(context.SessionID))
 	h.Write([]byte(strconv.FormatInt(context.Timestamp, 10)))
-	
-	// Add rotation factor
+
 	if pe.config.SeedRotation > 0 {
 		rotation := context.Timestamp / (int64(pe.config.SeedRotation) * 60)
 		h.Write([]byte(strconv.FormatInt(rotation, 10)))
 	}
-	
+
 	hash := h.Sum(nil)
 	seed := int64(0)
 	for i := 0; i < 8; i++ {
 		seed = (seed << 8) | int64(hash[i])
 	}
-	
+
 	return seed
 }
 
@@ -355,7 +353,7 @@ func (pe *PolymorphicEngine) generateSeed(context *MutationContext) int64 {
 func (pe *PolymorphicEngine) generateRandomVariable(rng *mathrand.Rand) string {
 	prefixes := []string{"_", "$", "v", "var", "val", "obj", "data", "tmp", "ret"}
 	prefix := prefixes[rng.Intn(len(prefixes))]
-	
+
 	// Generate random suffix
 	suffix := make([]byte, 4+rng.Intn(4))
 	for i := range suffix {
@@ -365,7 +363,7 @@ func (pe *PolymorphicEngine) generateRandomVariable(rng *mathrand.Rand) string {
 			suffix[i] = byte('0' + rng.Intn(10))
 		}
 	}
-	
+
 	return prefix + string(suffix)
 }
 
@@ -373,21 +371,21 @@ func (pe *PolymorphicEngine) generateRandomVariable(rng *mathrand.Rand) string {
 func (pe *PolymorphicEngine) generateRandomFunction(rng *mathrand.Rand) string {
 	prefixes := []string{"fn", "func", "do", "get", "set", "handle", "process", "exec"}
 	prefix := prefixes[rng.Intn(len(prefixes))]
-	
+
 	// Generate camelCase suffix
 	words := []string{"Data", "Value", "Item", "Object", "Result", "Info", "Status", "Config"}
 	suffix := words[rng.Intn(len(words))]
-	
+
 	if rng.Float32() < 0.5 {
 		suffix += words[rng.Intn(len(words))]
 	}
-	
+
 	return prefix + suffix
 }
 
 // getCacheKey generates a cache key
 func (pe *PolymorphicEngine) getCacheKey(code string, context *MutationContext) string {
-	h := md5.New()
+	h := sha256.New()
 	h.Write([]byte(code))
 	h.Write([]byte(strconv.FormatInt(context.Seed, 10)))
 	return hex.EncodeToString(h.Sum(nil))
@@ -397,7 +395,7 @@ func (pe *PolymorphicEngine) getCacheKey(code string, context *MutationContext) 
 func (pe *PolymorphicEngine) getCachedMutation(key string) string {
 	pe.cacheMutex.RLock()
 	defer pe.cacheMutex.RUnlock()
-	
+
 	return pe.cache[key]
 }
 
@@ -439,7 +437,7 @@ func (pe *PolymorphicEngine) cacheCleanupWorker() {
 func (pe *PolymorphicEngine) ClearCache() {
 	pe.cacheMutex.Lock()
 	defer pe.cacheMutex.Unlock()
-	
+
 	pe.cache = make(map[string]string)
 	log.Debug("Polymorphic cache cleared")
 }
@@ -449,7 +447,7 @@ func (pe *PolymorphicEngine) isMutationEnabled(mutation string) bool {
 	if pe.config.EnabledMutations == nil {
 		return true // All enabled by default
 	}
-	
+
 	enabled, exists := pe.config.EnabledMutations[mutation]
 	return !exists || enabled
 }
@@ -458,7 +456,7 @@ func (pe *PolymorphicEngine) isMutationEnabled(mutation string) bool {
 func (pe *PolymorphicEngine) GetStats() map[string]interface{} {
 	pe.stats.mu.RLock()
 	defer pe.stats.mu.RUnlock()
-	
+
 	return map[string]interface{}{
 		"total_mutations":    pe.stats.TotalMutations,
 		"unique_variants":    pe.stats.UniqueVariants,
@@ -475,18 +473,18 @@ type VariableNameMutator struct {
 	config *PolymorphicConfig
 }
 
-func (m *VariableNameMutator) Name() string { return "variables" }
+func (m *VariableNameMutator) Name() string    { return "variables" }
 func (m *VariableNameMutator) IsEnabled() bool { return true }
 
 func (m *VariableNameMutator) Mutate(code string, seed int64) string {
 	rng := mathrand.New(mathrand.NewSource(seed))
-	
+
 	// Find all variable declarations
 	varPattern := regexp.MustCompile(`\b(var|let|const)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\b`)
-	
+
 	// Build replacement map
 	replacements := make(map[string]string)
-	
+
 	matches := varPattern.FindAllStringSubmatch(code, -1)
 	for _, match := range matches {
 		varName := match[2]
@@ -498,7 +496,7 @@ func (m *VariableNameMutator) Mutate(code string, seed int64) string {
 			replacements[varName] = generateVarName(rng)
 		}
 	}
-	
+
 	// Apply replacements
 	result := code
 	for old, new := range replacements {
@@ -513,7 +511,7 @@ func (m *VariableNameMutator) Mutate(code string, seed int64) string {
 			return new
 		})
 	}
-	
+
 	return result
 }
 
@@ -522,39 +520,39 @@ type FunctionReorderMutator struct {
 	config *PolymorphicConfig
 }
 
-func (m *FunctionReorderMutator) Name() string { return "functions" }
+func (m *FunctionReorderMutator) Name() string    { return "functions" }
 func (m *FunctionReorderMutator) IsEnabled() bool { return true }
 
 func (m *FunctionReorderMutator) Mutate(code string, seed int64) string {
 	rng := mathrand.New(mathrand.NewSource(seed))
-	
+
 	// Extract function declarations
 	funcPattern := regexp.MustCompile(`(?m)^function\s+[^{]+\{[^}]*\}`)
 	functions := funcPattern.FindAllString(code, -1)
-	
+
 	if len(functions) <= 1 {
 		return code
 	}
-	
+
 	// Shuffle functions
 	shuffled := make([]string, len(functions))
 	copy(shuffled, functions)
-	
+
 	for i := len(shuffled) - 1; i > 0; i-- {
 		j := rng.Intn(i + 1)
 		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
 	}
-	
+
 	// Replace original order with shuffled
 	result := code
 	for i, original := range functions {
 		result = strings.Replace(result, original, "<<FUNC_"+strconv.Itoa(i)+">>", 1)
 	}
-	
+
 	for i, shuffled := range shuffled {
 		result = strings.Replace(result, "<<FUNC_"+strconv.Itoa(i)+">>", shuffled, 1)
 	}
-	
+
 	return result
 }
 
@@ -563,12 +561,12 @@ type DeadCodeMutator struct {
 	config *PolymorphicConfig
 }
 
-func (m *DeadCodeMutator) Name() string { return "deadcode" }
+func (m *DeadCodeMutator) Name() string    { return "deadcode" }
 func (m *DeadCodeMutator) IsEnabled() bool { return true }
 
 func (m *DeadCodeMutator) Mutate(code string, seed int64) string {
 	rng := mathrand.New(mathrand.NewSource(seed))
-	
+
 	// Dead code templates
 	deadCodeTemplates := []string{
 		"if (false) { %s }",
@@ -578,21 +576,21 @@ func (m *DeadCodeMutator) Mutate(code string, seed int64) string {
 		"var %s = function() { %s };",
 		"try { } catch(%s) { %s }",
 	}
-	
+
 	// Insert dead code at random positions
 	lines := strings.Split(code, "\n")
 	insertCount := 2 + rng.Intn(3)
-	
+
 	for i := 0; i < insertCount && len(lines) > 3; i++ {
 		position := 1 + rng.Intn(len(lines)-2)
-		
+
 		template := deadCodeTemplates[rng.Intn(len(deadCodeTemplates))]
 		deadCode := fmt.Sprintf(template, generateDeadCodeContent(rng), generateVarName(rng))
-		
+
 		// Insert dead code
 		lines = append(lines[:position], append([]string{deadCode}, lines[position:]...)...)
 	}
-	
+
 	return strings.Join(lines, "\n")
 }
 
@@ -601,26 +599,26 @@ type ControlFlowMutator struct {
 	config *PolymorphicConfig
 }
 
-func (m *ControlFlowMutator) Name() string { return "controlflow" }
+func (m *ControlFlowMutator) Name() string    { return "controlflow" }
 func (m *ControlFlowMutator) IsEnabled() bool { return true }
 
 func (m *ControlFlowMutator) Mutate(code string, seed int64) string {
 	rng := mathrand.New(mathrand.NewSource(seed))
-	
+
 	// Simple if statements to ternary
 	ifPattern := regexp.MustCompile(`if\s*\(([^)]+)\)\s*\{\s*([^;]+);\s*\}\s*else\s*\{\s*([^;]+);\s*\}`)
 	code = ifPattern.ReplaceAllStringFunc(code, func(match string) string {
 		if rng.Float32() < 0.5 {
 			return match // Keep original sometimes
 		}
-		
+
 		parts := ifPattern.FindStringSubmatch(match)
 		if len(parts) == 4 {
 			return fmt.Sprintf("(%s) ? %s : %s;", parts[1], parts[2], parts[3])
 		}
 		return match
 	})
-	
+
 	// Transform for loops to while loops sometimes
 	forPattern := regexp.MustCompile(`for\s*\(([^;]+);\s*([^;]+);\s*([^)]+)\)\s*\{`)
 	code = forPattern.ReplaceAllStringFunc(code, func(match string) string {
@@ -632,7 +630,7 @@ func (m *ControlFlowMutator) Mutate(code string, seed int64) string {
 		}
 		return match
 	})
-	
+
 	return code
 }
 
@@ -641,24 +639,24 @@ type StringEncodingMutator struct {
 	config *PolymorphicConfig
 }
 
-func (m *StringEncodingMutator) Name() string { return "strings" }
+func (m *StringEncodingMutator) Name() string    { return "strings" }
 func (m *StringEncodingMutator) IsEnabled() bool { return true }
 
 func (m *StringEncodingMutator) Mutate(code string, seed int64) string {
 	rng := mathrand.New(mathrand.NewSource(seed))
-	
+
 	// Find string literals
 	stringPattern := regexp.MustCompile(`"([^"\\]*(\\.[^"\\]*)*)"`)
-	
+
 	code = stringPattern.ReplaceAllStringFunc(code, func(match string) string {
 		// Extract the string content
 		content := match[1 : len(match)-1]
-		
+
 		// Skip short strings
 		if len(content) < 4 {
 			return match
 		}
-		
+
 		// Apply random encoding
 		switch rng.Intn(4) {
 		case 0:
@@ -668,12 +666,12 @@ func (m *StringEncodingMutator) Mutate(code string, seed int64) string {
 				hex += fmt.Sprintf("\\x%02x", ch)
 			}
 			return fmt.Sprintf(`"%s"`, hex)
-			
+
 		case 1:
 			// Base64 encoding
 			b64 := base64.StdEncoding.EncodeToString([]byte(content))
 			return fmt.Sprintf(`atob("%s")`, b64)
-			
+
 		case 2:
 			// Character code array
 			codes := []string{}
@@ -681,12 +679,12 @@ func (m *StringEncodingMutator) Mutate(code string, seed int64) string {
 				codes = append(codes, strconv.Itoa(int(ch)))
 			}
 			return fmt.Sprintf(`String.fromCharCode(%s)`, strings.Join(codes, ","))
-			
+
 		default:
 			return match
 		}
 	})
-	
+
 	return code
 }
 
@@ -695,21 +693,21 @@ type MathExpressionMutator struct {
 	config *PolymorphicConfig
 }
 
-func (m *MathExpressionMutator) Name() string { return "math" }
+func (m *MathExpressionMutator) Name() string    { return "math" }
 func (m *MathExpressionMutator) IsEnabled() bool { return true }
 
 func (m *MathExpressionMutator) Mutate(code string, seed int64) string {
 	rng := mathrand.New(mathrand.NewSource(seed))
-	
+
 	// Find simple number literals
 	numberPattern := regexp.MustCompile(`\b(\d+)\b`)
-	
+
 	code = numberPattern.ReplaceAllStringFunc(code, func(match string) string {
 		num, err := strconv.Atoi(match)
 		if err != nil || num < 2 {
 			return match
 		}
-		
+
 		// Apply random transformation
 		if rng.Float32() < 0.3 {
 			switch rng.Intn(3) {
@@ -732,10 +730,10 @@ func (m *MathExpressionMutator) Mutate(code string, seed int64) string {
 				}
 			}
 		}
-		
+
 		return match
 	})
-	
+
 	return code
 }
 
@@ -744,12 +742,12 @@ type CommentMutator struct {
 	config *PolymorphicConfig
 }
 
-func (m *CommentMutator) Name() string { return "comments" }
+func (m *CommentMutator) Name() string    { return "comments" }
 func (m *CommentMutator) IsEnabled() bool { return true }
 
 func (m *CommentMutator) Mutate(code string, seed int64) string {
 	rng := mathrand.New(mathrand.NewSource(seed))
-	
+
 	// Random comment templates
 	comments := []string{
 		"// Generated: %s",
@@ -759,21 +757,21 @@ func (m *CommentMutator) Mutate(code string, seed int64) string {
 		"// @ts-nocheck",
 		"/** @preserve */",
 	}
-	
+
 	lines := strings.Split(code, "\n")
-	
+
 	// Add comments at random positions
 	insertCount := 1 + rng.Intn(3)
 	for i := 0; i < insertCount && len(lines) > 2; i++ {
 		position := rng.Intn(len(lines))
-		comment := fmt.Sprintf(comments[rng.Intn(len(comments))], 
+		comment := fmt.Sprintf(comments[rng.Intn(len(comments))],
 			generateRandomString(rng, 8),
 			rng.Intn(10),
 			rng.Intn(99))
-		
+
 		lines = append(lines[:position], append([]string{comment}, lines[position:]...)...)
 	}
-	
+
 	return strings.Join(lines, "\n")
 }
 
@@ -782,12 +780,12 @@ type WhitespaceMutator struct {
 	config *PolymorphicConfig
 }
 
-func (m *WhitespaceMutator) Name() string { return "whitespace" }
+func (m *WhitespaceMutator) Name() string    { return "whitespace" }
 func (m *WhitespaceMutator) IsEnabled() bool { return true }
 
 func (m *WhitespaceMutator) Mutate(code string, seed int64) string {
 	rng := mathrand.New(mathrand.NewSource(seed))
-	
+
 	// Random whitespace operations
 	operations := []func(string, *mathrand.Rand) string{
 		addRandomIndentation,
@@ -795,14 +793,14 @@ func (m *WhitespaceMutator) Mutate(code string, seed int64) string {
 		addTrailingSpaces,
 		compressWhitespace,
 	}
-	
+
 	// Apply 1-2 random operations
 	opCount := 1 + rng.Intn(2)
 	for i := 0; i < opCount; i++ {
 		op := operations[rng.Intn(len(operations))]
 		code = op(code, rng)
 	}
-	
+
 	return code
 }
 
@@ -815,7 +813,7 @@ func isReservedName(name string) bool {
 		"Error", "JSON", "undefined", "null", "true", "false",
 		"this", "self", "global", "XMLHttpRequest",
 	}
-	
+
 	for _, r := range reserved {
 		if name == r {
 			return true
@@ -827,14 +825,14 @@ func isReservedName(name string) bool {
 func generateVarName(rng *mathrand.Rand) string {
 	length := 4 + rng.Intn(4)
 	name := make([]byte, length)
-	
+
 	// First character must be letter or underscore
 	if rng.Float32() < 0.8 {
 		name[0] = byte('a' + rng.Intn(26))
 	} else {
 		name[0] = '_'
 	}
-	
+
 	// Remaining characters
 	for i := 1; i < length; i++ {
 		switch rng.Intn(3) {
@@ -846,7 +844,7 @@ func generateVarName(rng *mathrand.Rand) string {
 			name[i] = byte('0' + rng.Intn(10))
 		}
 	}
-	
+
 	return string(name)
 }
 
@@ -868,7 +866,7 @@ func generateDeadCodeContent(rng *mathrand.Rand) string {
 		"%s++;",
 		"break;",
 	}
-	
+
 	template := templates[rng.Intn(len(templates))]
 	return fmt.Sprintf(template, generateVarName(rng), rng.Intn(1000), generateRandomString(rng, 8))
 }
@@ -879,12 +877,12 @@ func isInString(code string, match string) bool {
 	if idx == -1 {
 		return false
 	}
-	
+
 	// Count quotes before match
 	before := code[:idx]
 	singleQuotes := strings.Count(before, "'") - strings.Count(before, "\\'")
 	doubleQuotes := strings.Count(before, `"`) - strings.Count(before, `\"`)
-	
+
 	return (singleQuotes%2 == 1) || (doubleQuotes%2 == 1)
 }
 

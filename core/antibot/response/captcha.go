@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 
@@ -15,33 +15,33 @@ import (
 type CaptchaProvider interface {
 	// GetName returns the provider name
 	GetName() string
-	
+
 	// GetScriptURL returns the JavaScript URL to include
 	GetScriptURL() string
-	
+
 	// GetRenderHTML returns the HTML to render the CAPTCHA
 	GetRenderHTML() string
-	
+
 	// Verify verifies the CAPTCHA response
 	Verify(response string, remoteIP string) (bool, error)
-	
+
 	// IsConfigured checks if the provider is properly configured
 	IsConfigured() bool
 }
 
 // CaptchaManager manages multiple CAPTCHA providers
 type CaptchaManager struct {
-	providers     map[string]CaptchaProvider
+	providers      map[string]CaptchaProvider
 	activeProvider string
-	config        *CaptchaConfig
+	config         *CaptchaConfig
 }
 
 // CaptchaConfig holds configuration for all CAPTCHA providers
 type CaptchaConfig struct {
-	Enabled        bool                     `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
-	Provider       string                   `mapstructure:"provider" json:"provider" yaml:"provider"`
-	RequireForLures bool                    `mapstructure:"require_for_lures" json:"require_for_lures" yaml:"require_for_lures"`
-	Providers      map[string]ProviderConfig `mapstructure:"providers" json:"providers" yaml:"providers"`
+	Enabled         bool                      `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+	Provider        string                    `mapstructure:"provider" json:"provider" yaml:"provider"`
+	RequireForLures bool                      `mapstructure:"require_for_lures" json:"require_for_lures" yaml:"require_for_lures"`
+	Providers       map[string]ProviderConfig `mapstructure:"providers" json:"providers" yaml:"providers"`
 }
 
 // ProviderConfig holds configuration for a specific provider
@@ -88,7 +88,7 @@ func NewCaptchaManager(config *CaptchaConfig) *CaptchaManager {
 		providers: make(map[string]CaptchaProvider),
 		config:    config,
 	}
-	
+
 	// Initialize providers based on configuration
 	if config != nil && config.Providers != nil {
 		for providerName, providerConfig := range config.Providers {
@@ -101,7 +101,7 @@ func NewCaptchaManager(config *CaptchaConfig) *CaptchaManager {
 					providerConfig.Options["size"],
 				)
 				cm.providers["recaptcha_v2"] = provider
-				
+
 			case "recaptcha_v3":
 				threshold := 0.5
 				if t, ok := providerConfig.Options["threshold"]; ok {
@@ -114,7 +114,7 @@ func NewCaptchaManager(config *CaptchaConfig) *CaptchaManager {
 					threshold,
 				)
 				cm.providers["recaptcha_v3"] = provider
-				
+
 			case "hcaptcha":
 				provider := NewHCaptchaProvider(
 					providerConfig.SiteKey,
@@ -122,7 +122,7 @@ func NewCaptchaManager(config *CaptchaConfig) *CaptchaManager {
 					providerConfig.Options["theme"],
 				)
 				cm.providers["hcaptcha"] = provider
-				
+
 			case "turnstile":
 				provider := NewTurnstileProvider(
 					providerConfig.SiteKey,
@@ -133,14 +133,14 @@ func NewCaptchaManager(config *CaptchaConfig) *CaptchaManager {
 				cm.providers["turnstile"] = provider
 			}
 		}
-		
+
 		// Set active provider
 		if config.Provider != "" && cm.providers[config.Provider] != nil {
 			cm.activeProvider = config.Provider
 			log.Info("Active CAPTCHA provider: %s", cm.activeProvider)
 		}
 	}
-	
+
 	return cm
 }
 
@@ -185,15 +185,15 @@ func (cm *CaptchaManager) GetCaptchaHTML() string {
 	if !cm.IsEnabled() {
 		return ""
 	}
-	
+
 	provider := cm.GetActiveProvider()
 	if provider == nil {
 		return ""
 	}
-	
+
 	scriptURL := provider.GetScriptURL()
 	renderHTML := provider.GetRenderHTML()
-	
+
 	// Wrap in a form that can be intercepted
 	html := fmt.Sprintf(`
 <!-- CAPTCHA Protection -->
@@ -262,7 +262,7 @@ func (cm *CaptchaManager) GetCaptchaHTML() string {
 })();
 </script>
 `, renderHTML, scriptURL, cm.getResponseExtractorJS(), cm.getResetJS())
-	
+
 	return html
 }
 
@@ -272,7 +272,11 @@ func (cm *CaptchaManager) getResponseExtractorJS() string {
 	case "recaptcha_v2":
 		return "response = grecaptcha.getResponse();"
 	case "recaptcha_v3":
-		return "grecaptcha.ready(function() { grecaptcha.execute('" + cm.providers["recaptcha_v3"].(*ReCaptchaV3Provider).siteKey + "', {action: '" + cm.providers["recaptcha_v3"].(*ReCaptchaV3Provider).action + "'}).then(function(token) { response = token; }); });"
+		p, ok := cm.providers["recaptcha_v3"].(*ReCaptchaV3Provider)
+		if !ok || p == nil {
+			return ""
+		}
+		return "grecaptcha.ready(function() { grecaptcha.execute('" + p.siteKey + "', {action: '" + p.action + "'}).then(function(token) { response = token; }); });"
 	case "hcaptcha":
 		return "response = hcaptcha.getResponse();"
 	case "turnstile":
@@ -303,12 +307,12 @@ func (cm *CaptchaManager) VerifyCaptcha(response string, remoteIP string) (bool,
 	if !cm.IsEnabled() {
 		return true, nil
 	}
-	
+
 	provider := cm.GetActiveProvider()
 	if provider == nil {
 		return false, fmt.Errorf("no active CAPTCHA provider")
 	}
-	
+
 	return provider.Verify(response, remoteIP)
 }
 
@@ -320,7 +324,7 @@ func NewReCaptchaV2Provider(siteKey, secretKey, theme, size string) *ReCaptchaV2
 	if size == "" {
 		size = "normal"
 	}
-	
+
 	return &ReCaptchaV2Provider{
 		siteKey:   siteKey,
 		secretKey: secretKey,
@@ -338,13 +342,13 @@ func (r *ReCaptchaV2Provider) GetScriptURL() string {
 }
 
 func (r *ReCaptchaV2Provider) GetRenderHTML() string {
-	return fmt.Sprintf(`<div class="g-recaptcha" data-sitekey="%s" data-theme="%s" data-size="%s"></div>`, 
+	return fmt.Sprintf(`<div class="g-recaptcha" data-sitekey="%s" data-theme="%s" data-size="%s"></div>`,
 		r.siteKey, r.theme, r.size)
 }
 
 func (r *ReCaptchaV2Provider) Verify(response string, remoteIP string) (bool, error) {
 	verifyURL := "https://www.google.com/recaptcha/api/siteverify"
-	
+
 	resp, err := http.PostForm(verifyURL, url.Values{
 		"secret":   {r.secretKey},
 		"response": {response},
@@ -354,22 +358,22 @@ func (r *ReCaptchaV2Provider) Verify(response string, remoteIP string) (bool, er
 		return false, err
 	}
 	defer resp.Body.Close()
-	
-	body, err := ioutil.ReadAll(resp.Body)
+
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return false, err
 	}
-	
+
 	var result struct {
 		Success bool   `json:"success"`
 		Error   string `json:"error-codes"`
 	}
-	
+
 	err = json.Unmarshal(body, &result)
 	if err != nil {
 		return false, err
 	}
-	
+
 	log.Debug("[reCAPTCHA v2] Verification result: %v", result.Success)
 	return result.Success, nil
 }
@@ -386,7 +390,7 @@ func NewReCaptchaV3Provider(siteKey, secretKey, action string, threshold float64
 	if threshold == 0 {
 		threshold = 0.5
 	}
-	
+
 	return &ReCaptchaV3Provider{
 		siteKey:   siteKey,
 		secretKey: secretKey,
@@ -409,7 +413,7 @@ func (r *ReCaptchaV3Provider) GetRenderHTML() string {
 
 func (r *ReCaptchaV3Provider) Verify(response string, remoteIP string) (bool, error) {
 	verifyURL := "https://www.google.com/recaptcha/api/siteverify"
-	
+
 	resp, err := http.PostForm(verifyURL, url.Values{
 		"secret":   {r.secretKey},
 		"response": {response},
@@ -419,30 +423,30 @@ func (r *ReCaptchaV3Provider) Verify(response string, remoteIP string) (bool, er
 		return false, err
 	}
 	defer resp.Body.Close()
-	
-	body, err := ioutil.ReadAll(resp.Body)
+
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return false, err
 	}
-	
+
 	var result struct {
 		Success bool    `json:"success"`
 		Score   float64 `json:"score"`
 		Action  string  `json:"action"`
 		Error   string  `json:"error-codes"`
 	}
-	
+
 	err = json.Unmarshal(body, &result)
 	if err != nil {
 		return false, err
 	}
-	
+
 	// Check score threshold
 	success := result.Success && result.Score >= r.threshold
-	
-	log.Debug("[reCAPTCHA v3] Verification result: success=%v, score=%.2f, threshold=%.2f", 
+
+	log.Debug("[reCAPTCHA v3] Verification result: success=%v, score=%.2f, threshold=%.2f",
 		result.Success, result.Score, r.threshold)
-	
+
 	return success, nil
 }
 
@@ -455,7 +459,7 @@ func NewHCaptchaProvider(siteKey, secretKey, theme string) *HCaptchaProvider {
 	if theme == "" {
 		theme = "light"
 	}
-	
+
 	return &HCaptchaProvider{
 		siteKey:   siteKey,
 		secretKey: secretKey,
@@ -472,44 +476,44 @@ func (h *HCaptchaProvider) GetScriptURL() string {
 }
 
 func (h *HCaptchaProvider) GetRenderHTML() string {
-	return fmt.Sprintf(`<div class="h-captcha" data-sitekey="%s" data-theme="%s"></div>`, 
+	return fmt.Sprintf(`<div class="h-captcha" data-sitekey="%s" data-theme="%s"></div>`,
 		h.siteKey, h.theme)
 }
 
 func (h *HCaptchaProvider) Verify(response string, remoteIP string) (bool, error) {
 	verifyURL := "https://hcaptcha.com/siteverify"
-	
+
 	formData := url.Values{
 		"secret":   {h.secretKey},
 		"response": {response},
 		"sitekey":  {h.siteKey},
 	}
-	
+
 	if remoteIP != "" {
 		formData.Add("remoteip", remoteIP)
 	}
-	
+
 	resp, err := http.PostForm(verifyURL, formData)
 	if err != nil {
 		return false, err
 	}
 	defer resp.Body.Close()
-	
-	body, err := ioutil.ReadAll(resp.Body)
+
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return false, err
 	}
-	
+
 	var result struct {
 		Success bool     `json:"success"`
 		Error   []string `json:"error-codes"`
 	}
-	
+
 	err = json.Unmarshal(body, &result)
 	if err != nil {
 		return false, err
 	}
-	
+
 	log.Debug("[hCaptcha] Verification result: %v", result.Success)
 	return result.Success, nil
 }
@@ -526,7 +530,7 @@ func NewTurnstileProvider(siteKey, secretKey, theme, mode string) *TurnstileProv
 	if mode == "" {
 		mode = "managed"
 	}
-	
+
 	return &TurnstileProvider{
 		siteKey:   siteKey,
 		secretKey: secretKey,
@@ -544,48 +548,48 @@ func (t *TurnstileProvider) GetScriptURL() string {
 }
 
 func (t *TurnstileProvider) GetRenderHTML() string {
-	return fmt.Sprintf(`<div class="cf-turnstile" data-sitekey="%s" data-theme="%s" data-appearance="%s"></div>`, 
+	return fmt.Sprintf(`<div class="cf-turnstile" data-sitekey="%s" data-theme="%s" data-appearance="%s"></div>`,
 		t.siteKey, t.theme, t.mode)
 }
 
 func (t *TurnstileProvider) Verify(response string, remoteIP string) (bool, error) {
 	verifyURL := "https://challenges.cloudflare.com/turnstile/v0/siteverify"
-	
+
 	payload := map[string]string{
 		"secret":   t.secretKey,
 		"response": response,
 	}
-	
+
 	if remoteIP != "" {
 		payload["remoteip"] = remoteIP
 	}
-	
+
 	jsonPayload, err := json.Marshal(payload)
 	if err != nil {
 		return false, err
 	}
-	
+
 	resp, err := http.Post(verifyURL, "application/json", bytes.NewReader(jsonPayload))
 	if err != nil {
 		return false, err
 	}
 	defer resp.Body.Close()
-	
-	body, err := ioutil.ReadAll(resp.Body)
+
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return false, err
 	}
-	
+
 	var result struct {
 		Success bool     `json:"success"`
 		Error   []string `json:"error-codes"`
 	}
-	
+
 	err = json.Unmarshal(body, &result)
 	if err != nil {
 		return false, err
 	}
-	
+
 	log.Debug("[Turnstile] Verification result: %v", result.Success)
 	return result.Success, nil
 }
@@ -597,11 +601,11 @@ func (t *TurnstileProvider) IsConfigured() bool {
 // GetCaptchaStats returns statistics about CAPTCHA usage
 func (cm *CaptchaManager) GetCaptchaStats() map[string]interface{} {
 	stats := make(map[string]interface{})
-	
+
 	stats["enabled"] = cm.IsEnabled()
 	stats["active_provider"] = cm.activeProvider
 	stats["configured_providers"] = cm.GetProviderNames()
 	stats["require_for_lures"] = cm.config != nil && cm.config.RequireForLures
-	
+
 	return stats
 }

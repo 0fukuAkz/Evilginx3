@@ -25,7 +25,10 @@ func (d *Database) auditInit() {
 }
 
 func (d *Database) auditCreate(username string, action string, detail string, ip string) (*AuditEntry, error) {
-	id, _ := d.getNextId(AuditTable)
+	id, err := d.getNextId(AuditTable)
+	if err != nil {
+		return nil, fmt.Errorf("audit: getNextId: %w", err)
+	}
 
 	entry := &AuditEntry{
 		Id:        id,
@@ -36,9 +39,12 @@ func (d *Database) auditCreate(username string, action string, detail string, ip
 		IPAddr:    ip,
 	}
 
-	jf, _ := json.Marshal(entry)
+	jf, err := json.Marshal(entry)
+	if err != nil {
+		return nil, fmt.Errorf("audit: marshal: %w", err)
+	}
 
-	err := d.db.Update(func(tx *buntdb.Tx) error {
+	err = d.db.Update(func(tx *buntdb.Tx) error {
 		tx.Set(d.genIndex(AuditTable, id), string(jf), nil)
 		return nil
 	})

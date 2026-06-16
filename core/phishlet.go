@@ -110,35 +110,34 @@ type PathRewrite struct {
 	Target  string `mapstructure:"target"`
 }
 
-
 type Phishlet struct {
-	Name             string
-	ParentName       string
-	Path             string
-	Author           string
-	Version          PhishletVersion
-	RedirectUrl      string
-	minVersion       string
-	proxyHosts       []ProxyHost
-	domains          []string
-	subfilters       map[string][]SubFilter
-	cookieAuthTokens map[string][]*CookieAuthToken
-	bodyAuthTokens   map[string]*BodyAuthToken
-	httpAuthTokens   map[string]*HttpAuthToken
-	authUrls         []*regexp.Regexp
+	Name              string
+	ParentName        string
+	Path              string
+	Author            string
+	Version           PhishletVersion
+	RedirectUrl       string
+	minVersion        string
+	proxyHosts        []ProxyHost
+	domains           []string
+	subfilters        map[string][]SubFilter
+	cookieAuthTokens  map[string][]*CookieAuthToken
+	bodyAuthTokens    map[string]*BodyAuthToken
+	httpAuthTokens    map[string]*HttpAuthToken
+	authUrls          []*regexp.Regexp
 	cookieGatherDelay int
-	username         PostField
-	password         PostField
-	landing_path     []string
-	cfg              *Config
-	custom           []PostField
-	forcePost        []ForcePost
-	login            LoginUrl
-	js_inject        []JsInject
-	intercept        []Intercept
-	pathRewrite      []PathRewrite
-	customParams     map[string]string
-	isTemplate       bool
+	username          PostField
+	password          PostField
+	landing_path      []string
+	cfg               *Config
+	custom            []PostField
+	forcePost         []ForcePost
+	login             LoginUrl
+	js_inject         []JsInject
+	intercept         []Intercept
+	pathRewrite       []PathRewrite
+	customParams      map[string]string
+	isTemplate        bool
 }
 
 type ConfigParam struct {
@@ -232,21 +231,21 @@ type ConfigPathRewrite struct {
 }
 
 type ConfigPhishlet struct {
-	Name        string               `mapstructure:"name"`
-	RedirectUrl string               `mapstructure:"redirect_url"`
-	Params      *[]ConfigParam       `mapstructure:"params"`
-	ProxyHosts  *[]ConfigProxyHost   `mapstructure:"proxy_hosts"`
-	SubFilters  *[]ConfigSubFilter   `mapstructure:"sub_filters"`
-	AuthTokens  *[]ConfigAuthToken   `mapstructure:"auth_tokens"`
-	AuthUrls         []string             `mapstructure:"auth_urls"`
+	Name              string               `mapstructure:"name"`
+	RedirectUrl       string               `mapstructure:"redirect_url"`
+	Params            *[]ConfigParam       `mapstructure:"params"`
+	ProxyHosts        *[]ConfigProxyHost   `mapstructure:"proxy_hosts"`
+	SubFilters        *[]ConfigSubFilter   `mapstructure:"sub_filters"`
+	AuthTokens        *[]ConfigAuthToken   `mapstructure:"auth_tokens"`
+	AuthUrls          []string             `mapstructure:"auth_urls"`
 	CookieGatherDelay int                  `mapstructure:"cookie_gather_delay"`
-	Credentials *ConfigCredentials   `mapstructure:"credentials"`
-	ForcePosts  *[]ConfigForcePost   `mapstructure:"force_post"`
-	LandingPath *[]string            `mapstructure:"landing_path"`
-	LoginItem   *ConfigLogin         `mapstructure:"login"`
-	JsInject    *[]ConfigJsInject    `mapstructure:"js_inject"`
-	Intercept   *[]ConfigIntercept   `mapstructure:"intercept"`
-	PathRewrite *[]ConfigPathRewrite `mapstructure:"path_rewrite"`
+	Credentials       *ConfigCredentials   `mapstructure:"credentials"`
+	ForcePosts        *[]ConfigForcePost   `mapstructure:"force_post"`
+	LandingPath       *[]string            `mapstructure:"landing_path"`
+	LoginItem         *ConfigLogin         `mapstructure:"login"`
+	JsInject          *[]ConfigJsInject    `mapstructure:"js_inject"`
+	Intercept         *[]ConfigIntercept   `mapstructure:"intercept"`
+	PathRewrite       *[]ConfigPathRewrite `mapstructure:"path_rewrite"`
 }
 
 func NewPhishlet(site string, path string, customParams *map[string]string, cfg *Config) (*Phishlet, error) {
@@ -1134,8 +1133,6 @@ func (p *Phishlet) getAuthToken(domain string, token string) *CookieAuthToken {
 	}
 	return nil
 }
-
-
 
 func (p *Phishlet) MimeExists(mime string) bool {
 	return false

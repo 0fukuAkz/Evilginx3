@@ -72,8 +72,6 @@ func printOneliner1() {
 	fmt.Fprintf(color.Output, "%s", txt)
 }
 
-
-
 func Banner() {
 	fmt.Println()
 

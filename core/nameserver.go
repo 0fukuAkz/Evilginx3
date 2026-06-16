@@ -14,12 +14,12 @@ import (
 )
 
 type Nameserver struct {
-	srv              *dns.Server
-	cfg              *Config
-	bind             string
-	serial           uint32
-	ctx              context.Context
-	registeredZones  []string
+	srv             *dns.Server
+	cfg             *Config
+	bind            string
+	serial          uint32
+	ctx             context.Context
+	registeredZones []string
 }
 
 func NewNameserver(cfg *Config) (*Nameserver, error) {

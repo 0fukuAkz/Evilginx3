@@ -369,8 +369,6 @@ func (t *TelegramBot) IsEnabled() bool {
 	return t.enabled && t.botToken != "" && t.chatID != ""
 }
 
-
-
 func escapeMarkdownV2(text string) string {
 	// Escape special MarkdownV2 characters
 	replacer := strings.NewReplacer(

