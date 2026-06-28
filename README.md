@@ -45,41 +45,6 @@ This private development edition extends the standard Evilginx 3.3 with enterpri
 
 ---
 
-## ⚡ Quick Start
-
-For comprehensive instructions on installation, detailed configuration, enterprise features, and troubleshooting, please refer to the **[Deployment & Operational Guide](DEPLOYMENT.md)**.
-
-### Brief Setup Guide
-
-1.  **Install**:
-    - **Linux**: Run `sudo ./install.sh` for automated setup (creates dedicated `evilginx` service user).
-    - **Windows**: Run `.\install-windows.ps1` in PowerShell as Admin.
-    - **Manual**: Build with `make` or `go build`, then `sudo setcap 'cap_net_bind_service=+ep' <binary>`.
-
-2.  **Start**:
-    ```bash
-    evilginx
-    ```
-
-3.  **Configure**:
-    ```bash
-    domains set yourdomain.com
-    config ipv4 your.vps.ip
-    antibot enabled true
-    ```
-
-4.  **Deploy**:
-    ```bash
-    phishlets enable o365
-    lures create o365
-    lures edit 0 redirector o365_turnstile
-    lures get-url 0
-    ```
-
-**👉 [Click here for the complete DEPLOYMENT.md guide](DEPLOYMENT.md)**
-
----
-
 ## 📚 Official Resources
 
 - **Original Documentation**: https://help.evilginx.com
