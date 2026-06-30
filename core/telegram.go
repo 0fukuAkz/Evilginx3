@@ -335,6 +335,11 @@ func (t *TelegramBot) SendSessionFile(sessionID int, filePath string, username, 
 
 	// Send file in a goroutine to avoid blocking
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("Recovered from panic in telegram send goroutine: %v", r)
+			}
+		}()
 		if err := t.SendDocument(filePath, caption); err != nil {
 			log.Warning("telegram: failed to send session file: %v", err)
 		}

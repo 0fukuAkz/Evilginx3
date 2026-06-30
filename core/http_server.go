@@ -35,6 +35,11 @@ func NewHttpServer(port int) (*HttpServer, error) {
 
 func (s *HttpServer) Start() {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("Recovered from panic in ACME http server goroutine: %v", r)
+			}
+		}()
 		if err := s.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Error("http server error: %v", err)
 		}

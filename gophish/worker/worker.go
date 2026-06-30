@@ -81,6 +81,11 @@ func (w *DefaultWorker) processCampaigns(t time.Time) error {
 	// Next, we process each group of maillogs in parallel
 	for cid, msc := range msg {
 		go func(cid int64, msc []mailer.Mail) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Errorf("Recovered from panic in campaign processing goroutine: %v", r)
+				}
+			}()
 			c := campaignCache[cid]
 			if c.Status == models.CampaignQueued {
 				err := c.UpdateStatus(models.CampaignInProgress)
@@ -149,6 +154,11 @@ func (w *DefaultWorker) LaunchCampaign(c models.Campaign) {
 // SendTestEmail sends a test email
 func (w *DefaultWorker) SendTestEmail(s *models.EmailRequest) error {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Errorf("Recovered from panic in test email goroutine: %v", r)
+			}
+		}()
 		ms := []mailer.Mail{s}
 		w.mailer.Queue(ms)
 	}()

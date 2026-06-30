@@ -81,6 +81,14 @@ func (mw *MailWorker) Start(ctx context.Context) {
 			return
 		case ms := <-mw.queue:
 			go func(ctx context.Context, ms []Mail) {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Errorf("Recovered from panic in mail worker goroutine: %v", r)
+					}
+				}()
+				if len(ms) == 0 {
+					return
+				}
 				dialer, err := ms[0].GetDialer()
 				if err != nil {
 					errorMail(err, ms)

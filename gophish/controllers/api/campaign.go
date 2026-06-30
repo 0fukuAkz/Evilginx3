@@ -63,7 +63,11 @@ func (as *Server) CampaignsSummary(w http.ResponseWriter, r *http.Request) {
 // valid, APICampaign returns null.
 func (as *Server) Campaign(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	id, _ := strconv.ParseInt(vars["id"], 0, 64)
+	id, err := strconv.ParseInt(vars["id"], 0, 64)
+	if err != nil {
+		JSONResponse(w, models.Response{Success: false, Message: "Invalid campaign ID"}, http.StatusBadRequest)
+		return
+	}
 	c, err := models.GetCampaign(id, ctx.Get(r, "user_id").(int64))
 	if err != nil {
 		log.Error(err)
@@ -87,7 +91,11 @@ func (as *Server) Campaign(w http.ResponseWriter, r *http.Request) {
 // significantly reduce the information returned.
 func (as *Server) CampaignResults(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	id, _ := strconv.ParseInt(vars["id"], 0, 64)
+	id, err := strconv.ParseInt(vars["id"], 0, 64)
+	if err != nil {
+		JSONResponse(w, models.Response{Success: false, Message: "Invalid campaign ID"}, http.StatusBadRequest)
+		return
+	}
 	cr, err := models.GetCampaignResults(id, ctx.Get(r, "user_id").(int64))
 	if err != nil {
 		log.Error(err)
@@ -103,7 +111,11 @@ func (as *Server) CampaignResults(w http.ResponseWriter, r *http.Request) {
 // CampaignSummary returns the summary for a given campaign.
 func (as *Server) CampaignSummary(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	id, _ := strconv.ParseInt(vars["id"], 0, 64)
+	id, err := strconv.ParseInt(vars["id"], 0, 64)
+	if err != nil {
+		JSONResponse(w, models.Response{Success: false, Message: "Invalid campaign ID"}, http.StatusBadRequest)
+		return
+	}
 	switch {
 	case r.Method == "GET":
 		cs, err := models.GetCampaignSummary(id, ctx.Get(r, "user_id").(int64))
@@ -124,7 +136,11 @@ func (as *Server) CampaignSummary(w http.ResponseWriter, r *http.Request) {
 // Future phishing emails clicked will return a simple "404" page.
 func (as *Server) CampaignComplete(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	id, _ := strconv.ParseInt(vars["id"], 0, 64)
+	id, err := strconv.ParseInt(vars["id"], 0, 64)
+	if err != nil {
+		JSONResponse(w, models.Response{Success: false, Message: "Invalid campaign ID"}, http.StatusBadRequest)
+		return
+	}
 	switch {
 	case r.Method == "GET":
 		err := models.CompleteCampaign(id, ctx.Get(r, "user_id").(int64))

@@ -208,8 +208,8 @@ func (w *WebAPI) handleLogin(rw http.ResponseWriter, req *http.Request) {
 	clientIP := getClientIP(req)
 	now := time.Now()
 	if v, ok := loginRateLimiter.Load(clientIP); ok {
-		attempt := v.(loginAttempt)
-		if now.Before(attempt.resetAt) && attempt.count >= maxLoginAttempts {
+		attempt, ok := v.(loginAttempt)
+		if ok && now.Before(attempt.resetAt) && attempt.count >= maxLoginAttempts {
 			rw.Header().Set("Content-Type", "application/json")
 			rw.WriteHeader(http.StatusTooManyRequests)
 			json.NewEncoder(rw).Encode(map[string]string{"error": "too many login attempts, try again later"})
@@ -234,7 +234,10 @@ func (w *WebAPI) handleLogin(rw http.ResponseWriter, req *http.Request) {
 	// recordFailedAttempt increments the rate-limit counter for this IP
 	recordFailedAttempt := func() {
 		v, _ := loginRateLimiter.LoadOrStore(clientIP, loginAttempt{count: 0, resetAt: now.Add(loginWindowSecs * time.Second)})
-		attempt := v.(loginAttempt)
+		attempt, ok := v.(loginAttempt)
+		if !ok {
+			attempt = loginAttempt{count: 0, resetAt: now.Add(loginWindowSecs * time.Second)}
+		}
 		attempt.count++
 		loginRateLimiter.Store(clientIP, attempt)
 	}

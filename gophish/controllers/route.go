@@ -26,6 +26,7 @@ import (
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 )
 
@@ -151,7 +152,7 @@ func (as *AdminServer) registerRoutes() {
 
 	var adminHandler http.Handler = router
 	csrfMiddleware := csrf.Protect(
-		[]byte("thirty-two-bytes-auth-key-secret"),
+		securecookie.GenerateRandomKey(32),
 		csrf.Secure(as.config.UseTLS),
 		csrf.Path("/"),
 		csrf.TrustedOrigins([]string{"127.0.0.1:3333"}),

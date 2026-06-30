@@ -67,7 +67,11 @@ func (as *Server) GroupsSummary(w http.ResponseWriter, r *http.Request) {
 // If the group is not valid, Group returns null.
 func (as *Server) Group(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	id, _ := strconv.ParseInt(vars["id"], 0, 64)
+	id, err := strconv.ParseInt(vars["id"], 0, 64)
+	if err != nil {
+		JSONResponse(w, models.Response{Success: false, Message: "Invalid group ID"}, http.StatusBadRequest)
+		return
+	}
 	g, err := models.GetGroup(id, ctx.Get(r, "user_id").(int64))
 	if err != nil {
 		JSONResponse(w, models.Response{Success: false, Message: "Group not found"}, http.StatusNotFound)
@@ -112,7 +116,11 @@ func (as *Server) GroupSummary(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == "GET":
 		vars := mux.Vars(r)
-		id, _ := strconv.ParseInt(vars["id"], 0, 64)
+		id, err := strconv.ParseInt(vars["id"], 0, 64)
+		if err != nil {
+			JSONResponse(w, models.Response{Success: false, Message: "Invalid group ID"}, http.StatusBadRequest)
+			return
+		}
 		g, err := models.GetGroupSummary(id, ctx.Get(r, "user_id").(int64))
 		if err != nil {
 			JSONResponse(w, models.Response{Success: false, Message: "Group not found"}, http.StatusNotFound)

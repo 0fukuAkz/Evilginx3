@@ -214,6 +214,11 @@ func (p *HttpProxy) AutoExportAndSendSession(sessionID int, sid string) {
 
 	// Send file via Telegram
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("Recovered from panic in telegram export goroutine: %v", r)
+			}
+		}()
 		// Small delay to ensure the message arrives before the file
 		time.Sleep(500 * time.Millisecond)
 

@@ -125,7 +125,11 @@ func (as *Server) Users(w http.ResponseWriter, r *http.Request) {
 // may only view or delete their own account.
 func (as *Server) User(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	id, _ := strconv.ParseInt(vars["id"], 0, 64)
+	id, err := strconv.ParseInt(vars["id"], 0, 64)
+	if err != nil {
+		JSONResponse(w, models.Response{Success: false, Message: "Invalid user ID"}, http.StatusBadRequest)
+		return
+	}
 	// If the user doesn't have ModifySystem permissions, we need to verify
 	// that they're only taking action on their account.
 	currentUser := ctx.Get(r, "user").(models.User)

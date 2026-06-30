@@ -59,7 +59,11 @@ func (as *Server) Templates(w http.ResponseWriter, r *http.Request) {
 // Template handles the functions for the /api/templates/:id endpoint
 func (as *Server) Template(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	id, _ := strconv.ParseInt(vars["id"], 0, 64)
+	id, err := strconv.ParseInt(vars["id"], 0, 64)
+	if err != nil {
+		JSONResponse(w, models.Response{Success: false, Message: "Invalid template ID"}, http.StatusBadRequest)
+		return
+	}
 	t, err := models.GetTemplate(id, ctx.Get(r, "user_id").(int64))
 	if err != nil {
 		JSONResponse(w, models.Response{Success: false, Message: "Template not found"}, http.StatusNotFound)

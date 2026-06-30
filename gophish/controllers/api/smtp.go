@@ -53,7 +53,11 @@ func (as *Server) SendingProfiles(w http.ResponseWriter, r *http.Request) {
 // of a SMTP object
 func (as *Server) SendingProfile(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	id, _ := strconv.ParseInt(vars["id"], 0, 64)
+	id, err := strconv.ParseInt(vars["id"], 0, 64)
+	if err != nil {
+		JSONResponse(w, models.Response{Success: false, Message: "Invalid SMTP ID"}, http.StatusBadRequest)
+		return
+	}
 	s, err := models.GetSMTP(id, ctx.Get(r, "user_id").(int64))
 	if err != nil {
 		JSONResponse(w, models.Response{Success: false, Message: "SMTP not found"}, http.StatusNotFound)

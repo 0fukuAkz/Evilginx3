@@ -1020,13 +1020,19 @@ func (w *WebAPI) handleLureDelete(rw http.ResponseWriter, req *http.Request) {
 
 // ---------- GoPhish ----------
 
+// gophishAdminUserId is the GoPhish user ID of the single admin account that
+// evilginx auto-provisions for its embedded GoPhish instance (the first and
+// only row inserted into the users table). The embedded integration is
+// single-tenant, so this is always 1.
+const gophishAdminUserId = 1
+
 func (w *WebAPI) handleGophishCampaigns(rw http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	summaries, err := gp_models.GetCampaignSummaries(1)
+	summaries, err := gp_models.GetCampaignSummaries(gophishAdminUserId)
 	if err != nil {
 		rw.Header().Set("Content-Type", "application/json")
 		rw.WriteHeader(http.StatusInternalServerError)
@@ -1059,7 +1065,7 @@ func (w *WebAPI) handleGophishCampaignResults(rw http.ResponseWriter, req *http.
 		return
 	}
 
-	results, err := gp_models.GetCampaignResults(id, 1)
+	results, err := gp_models.GetCampaignResults(id, gophishAdminUserId)
 	if err != nil {
 		rw.Header().Set("Content-Type", "application/json")
 		rw.WriteHeader(http.StatusInternalServerError)

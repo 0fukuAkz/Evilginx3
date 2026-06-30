@@ -521,7 +521,7 @@ func (c *Config) SetProxyUsername(username string) {
 func (c *Config) SetProxyPassword(password string) {
 	c.proxyConfig.Password = password
 	c.cfg.Set(CFG_PROXY, c.proxyConfig)
-	log.Info("proxy password set to: %s", password)
+	log.Info("proxy password set")
 	c.cfg.WriteConfig()
 }
 
@@ -541,7 +541,7 @@ func (c *Config) SetGoPhishAdminUrl(k string) {
 func (c *Config) SetGoPhishApiKey(k string) {
 	c.gophishConfig.ApiKey = k
 	c.cfg.Set(CFG_GOPHISH, c.gophishConfig)
-	log.Info("gophish api key set to: %s", k)
+	log.Info("gophish api key set")
 	c.cfg.WriteConfig()
 }
 

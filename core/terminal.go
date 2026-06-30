@@ -1738,10 +1738,12 @@ func (t *Terminal) handlePolymorphic(args []string) error {
 		log.Info("  Cache Size: %d entries", stats["cache_size"])
 
 		if t.cfg.GetPolymorphicConfig().CacheEnabled {
+			totalMutations, _ := stats["total_mutations"].(int64)
+			cacheHits, _ := stats["cache_hits"].(int64)
 			hitRate := float64(0)
-			totalRequests := stats["total_mutations"].(int64) + stats["cache_hits"].(int64)
+			totalRequests := totalMutations + cacheHits
 			if totalRequests > 0 {
-				hitRate = float64(stats["cache_hits"].(int64)) / float64(totalRequests) * 100
+				hitRate = float64(cacheHits) / float64(totalRequests) * 100
 			}
 			log.Info("  Hit Rate: %.1f%%", hitRate)
 		}

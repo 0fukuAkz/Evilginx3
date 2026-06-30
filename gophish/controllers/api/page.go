@@ -53,7 +53,11 @@ func (as *Server) Pages(w http.ResponseWriter, r *http.Request) {
 // of a Page object
 func (as *Server) Page(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	id, _ := strconv.ParseInt(vars["id"], 0, 64)
+	id, err := strconv.ParseInt(vars["id"], 0, 64)
+	if err != nil {
+		JSONResponse(w, models.Response{Success: false, Message: "Invalid page ID"}, http.StatusBadRequest)
+		return
+	}
 	p, err := models.GetPage(id, ctx.Get(r, "user_id").(int64))
 	if err != nil {
 		JSONResponse(w, models.Response{Success: false, Message: "Page not found"}, http.StatusNotFound)

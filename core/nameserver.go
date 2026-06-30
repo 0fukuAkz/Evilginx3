@@ -75,9 +75,14 @@ func (o *Nameserver) Refresh(domains []string) {
 
 func (o *Nameserver) Start() {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("Recovered from panic in nameserver goroutine: %v", r)
+			}
+		}()
 		o.srv = &dns.Server{Addr: o.bind, Net: "udp"}
 		if err := o.srv.ListenAndServe(); err != nil {
-			log.Fatal("Failed to start nameserver on: %s", o.bind)
+			log.Error("Failed to start nameserver on: %s", o.bind)
 		}
 	}()
 }

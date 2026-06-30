@@ -13,6 +13,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -228,8 +229,6 @@ func (o *CertDb) initDNSProvider() error {
 	default:
 		return fmt.Errorf("unsupported DNS provider: %s", dnsConfig.Provider)
 	}
-
-	return nil
 }
 
 // isWildcardDomain checks if the domain should use a wildcard certificate
@@ -361,7 +360,7 @@ func (o *CertDb) getTLSCertificate(host string, port int) (*x509.Certificate, er
 	log.Debug("Fetching TLS certificate for %s:%d ...", host, port)
 
 	dialer := &net.Dialer{Timeout: 10 * time.Second}
-	rawConn, err := dialer.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
+	rawConn, err := dialer.Dial("tcp", net.JoinHostPort(host, strconv.Itoa(port)))
 	if err != nil {
 		return nil, err
 	}
