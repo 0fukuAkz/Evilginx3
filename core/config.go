@@ -158,6 +158,7 @@ type Config struct {
 	phishlets              map[string]*Phishlet
 	phishletNames          []string
 	activeHostnames        []string
+	phishletsDir           string
 	redirectorsDir         string
 	postRedirectorsDir     string
 	lures                  []*Lure
@@ -678,6 +679,14 @@ func (c *Config) SetSiteHidden(site string, hide bool) error {
 	}
 	c.SavePhishlets()
 	return nil
+}
+
+func (c *Config) SetPhishletsDir(path string) {
+	c.phishletsDir = path
+}
+
+func (c *Config) GetPhishletsDir() string {
+	return c.phishletsDir
 }
 
 func (c *Config) SetRedirectorsDir(path string) {

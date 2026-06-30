@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"os"
+	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -99,6 +102,8 @@ func (w *WebAPI) Start(port int) {
 
 	// Phishlet endpoints — reads: any auth; mutations: operator+
 	mux.HandleFunc("/api/phishlets", w.requireAuth(w.handlePhishlets))
+	mux.HandleFunc("/api/phishlets/create", w.requireOperator(w.handlePhishletCreate))
+	mux.HandleFunc("/api/phishlets/yaml", w.requireAuth(w.handlePhishletYAML))
 	mux.HandleFunc("/api/phishlets/enable", w.requireOperator(w.handlePhishletEnable))
 	mux.HandleFunc("/api/phishlets/disable", w.requireOperator(w.handlePhishletDisable))
 	mux.HandleFunc("/api/phishlets/hide", w.requireOperator(w.handlePhishletHide))
@@ -805,6 +810,115 @@ func (w *WebAPI) handlePhishletHostname(rw http.ResponseWriter, req *http.Reques
 
 	rw.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(rw).Encode(map[string]string{"message": "Hostname updated"})
+}
+
+var reValidPhishletName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9\-\.]{0,62}$`)
+
+// handlePhishletCreate writes a new phishlet YAML to the phishlets directory,
+// parses it to validate, then registers it in the running config.
+func (w *WebAPI) handlePhishletCreate(rw http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var payload struct {
+		Name string `json:"name"`
+		YAML string `json:"yaml"`
+	}
+	if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	name := strings.TrimSpace(payload.Name)
+	if !reValidPhishletName.MatchString(name) {
+		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "invalid phishlet name: use letters, digits, hyphens and dots only"})
+		return
+	}
+	if strings.TrimSpace(payload.YAML) == "" {
+		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "yaml content is required"})
+		return
+	}
+
+	dir := w.cfg.GetPhishletsDir()
+	if dir == "" {
+		writeJSON(rw, http.StatusInternalServerError, map[string]string{"error": "phishlets directory not configured"})
+		return
+	}
+
+	// Prevent path traversal — name is already validated by regex but be explicit.
+	destPath := filepath.Join(dir, name+".yaml")
+	if filepath.Dir(destPath) != filepath.Clean(dir) {
+		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "invalid phishlet name"})
+		return
+	}
+
+	if _, err := os.Stat(destPath); err == nil {
+		writeJSON(rw, http.StatusConflict, map[string]string{"error": "phishlet '" + name + "' already exists"})
+		return
+	}
+
+	if err := os.WriteFile(destPath, []byte(payload.YAML), 0600); err != nil {
+		log.Error("webapi: write phishlet '%s': %v", name, err)
+		writeJSON(rw, http.StatusInternalServerError, map[string]string{"error": "failed to write phishlet file"})
+		return
+	}
+
+	pl, err := NewPhishlet(name, destPath, nil, w.cfg)
+	if err != nil {
+		// File written but invalid YAML — remove it so the directory stays clean.
+		os.Remove(destPath)
+		writeJSON(rw, http.StatusUnprocessableEntity, map[string]string{"error": "phishlet parse error: " + err.Error()})
+		return
+	}
+	w.cfg.AddPhishlet(name, pl)
+
+	user, _ := w.getUserFromRequest(req)
+	username := "unknown"
+	if user != nil {
+		username = user.Username
+	}
+	clientIP := getClientIP(req)
+	log.Important("WebAPI: Created phishlet '%s'", name)
+	w.db.CreateAuditEntry(username, "create_phishlet", fmt.Sprintf("Created phishlet '%s'", name), clientIP)
+
+	writeJSON(rw, http.StatusCreated, map[string]string{"message": "Phishlet '" + name + "' created"})
+}
+
+// handlePhishletYAML returns the raw YAML source of an existing phishlet file.
+// GET /api/phishlets/yaml?name=<name>
+func (w *WebAPI) handlePhishletYAML(rw http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodGet {
+		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	name := strings.TrimSpace(req.URL.Query().Get("name"))
+	if !reValidPhishletName.MatchString(name) {
+		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "invalid phishlet name"})
+		return
+	}
+
+	dir := w.cfg.GetPhishletsDir()
+	if dir == "" {
+		writeJSON(rw, http.StatusInternalServerError, map[string]string{"error": "phishlets directory not configured"})
+		return
+	}
+
+	srcPath := filepath.Join(dir, name+".yaml")
+	if filepath.Dir(srcPath) != filepath.Clean(dir) {
+		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "invalid phishlet name"})
+		return
+	}
+
+	data, err := os.ReadFile(srcPath)
+	if err != nil {
+		writeJSON(rw, http.StatusNotFound, map[string]string{"error": "phishlet file not found"})
+		return
+	}
+
+	writeJSON(rw, http.StatusOK, map[string]string{"name": name, "yaml": string(data)})
 }
 
 // ---------- Lures ----------

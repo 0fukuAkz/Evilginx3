@@ -182,6 +182,7 @@ func main() {
 		log.Fatal("config: %v", err)
 		return
 	}
+	cfg.SetPhishletsDir(phishlets_path)
 	cfg.SetRedirectorsDir(*redirectors_dir)
 	cfg.SetPostRedirectorsDir(*post_redirectors_dir)
 

