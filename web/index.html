@@ -1918,12 +1918,40 @@ function createLure() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ phishlet: phishlet })
   }).then(function(r) {
-    if (!r) return;
-    showNotify('Lure created for ' + phishlet, 'success');
-    loadLures();
+    if (!r) return Promise.resolve(null);
+    return r.json().then(function(lure) {
+      if (!r.ok) {
+        showNotify((lure && lure.error) || 'Failed to create lure.', 'error');
+        return;
+      }
+      showNotify('Lure created for ' + phishlet + ' — path: ' + (lure.path || '/'), 'success');
+      // Immediately inject the new row then do a full reload to sync indices
+      appendLureRow(lure);
+      loadLures();
+    });
   }).catch(function() {
     showNotify('Failed to create lure.', 'error');
   });
+}
+
+function appendLureRow(lure) {
+  var tbody = document.getElementById('luresTableBody');
+  if (!tbody) return;
+  // Clear the "No lures found" placeholder if present
+  if (tbody.querySelector('td[colspan]')) tbody.innerHTML = '';
+  var lureIndex = (lure.index !== undefined) ? lure.index : 0;
+  var tr = document.createElement('tr');
+  tr.innerHTML =
+    '<td>' + lureIndex + '</td>' +
+    '<td>' + escapeHtml(lure.phishlet || '') + '</td>' +
+    '<td>' + escapeHtml(lure.path || '/') + '</td>' +
+    '<td>' + escapeHtml(lure.hostname || '-') + '</td>' +
+    '<td>' + escapeHtml(lure.redirect_url || '-') + '</td>' +
+    '<td>' +
+      '<button onclick="getLureUrl(' + lureIndex + ')">Get URL</button>' +
+      '<button class="btn-danger" onclick="deleteLure(' + lureIndex + ')">Delete</button>' +
+    '</td>';
+  tbody.appendChild(tr);
 }
 
 function deleteLure(id) {

