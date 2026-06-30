@@ -290,7 +290,7 @@ func main() {
 		},
 		DBName:         "sqlite3",
 		DBPath:         filepath.Join(*cfg_dir, "gophish.db"),
-		MigrationsPath: filepath.Join(gophishMigrationsDir, "db_sqlite3"),
+		MigrationsPath: filepath.Join(gophishMigrationsDir, "db_sqlite3", "migrations"),
 	}
 
 	cfg.SetGoPhishIntegratedAdminUrl("http://" + gpConf.AdminConf.ListenURL)
@@ -298,7 +298,8 @@ func main() {
 
 	err = gp_models.Setup(gpConf)
 	if err != nil {
-		log.Error("gophish models setup: %v", err)
+		log.Fatal("gophish models setup failed: %v", err)
+		return
 	}
 
 	err = gp_models.UnlockAllMailLogs()
