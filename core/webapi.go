@@ -1090,6 +1090,28 @@ func (w *WebAPI) handleLureCreate(rw http.ResponseWriter, req *http.Request) {
 	w.cfg.AddLure(payload.Phishlet, l)
 	lureIndex := w.cfg.GetLureCount() - 1
 
+	// Mirror terminal behaviour: auto-provision GoPhish campaign for this lure.
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("handleLureCreate: campaign automation panic: %v", r)
+			}
+		}()
+		pl, perr := w.cfg.GetPhishlet(l.Phishlet)
+		if perr != nil {
+			return
+		}
+		var baseURL string
+		if l.Hostname != "" {
+			baseURL = "https://" + l.Hostname + l.Path
+		} else {
+			baseURL, _ = pl.GetLureUrl(l.Path)
+		}
+		if baseURL != "" {
+			AutomateCampaignFromLure(baseURL, l.Phishlet, w.cfg)
+		}
+	}()
+
 	user, _ := w.getUserFromRequest(req)
 	username := "unknown"
 	if user != nil {
@@ -1160,14 +1182,39 @@ func (w *WebAPI) handleGophishCampaigns(rw http.ResponseWriter, req *http.Reques
 
 	summaries, err := gp_models.GetCampaignSummaries(gophishAdminUserId)
 	if err != nil {
-		rw.Header().Set("Content-Type", "application/json")
-		rw.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(rw).Encode(map[string]string{"error": fmt.Sprintf("failed to get campaigns: %v", err)})
+		writeJSON(rw, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("failed to get campaigns: %v", err)})
 		return
 	}
 
-	rw.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(rw).Encode(summaries)
+	// CampaignSummary omits URL — build a URL lookup map from the full campaign list.
+	urlMap := make(map[int64]string)
+	if campaigns, cerr := gp_models.GetCampaigns(gophishAdminUserId); cerr == nil {
+		for _, c := range campaigns {
+			urlMap[c.Id] = c.URL
+		}
+	}
+
+	type campaignRow struct {
+		Id          int64                   `json:"id"`
+		Name        string                  `json:"name"`
+		Status      string                  `json:"status"`
+		CreatedDate time.Time               `json:"created_date"`
+		URL         string                  `json:"url"`
+		Stats       gp_models.CampaignStats `json:"stats"`
+	}
+	rows := make([]campaignRow, len(summaries.Campaigns))
+	for i, cs := range summaries.Campaigns {
+		rows[i] = campaignRow{
+			Id:          cs.Id,
+			Name:        cs.Name,
+			Status:      cs.Status,
+			CreatedDate: cs.CreatedDate,
+			URL:         urlMap[cs.Id],
+			Stats:       cs.Stats,
+		}
+	}
+
+	writeJSON(rw, http.StatusOK, rows)
 }
 
 func (w *WebAPI) handleGophishCampaignResults(rw http.ResponseWriter, req *http.Request) {

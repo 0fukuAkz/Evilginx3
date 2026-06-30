@@ -1998,18 +1998,24 @@ function loadCampaigns() {
   }).then(function(data) {
     var tbody = document.getElementById('campaignsTableBody');
     if (!data || !Array.isArray(data) || data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#999;">No campaigns found. Configure GoPhish integration first.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#999;">No campaigns found. Lures auto-create campaigns — create a lure to get started.</td></tr>';
       return;
     }
     tbody.innerHTML = '';
     data.forEach(function(c) {
+      var stats = c.stats || {};
+      var statsHtml = 'sent:' + (stats.sent || 0) +
+        ' opened:' + (stats.opened || 0) +
+        ' clicked:' + (stats.clicked || 0) +
+        ' creds:' + (stats.submitted_data || 0);
+      var created = c.created_date ? new Date(c.created_date).toLocaleString() : '-';
       var tr = document.createElement('tr');
       tr.innerHTML =
         '<td>' + escapeHtml(c.name || '') + '</td>' +
         '<td>' + escapeHtml(c.status || '') + '</td>' +
-        '<td>' + escapeHtml(c.created_date || '') + '</td>' +
-        '<td>' + escapeHtml(c.url || '-') + '</td>' +
-        '<td>' + (c.stats ? JSON.stringify(c.stats) : '-') + '</td>';
+        '<td>' + escapeHtml(created) + '</td>' +
+        '<td style="word-break:break-all;font-size:11px;">' + escapeHtml(c.url || '-') + '</td>' +
+        '<td style="font-size:11px;">' + escapeHtml(statsHtml) + '</td>';
       tbody.appendChild(tr);
     });
   }).catch(function(err) {
