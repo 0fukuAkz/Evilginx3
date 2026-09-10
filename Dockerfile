@@ -1,5 +1,5 @@
 # Build Stage
-FROM golang:1.25-alpine AS builder
+FROM golang:1.25.7-alpine AS builder
 
 # Install build dependencies (gcc + musl-dev + sqlite-dev required for CGo / go-sqlite3)
 RUN apk add --no-cache git make gcc musl-dev sqlite-dev
@@ -10,7 +10,12 @@ WORKDIR /app
 COPY . .
 
 # Build with CGo enabled (required for go-sqlite3 driver)
-RUN CGO_ENABLED=1 go build -mod=vendor -o evilginx .
+# Inject version from git tag so the binary reports its version correctly
+RUN VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "dev") && \
+    COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown") && \
+    CGO_ENABLED=1 go build -mod=vendor \
+      -ldflags "-X github.com/kgretzky/evilginx2/core.VERSION=${VERSION} -X github.com/kgretzky/evilginx2/core.COMMIT=${COMMIT}" \
+      -o evilginx .
 
 # Runtime Stage
 FROM alpine:latest

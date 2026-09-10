@@ -9,9 +9,27 @@ permissions:
   contents: write
 
 jobs:
+  test:
+    name: Test & Vet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test ./...
+
   release:
     name: Build & publish release
     runs-on: ubuntu-latest
+    needs: test
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,6 +70,13 @@ jobs:
           sha256sum evilginx-linux-amd64 evilginx-linux-arm64 > checksums.txt
           cat checksums.txt
 
+      - name: Log in to DockerHub
+        if: ${{ vars.DOCKERHUB_USERNAME != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Build Docker image & push
         if: ${{ vars.DOCKERHUB_USERNAME != '' }}
         uses: docker/build-push-action@v6
@@ -61,8 +86,6 @@ jobs:
           tags: |
             ${{ vars.DOCKERHUB_USERNAME }}/evilginx3:${{ github.ref_name }}
             ${{ vars.DOCKERHUB_USERNAME }}/evilginx3:latest
-          secrets: |
-            DOCKERHUB_TOKEN=${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
