@@ -1,7 +1,7 @@
 <p align="center">
-  <img alt="Evilginx2 Logo" src="https://raw.githubusercontent.com/kgretzky/evilginx2/master/media/img/evilginx2-logo-512.png" height="160" />
+  <img alt="Evilginx2 Logo" src="media/img/evilginx2-logo-512.png" height="160" />
   <p align="center">
-    <img alt="Evilginx2 Title" src="https://raw.githubusercontent.com/kgretzky/evilginx2/master/media/img/evilginx2-title-black-512.png" height="60" />
+    <img alt="Evilginx2 Title" src="media/img/evilginx2-title-black-512.png" height="60" />
   </p>
 </p>
 
@@ -40,8 +40,8 @@ Evilginx should be used only in legitimate penetration testing assignments with 
 ### Build from Source
 
 ```bash
-git clone https://github.com/AKaZA/evilginx3.git
-cd evilginx3
+git clone https://github.com/0fukuAkz/Evilginx3.git
+cd Evilginx3
 make build
 ```
 
@@ -71,8 +71,8 @@ On first launch, set your domain and external IP inside the REPL:
 Then enable a phishlet and create a lure:
 
 ```
-: phishlets enable microsoft
-: lures create microsoft
+: phishlets enable o365
+: lures create o365
 : lures get-url 0
 ```
 
@@ -99,7 +99,11 @@ make clean   # Remove build artifact
 
 ---
 
-## What's New in v3.6.0
+## What's New
+
+### v3.6.1
+- Hardened CI: `govulncheck` now gates merges (was `continue-on-error`)
+- Dependency updates: `golang.org/x/crypto`, `x/net`, `x/sys` bumped to latest
 
 ### v3.6.0
 - **Web Admin UI** — Full single-page admin dashboard with campaigns, lures, sessions, and phishlets management
