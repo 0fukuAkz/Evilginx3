@@ -33,7 +33,7 @@ Evilginx should be used only in legitimate penetration testing assignments with 
 
 ### Requirements
 
-- **Go 1.25.7+** — [Download Go](https://golang.org/dl/)
+- **Go 1.25.13+** — [Download Go](https://golang.org/dl/)
 - Linux or macOS (recommended for production deployments)
 - Ports 80, 443 (HTTPS proxy) and 53 (DNS) available
 
