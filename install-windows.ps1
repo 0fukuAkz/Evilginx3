@@ -59,7 +59,7 @@ function Write-Step($message) {
 }
 
 # Configuration
-$GO_VERSION = "1.25.7"
+$GO_VERSION = "1.25.13"
 $INSTALL_DIR = "C:\Evilginx"
 $CONFIG_DIR = "$env:USERPROFILE\.evilginx"
 $LOG_DIR = "$INSTALL_DIR\logs"
@@ -566,4 +566,3 @@ try {
 }
 
 exit 0
-
