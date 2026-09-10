@@ -31,7 +31,8 @@
       "Bash(git check-ignore *)",
       "Bash(git push *)",
       "Bash(git add *)",
-      "Bash(grep -v \"^[0-9]*:EVILGINX_VERSION=\\\\|banner\\\\|Version\\\\|Description\\\\|systemd\\\\|log_step\\\\|Evilginx_VERSION\\\\|EVILGINX_VERSION}\\\\\"$\\\\|resolve_release\\\\|fallback\")"
+      "Bash(grep -v \"^[0-9]*:EVILGINX_VERSION=\\\\|banner\\\\|Version\\\\|Description\\\\|systemd\\\\|log_step\\\\|Evilginx_VERSION\\\\|EVILGINX_VERSION}\\\\\"$\\\\|resolve_release\\\\|fallback\")",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
