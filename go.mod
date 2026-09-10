@@ -1,6 +1,6 @@
 module github.com/kgretzky/evilginx2
 
-go 1.25.7
+go 1.25.8
 
 require (
 	github.com/NYTimes/gziphandler v1.1.1
