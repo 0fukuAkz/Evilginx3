@@ -14,7 +14,24 @@
       "Bash(echo \"exit=$?\")",
       "Bash(go test *)",
       "Bash(awk '{print $1}')",
-      "Bash(awk -F: '{sum+=$2} END{print \"total lines:\", sum}')"
+      "Bash(awk -F: '{sum+=$2} END{print \"total lines:\", sum}')",
+      "PowerShell(git -C \"C:\\\\Users\\\\ADMIN\\\\Desktop\\\\Github\\\\Evilginx3\" log --oneline -20)",
+      "PowerShell(git -C \"C:\\\\Users\\\\ADMIN\\\\Desktop\\\\Github\\\\Evilginx3\" log --oneline --stat 86b0445 -1)",
+      "PowerShell(git -C \"C:\\\\Users\\\\ADMIN\\\\Desktop\\\\Github\\\\Evilginx3\" status)",
+      "PowerShell(git -C \"C:\\\\Users\\\\ADMIN\\\\Desktop\\\\Github\\\\Evilginx3\" diff .github/workflows/ci.yml README.md)",
+      "PowerShell(git -C \"C:\\\\Users\\\\ADMIN\\\\Desktop\\\\Github\\\\Evilginx3\" log --oneline)",
+      "PowerShell(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\ADMIN\\\\Desktop\\\\Github\\\\Evilginx3\\\\.githooks\")",
+      "PowerShell(git -C \"C:\\\\Users\\\\ADMIN\\\\Desktop\\\\Github\\\\Evilginx3\" config core.hooksPath .githooks)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Git\\\\bin\\\\bash.exe\" -c \"chmod +x /c/Users/ADMIN/Desktop/Github/Evilginx3/.githooks/commit-msg\")",
+      "PowerShell(git -C \"C:\\\\Users\\\\ADMIN\\\\Desktop\\\\Github\\\\Evilginx3\" add .githooks/commit-msg)",
+      "PowerShell(git -C \"C:\\\\Users\\\\ADMIN\\\\Desktop\\\\Github\\\\Evilginx3\" add .gitattributes)",
+      "PowerShell(git -C \"C:\\\\Users\\\\ADMIN\\\\Desktop\\\\Github\\\\Evilginx3\" rm --cached .githooks/commit-msg 2>$null)",
+      "Bash(cat)",
+      "Bash(git commit *)",
+      "Bash(git check-ignore *)",
+      "Bash(git push *)",
+      "Bash(git add *)",
+      "Bash(grep -v \"^[0-9]*:EVILGINX_VERSION=\\\\|banner\\\\|Version\\\\|Description\\\\|systemd\\\\|log_step\\\\|Evilginx_VERSION\\\\|EVILGINX_VERSION}\\\\\"$\\\\|resolve_release\\\\|fallback\")"
     ]
   }
 }

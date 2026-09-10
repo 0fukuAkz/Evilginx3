@@ -32,3 +32,4 @@ gosuslugi (2).yaml
 gosuslugi.yaml
 DEPLOYMENT.md
 CLAUDE.md
+.claude/settings.local.json
