@@ -94,7 +94,7 @@ github.com/hashicorp/hcl/hcl/token
 github.com/hashicorp/hcl/json/parser
 github.com/hashicorp/hcl/json/scanner
 github.com/hashicorp/hcl/json/token
-# github.com/inconshreveable/go-vhost v0.0.0-20160627193104-06d84117953b
+# github.com/inconshreveable/go-vhost v1.0.0
 ## explicit
 github.com/inconshreveable/go-vhost
 # github.com/jinzhu/gorm v1.9.16
