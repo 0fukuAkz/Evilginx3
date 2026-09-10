@@ -811,8 +811,10 @@ choose_install_method() {
         return 0
     fi
 
+    local LATEST_VER
+    LATEST_VER=$(resolve_release_version)
     echo -e "  ${GREEN}[1]${NC} Download pre-built binary  ${YELLOW}(faster — ~30 seconds)${NC}"
-    echo -e "       Binary for linux-${RELEASE_ARCH} from GitHub Releases v${EVILGINX_VERSION}"
+    echo -e "       Binary for linux-${RELEASE_ARCH} from GitHub Releases v${LATEST_VER}"
     echo ""
     echo -e "  ${GREEN}[2]${NC} Build from source          ${YELLOW}(slower — 1-3 minutes, requires gcc)${NC}"
     echo -e "       Compiles locally with CGO_ENABLED=1 (go-sqlite3)"
@@ -834,6 +836,27 @@ choose_install_method() {
     echo ""
 }
 
+# Resolves the release version to download: queries the GitHub API for the
+# latest release tag and falls back to EVILGINX_VERSION if the API is
+# unreachable or returns no tag. Strips a leading "v" so the result is
+# always a bare semver like "3.6.1".
+resolve_release_version() {
+    local api_url="https://api.github.com/repos/${GITHUB_REPO}/releases/latest"
+    local tag
+    tag=$(curl -fsSL --max-time 10 \
+          -H "Accept: application/vnd.github+json" \
+          "$api_url" 2>/dev/null \
+        | grep '"tag_name"' \
+        | head -1 \
+        | sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"v\{0,1\}\([^"]*\)".*/\1/')
+    if [[ -n "$tag" ]]; then
+        echo "$tag"
+    else
+        log_warning "GitHub API unreachable — using bundled version ${EVILGINX_VERSION}"
+        echo "$EVILGINX_VERSION"
+    fi
+}
+
 download_evilginx() {
     log_step "Step 6: Downloading Pre-Built Evilginx Binary"
 
@@ -844,13 +867,16 @@ download_evilginx() {
         *)      log_error "No pre-built binary for architecture '$GO_ARCH'. Use --source instead."; exit 1 ;;
     esac
 
+    local DOWNLOAD_VERSION
+    DOWNLOAD_VERSION=$(resolve_release_version)
+
     local ASSET_NAME="evilginx-linux-${RELEASE_ARCH}"
-    local ASSET_URL="${RELEASE_BASE_URL}/v${EVILGINX_VERSION}/${ASSET_NAME}"
-    local CHECKSUMS_URL="${RELEASE_BASE_URL}/v${EVILGINX_VERSION}/checksums.txt"
+    local ASSET_URL="${RELEASE_BASE_URL}/v${DOWNLOAD_VERSION}/${ASSET_NAME}"
+    local CHECKSUMS_URL="${RELEASE_BASE_URL}/v${DOWNLOAD_VERSION}/checksums.txt"
     local TMP_BIN="/tmp/evilginx-download-$$"
     local TMP_CHECKSUMS="/tmp/evilginx-checksums-$$"
 
-    log_info "Downloading ${ASSET_NAME} from GitHub Releases v${EVILGINX_VERSION}..."
+    log_info "Downloading ${ASSET_NAME} from GitHub Releases v${DOWNLOAD_VERSION}..."
 
     if ! curl -fSL --progress-bar --max-time 120 "$ASSET_URL" -o "$TMP_BIN"; then
         log_warning "Download failed — falling back to build from source."
@@ -907,7 +933,7 @@ download_evilginx() {
     # Install data files (shared with build path)
     _install_data_files "$BUILD_DIR"
 
-    log_success "Evilginx ${EVILGINX_VERSION} (pre-built linux-${RELEASE_ARCH}) installed successfully"
+    log_success "Evilginx ${DOWNLOAD_VERSION} (pre-built linux-${RELEASE_ARCH}) installed successfully"
 }
 
 create_service_user() {
