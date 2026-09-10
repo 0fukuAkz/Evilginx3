@@ -1,0 +1,57 @@
+#!/bin/sh
+# Enforces minimum commit message quality.
+# Activate once per clone: git config core.hooksPath .githooks
+
+MSG_FILE="$1"
+
+# Strip comment lines and collapse whitespace to get the effective message
+EFFECTIVE=$(grep -v '^#' "$MSG_FILE" | tr -d '\r' | awk 'NF')
+FIRST_LINE=$(grep -v '^#' "$MSG_FILE" | tr -d '\r' | grep -m1 '.')
+
+# Reject empty messages
+if [ -z "$EFFECTIVE" ]; then
+    echo "error: commit message is empty" >&2
+    exit 1
+fi
+
+# Reject known placeholder messages (the ones that polluted this repo's history)
+STRIPPED=$(echo "$FIRST_LINE" | tr -d '[:space:]')
+case "$STRIPPED" in
+    /|.|..|XX|/X|update|Update|x|X|'')
+        echo "error: commit message '$FIRST_LINE' is not descriptive" >&2
+        echo "" >&2
+        echo "  Use conventional commits format:" >&2
+        echo "    type: short description" >&2
+        echo "    types: feat  fix  docs  ci  chore  refactor  test  revert  perf" >&2
+        echo "" >&2
+        echo "  Examples:" >&2
+        echo "    feat: add JA3 fingerprint allowlist command" >&2
+        echo "    fix: prevent nil dereference in antibot engine" >&2
+        echo "    docs: update Quick Start phishlet example" >&2
+        exit 1
+        ;;
+esac
+
+# Reject messages that are just a filename (e.g. "Update http_proxy.go")
+if echo "$FIRST_LINE" | grep -qE '^[Uu]pdate [a-zA-Z0-9_.\-]+$'; then
+    echo "error: '$FIRST_LINE' only names the file, not what changed or why" >&2
+    echo "" >&2
+    echo "  Instead of: Update http_proxy.go" >&2
+    echo "  Write:      fix: strip hop-by-hop headers before forwarding" >&2
+    exit 1
+fi
+
+# Reject messages shorter than 10 characters (not counting whitespace)
+MSG_LEN=$(echo "$STRIPPED" | wc -c)
+if [ "$MSG_LEN" -lt 10 ]; then
+    echo "error: commit message is too short ($MSG_LEN chars) — be descriptive" >&2
+    exit 1
+fi
+
+# Soft warn if not following conventional commits (does not block)
+if ! echo "$FIRST_LINE" | grep -qE '^(feat|fix|docs|ci|chore|refactor|test|revert|perf|style|build)(\([^)]+\))?: .{5,}'; then
+    echo "hint: consider conventional commits format — type: description" >&2
+    echo "hint: types: feat  fix  docs  ci  chore  refactor  test  revert" >&2
+fi
+
+exit 0
