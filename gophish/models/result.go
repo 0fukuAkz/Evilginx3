@@ -7,7 +7,7 @@ import (
 	"net"
 	"time"
 
-	log "github.com/kgretzky/evilginx2/gophish/logger"
+	gophish "github.com/kgretzky/evilginx2/gophish"
 	"github.com/jinzhu/gorm"
 	"github.com/oschwald/maxminddb-golang"
 )
@@ -150,15 +150,18 @@ func (r *Result) HandleEmailReport(details EventDetails) error {
 // UpdateGeo updates the latitude and longitude of the result in
 // the database given an IP address
 func (r *Result) UpdateGeo(addr string) error {
-	// Open a connection to the maxmind db
-	mmdb, err := maxminddb.Open("static/db/geolite2-city.mmdb")
+	// Read the mmdb from the embedded FS so this works regardless of CWD at runtime.
+	data, err := gophish.StaticFS.ReadFile("static/db/geolite2-city.mmdb")
 	if err != nil {
-		log.Fatal(err)
+		return err
+	}
+	mmdb, err := maxminddb.FromBytes(data)
+	if err != nil {
+		return err
 	}
 	defer mmdb.Close()
 	ip := net.ParseIP(addr)
 	var city mmCity
-	// Get the record
 	err = mmdb.Lookup(ip, &city)
 	if err != nil {
 		return err
