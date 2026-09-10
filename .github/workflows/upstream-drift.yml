@@ -5,6 +5,9 @@ on:
     - cron: "0 9 * * 1"  # every Monday at 09:00 UTC
   workflow_dispatch:      # allow manual trigger
 
+permissions:
+  issues: write
+
 jobs:
   drift:
     name: Check upstream GoPhish drift
@@ -15,17 +18,35 @@ jobs:
       - name: Add GoPhish upstream remote
         run: |
           git remote add gophish-upstream https://github.com/gophish/gophish
-          git fetch gophish-upstream --tags --depth=1
+          git fetch gophish-upstream --depth=1
 
       - name: Identify changed upstream files
         id: drift
         run: |
-          # Compare files under gophish/ against upstream master.
-          # Files that exist locally and have changed upstream appear in the diff.
-          CHANGED=$(git diff --name-only gophish-upstream/master HEAD -- gophish/ \
+          # The upstream repo has files at its root (controllers/, models/, etc.).
+          # We embed them under gophish/. Strip the prefix to compare correctly:
+          # our gophish/controllers/route.go  <->  upstream controllers/route.go
+
+          CHANGED=""
+          while IFS= read -r our_path; do
+            upstream_path="${our_path#gophish/}"
+
+            # Skip files that have no upstream equivalent
+            if ! git cat-file -e "gophish-upstream/master:${upstream_path}" 2>/dev/null; then
+              continue
+            fi
+
+            # Compare our file against the upstream file at the stripped path
+            if ! git diff --quiet \
+                  "gophish-upstream/master:${upstream_path}" \
+                  "HEAD:${our_path}" 2>/dev/null; then
+              CHANGED="${CHANGED}${our_path}"$'\n'
+            fi
+          done < <(git ls-files gophish/ \
             | grep -v '^gophish/evilginx/' \
-            | grep -v '^gophish/FORK_STATUS.md' \
-            || true)
+            | grep -v '^gophish/FORK_STATUS.md')
+
+          CHANGED="${CHANGED%$'\n'}"  # strip trailing newline
 
           if [ -z "$CHANGED" ]; then
             echo "drift=false" >> "$GITHUB_OUTPUT"
