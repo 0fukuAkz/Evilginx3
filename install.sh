@@ -20,7 +20,7 @@
 #     gzip, openssl, screen, tmux, dnsutils, libsqlite3-dev, iptables
 #
 #   Go Runtime
-#   - Downloads and installs Go 1.25.1 (amd64/arm64) from go.dev
+#   - Downloads and installs Go 1.25.7 (amd64/arm64) from go.dev
 #   - Verifies download integrity (size check + SHA256 against go.dev)
 #   - Adds Go to system PATH via /etc/profile.d/golang.sh
 #
@@ -95,7 +95,7 @@
 #   TUNNEL_DOMAIN=example.com sudo ./install.sh --tunnel # Tunnel only, no prompt
 #
 # Author: AKaZA (Akz0fuku)
-# Version: 3.5.5
+# Version: 3.6.1
 #############################################################################
 
 set -euo pipefail  # Exit on error, undefined vars, pipe failures
@@ -169,8 +169,8 @@ RELEASE_BASE_URL="https://github.com/${GITHUB_REPO}/releases/download"
 BUILD_METHOD=""
 
 # Configuration
-EVILGINX_VERSION="3.5.5"
-GO_VERSION="1.25.1"
+EVILGINX_VERSION="3.6.1"
+GO_VERSION="1.25.7"
 INSTALL_DIR="/usr/local/bin"
 INSTALL_BASE="/opt/evilginx"
 SERVICE_USER="evilginx"  # Dedicated service user (least-privilege)
