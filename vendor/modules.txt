@@ -64,8 +64,8 @@ github.com/go-sql-driver/mysql
 # github.com/gophish/gomail v0.0.0-20200818021916-1f6d0dfd512e
 ## explicit; go 1.13
 github.com/gophish/gomail
-# github.com/gorilla/context v1.1.1
-## explicit
+# github.com/gorilla/context v1.1.2
+## explicit; go 1.20
 github.com/gorilla/context
 # github.com/gorilla/csrf v1.7.3
 ## explicit; go 1.20
