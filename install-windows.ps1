@@ -46,7 +46,7 @@ function Write-Warning($message) {
     Write-ColorOutput Yellow "[!] $message"
 }
 
-function Write-Error($message) {
+function Write-Err($message) {
     Write-ColorOutput Red "[✗] $message"
 }
 
@@ -94,7 +94,7 @@ function Show-Banner {
 function Test-Administrator {
     $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
     if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        Write-Error "This script must be run as Administrator!"
+        Write-Err "This script must be run as Administrator!"
         Write-Info "Right-click PowerShell and select 'Run as Administrator'"
         exit 1
     }
@@ -124,13 +124,13 @@ function Confirm-Installation {
     
     $response = Read-Host "Do you have WRITTEN AUTHORIZATION to deploy this tool? (yes/NO)"
     if ($response -ne "yes") {
-        Write-Error "Installation cancelled. Authorization required."
+        Write-Err "Installation cancelled. Authorization required."
         exit 1
     }
     
     $response = Read-Host "Proceed with installation? (yes/NO)"
     if ($response -ne "yes") {
-        Write-Error "Installation cancelled by user"
+        Write-Err "Installation cancelled by user"
         exit 1
     }
 }
@@ -141,8 +141,11 @@ function Install-Go {
     
     if (Get-Command go -ErrorAction SilentlyContinue) {
         $version = (go version).Split(' ')[2]
-        Write-Success "Go already installed: $version"
-        return
+        if ($version -eq "go$GO_VERSION") {
+            Write-Success "Go $GO_VERSION already installed"
+            return
+        }
+        Write-Warning "Go $version installed but $GO_VERSION required — upgrading..."
     }
     
     Write-Info "Downloading Go $GO_VERSION..."
@@ -153,7 +156,7 @@ function Install-Go {
         Invoke-WebRequest -Uri $goUrl -OutFile $goZip -UseBasicParsing
         Write-Success "Downloaded Go"
     } catch {
-        Write-Error "Failed to download Go: $_"
+        Write-Err "Failed to download Go: $_"
         exit 1
     }
     
@@ -192,7 +195,7 @@ function Install-NSSM {
         Invoke-WebRequest -Uri $NSSM_URL -OutFile $nssmZip -UseBasicParsing
         Write-Success "Downloaded NSSM"
     } catch {
-        Write-Error "Failed to download NSSM: $_"
+        Write-Err "Failed to download NSSM: $_"
         exit 1
     }
     
@@ -205,7 +208,7 @@ function Install-NSSM {
     $nssmExe = Get-ChildItem -Path $nssmDir -Filter "nssm.exe" -Recurse | Select-Object -First 1 -ExpandProperty FullName
     
     if (-not $nssmExe) {
-        Write-Error "NSSM executable not found after extraction"
+        Write-Err "NSSM executable not found after extraction"
         exit 1
     }
     
@@ -217,14 +220,14 @@ function Install-NSSM {
 function Build-Evilginx {
     Write-Step "Step 3: Building Evilginx"
     
-    $scriptDir = Split-Path -Parent $MyInvocation.ScriptName
+    $scriptDir = $PSScriptRoot
     
     Write-Info "Building from: $scriptDir"
     
     # Check if main.go exists
     if (-not (Test-Path "$scriptDir\main.go")) {
-        Write-Error "main.go not found in $scriptDir"
-        Write-Error "Please run this script from the Evilginx root directory"
+        Write-Err "main.go not found in $scriptDir"
+        Write-Err "Please run this script from the Evilginx root directory"
         exit 1
     }
     
@@ -235,11 +238,15 @@ function Build-Evilginx {
         # CGO_ENABLED=1 is required for go-sqlite3 (CGo-based SQLite driver)
         # -mod=vendor uses the checked-in vendor/ directory (no network needed)
         $env:CGO_ENABLED = "1"
+        $module = "github.com/kgretzky/evilginx2"
+        $appVersion = (git describe --tags --abbrev=0 2>$null); if (-not $appVersion) { $appVersion = "dev" }
+        $commit     = (git rev-parse --short HEAD 2>$null);      if (-not $commit)     { $commit = "unknown" }
+        $ldflags = "-X ${module}/core.VERSION=$appVersion -X ${module}/core.COMMIT=$commit"
         New-Item -ItemType Directory -Path "build" -Force | Out-Null
-        & "C:\Program Files\Go\bin\go.exe" build -mod=vendor -o "build\evilginx.exe" main.go
+        & "C:\Program Files\Go\bin\go.exe" build -mod=vendor -ldflags $ldflags -o "build\evilginx.exe" main.go
         
         if (-not (Test-Path "build\evilginx.exe")) {
-            Write-Error "Build failed - binary not created"
+            Write-Err "Build failed - binary not created"
             exit 1
         }
         
@@ -253,7 +260,7 @@ function Build-Evilginx {
 function Install-Files {
     Write-Step "Step 4: Installing Files"
     
-    $scriptDir = Split-Path -Parent $MyInvocation.ScriptName
+    $scriptDir = $PSScriptRoot
     
     Write-Info "Creating installation directory: $INSTALL_DIR"
     New-Item -ItemType Directory -Path $INSTALL_DIR -Force | Out-Null
@@ -300,7 +307,7 @@ function Configure-Firewall {
     Remove-NetFirewallRule -DisplayName "Evilginx HTTP" -ErrorAction SilentlyContinue
     Remove-NetFirewallRule -DisplayName "Evilginx HTTPS" -ErrorAction SilentlyContinue
     Remove-NetFirewallRule -DisplayName "Evilginx Admin API" -ErrorAction SilentlyContinue
-    Remove-NetFirewallRule -DisplayName "Evilginx GoPhish Admin" -ErrorAction SilentlyContinue
+    # Note: GoPhish admin (3333) is intentionally excluded — it binds to 127.0.0.1 only
 
     # Add new rules
     New-NetFirewallRule -DisplayName "Evilginx DNS TCP" -Direction Inbound -Protocol TCP -LocalPort 53 -Action Allow | Out-Null
@@ -317,9 +324,6 @@ function Configure-Firewall {
 
     New-NetFirewallRule -DisplayName "Evilginx Admin API" -Direction Inbound -Protocol TCP -LocalPort 2030 -Action Allow | Out-Null
     Write-Success "Firewall rule added: Admin API (port 2030)"
-
-    New-NetFirewallRule -DisplayName "Evilginx GoPhish Admin" -Direction Inbound -Protocol TCP -LocalPort 3333 -Action Allow | Out-Null
-    Write-Success "Firewall rule added: GoPhish Admin (port 3333)"
 
     Write-Success "Windows Firewall configured"
 }
@@ -348,7 +352,7 @@ function Create-Service {
     & $nssmExe install $SERVICE_NAME "$INSTALL_DIR\evilginx.exe"
     
     # Configure service parameters
-    & $nssmExe set $SERVICE_NAME AppParameters "-p `"$PHISHLETS_DIR`" -t `"$REDIRECTORS_DIR`" -c `"$CONFIG_DIR`""
+    & $nssmExe set $SERVICE_NAME AppParameters "-p `"$PHISHLETS_DIR`" -t `"$REDIRECTORS_DIR`" -u `"$POST_REDIRECTORS_DIR`" -c `"$CONFIG_DIR`""
     & $nssmExe set $SERVICE_NAME AppDirectory "$INSTALL_DIR"
     & $nssmExe set $SERVICE_NAME DisplayName "Evilginx 3.6.1 - Private Dev Edition"
     & $nssmExe set $SERVICE_NAME Description "Evilginx - Advanced phishing framework for authorized security testing"
@@ -459,7 +463,7 @@ function Show-Completion {
     Write-Output "  • Port 80/tcp   - HTTP (allow)"
     Write-Output "  • Port 443/tcp  - HTTPS (allow)"
     Write-Output "  • Port 2030/tcp - Admin API (allow)"
-    Write-Output "  • Port 3333/tcp - GoPhish Admin (allow)"
+    Write-Output "  • Port 3333    - GoPhish Admin (loopback only, no firewall rule)"
     Write-Output ""
     
     Write-ColorOutput Cyan "Available Commands:"
@@ -484,7 +488,7 @@ function Show-Completion {
     Write-Output "   Run: evilginx-console"
     Write-Output ""
     Write-Output "2. In the Evilginx console, configure:"
-    Write-Output "   domains set yourdomain.com"
+    Write-Output "   config domain yourdomain.com"
     Write-Output "   config ipv4 external YOUR_PUBLIC_IP"
     Write-Output "   config autocert on"
     Write-Output ""
@@ -515,9 +519,6 @@ function Show-Completion {
     Write-Output ""
 
     Write-ColorOutput Green "Documentation:"
-    Write-Output "  • Deployment Guide:     $INSTALL_DIR\DEPLOYMENT.md"
-    Write-Output "  • Domain Rotation:      $INSTALL_DIR\DOMAIN-ROTATION-GUIDE.md"
-    Write-Output "  • Cloudflare Workers:   $INSTALL_DIR\cloudflare-workers-deployment.md"
     Write-Output "  • README:               $INSTALL_DIR\README.md"
     Write-Output ""
     
@@ -559,7 +560,7 @@ function Main {
 try {
     Main
 } catch {
-    Write-Error "Installation failed: $_"
+    Write-Err "Installation failed: $_"
     Write-Output $_.ScriptStackTrace
     exit 1
 }
