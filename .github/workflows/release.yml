@@ -12,6 +12,8 @@ jobs:
   test:
     name: Test & Vet
     runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -21,10 +23,10 @@ jobs:
           cache: true
 
       - name: go vet
-        run: go vet ./...
+        run: go vet -mod=vendor ./...
 
       - name: go test
-        run: go test ./...
+        run: go test -mod=vendor ./...
 
   release:
     name: Build & publish release
