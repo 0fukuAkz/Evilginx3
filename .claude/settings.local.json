@@ -32,7 +32,11 @@
       "Bash(git push *)",
       "Bash(git add *)",
       "Bash(grep -v \"^[0-9]*:EVILGINX_VERSION=\\\\|banner\\\\|Version\\\\|Description\\\\|systemd\\\\|log_step\\\\|Evilginx_VERSION\\\\|EVILGINX_VERSION}\\\\\"$\\\\|resolve_release\\\\|fallback\")",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(xargs ls -la)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Go\\\\bin\\\\go.exe\" list -m -versions golang.org/x/vuln 2>&1)",
+      "Bash(git ls-remote *)",
+      "Bash(git tag *)"
     ]
   }
 }
