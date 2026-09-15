@@ -5,7 +5,7 @@
   </p>
 </p>
 
-# Evilginx 3.6.1 - Private Dev Edition
+# Evilginx 3.6.4 - Private Dev Edition
 
 **Evilginx** is a man-in-the-middle attack framework used for phishing login credentials along with session cookies, which in turn allows to bypass 2-factor authentication protection.
 
@@ -13,7 +13,7 @@ This **Private Development Edition** includes advanced evasion, detection, and o
 
 **Modified by:** AKaZA (Akz0fuku)  
 **Original Author:** Kuba Gretzky ([@mrgretzky](https://twitter.com/mrgretzky))  
-**Version:** 3.6.1 - Private Dev Edition
+**Version:** 3.6.4 - Private Dev Edition
 
 ## Disclaimer
 
@@ -33,7 +33,7 @@ Evilginx should be used only in legitimate penetration testing assignments with 
 
 ### Requirements
 
-- **Go 1.25.7+** — [Download Go](https://golang.org/dl/)
+- **Go 1.25.13+** — [Download Go](https://golang.org/dl/)
 - Linux or macOS (recommended for production deployments)
 - Ports 80, 443 (HTTPS proxy) and 53 (DNS) available
 
@@ -100,6 +100,16 @@ make clean   # Remove build artifact
 ---
 
 ## What's New
+
+### v3.6.4
+- Bumped Go toolchain to 1.25.13 to resolve 20 call-graph-reachable stdlib CVEs (`net/url`, `net/http`, `crypto/tls`, `html/template`, `encoding/asn1`, `net/mail`, `net/textproto`, `mime`, `crypto/x509`, `net`)
+
+### v3.6.3
+- Upgraded `golang.org/x/text` to v0.39.0 to fix GO-2026-5970 (infinite loop in `norm.Form`)
+- Bumped Go toolchain to 1.25.8 to fix 23 stdlib CVEs
+
+### v3.6.2
+- Fixed crash on lure click: GeoIP lookup now reads the embedded `geolite2-city.mmdb` via `embed.FS` instead of the OS filesystem
 
 ### v3.6.1
 - Hardened CI: `govulncheck` now gates merges (was `continue-on-error`)
