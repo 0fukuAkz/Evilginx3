@@ -20,7 +20,7 @@
 #     gzip, openssl, screen, tmux, dnsutils, libsqlite3-dev, iptables
 #
 #   Go Runtime
-#   - Downloads and installs Go 1.25.8 (amd64/arm64) from go.dev
+#   - Downloads and installs Go 1.25.13 (amd64/arm64) from go.dev
 #   - Verifies download integrity (size check + SHA256 against go.dev)
 #   - Adds Go to system PATH via /etc/profile.d/golang.sh
 #
@@ -170,7 +170,7 @@ BUILD_METHOD=""
 
 # Configuration
 EVILGINX_VERSION="3.6.1"
-GO_VERSION="1.25.8"
+GO_VERSION="1.25.13"
 INSTALL_DIR="/usr/local/bin"
 INSTALL_BASE="/opt/evilginx"
 SERVICE_USER="evilginx"  # Dedicated service user (least-privilege)
