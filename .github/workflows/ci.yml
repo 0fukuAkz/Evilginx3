@@ -48,7 +48,7 @@ jobs:
         run: make build
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: evilginx-linux-amd64
           path: build/evilginx
@@ -74,6 +74,8 @@ jobs:
   security:
     name: Security scan
     runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: auto
     steps:
       - uses: actions/checkout@v5
 
