@@ -74,8 +74,6 @@ jobs:
   security:
     name: Security scan
     runs-on: ubuntu-latest
-    env:
-      GOTOOLCHAIN: auto
     steps:
       - uses: actions/checkout@v5
 
@@ -88,6 +86,8 @@ jobs:
         run: go mod verify
 
       - name: Install govulncheck
+        env:
+          GOTOOLCHAIN: auto
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
       - name: Vulnerability scan
