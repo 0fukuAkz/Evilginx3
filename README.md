@@ -5,7 +5,7 @@
   </p>
 </p>
 
-# Evilginx 3.6.4 - Private Dev Edition
+# Evilginx 3.6.5 - Private Dev Edition
 
 **Evilginx** is a man-in-the-middle attack framework used for phishing login credentials along with session cookies, which in turn allows to bypass 2-factor authentication protection.
 
@@ -13,7 +13,7 @@ This **Private Development Edition** includes advanced evasion, detection, and o
 
 **Modified by:** AKaZA (Akz0fuku)  
 **Original Author:** Kuba Gretzky ([@mrgretzky](https://twitter.com/mrgretzky))  
-**Version:** 3.6.4 - Private Dev Edition
+**Version:** 3.6.5 - Private Dev Edition
 
 ## Disclaimer
 
@@ -100,6 +100,17 @@ make clean   # Remove build artifact
 ---
 
 ## What's New
+
+### v3.6.5
+- Comprehensive o365 phishlet overhaul for Microsoft Entra ID / GoDaddy federation
+- Added 13 new proxy hosts: 10 GoDaddy SSO federation hosts + 3 Microsoft portal hosts (27 total)
+- Kasada KPSDK origin spoofer injected at `<head>` on `sso.godaddy.com` (covers 9 origin-binding properties)
+- FIDO2/WebAuthn downgrade via `js_inject` on `login.microsoftonline.com` + `PrefCredential` JSON sub_filter
+- Entra ID extended cookie capture: `Ests-Sso-State`, `Ests-Sso-State-Compat`, `email.secureserver.net` block
+- Added `/common/windowstransport` auth_url for Seamless SSO / Kerberos flows
+- Added `accesspass` (Temporary Access Pass) and `email` (GoDaddy SSO) credential fields
+- SRI/nonce-strip sub_filters for `account.microsoft.com` and `sso.godaddy.com`
+- 14 unit tests in `core/phishlet_o365_test.go`, all CI jobs green
 
 ### v3.6.4
 - Bumped Go toolchain to 1.25.13 to resolve 20 call-graph-reachable stdlib CVEs (`net/url`, `net/http`, `crypto/tls`, `html/template`, `encoding/asn1`, `net/mail`, `net/textproto`, `mime`, `crypto/x509`, `net`)
