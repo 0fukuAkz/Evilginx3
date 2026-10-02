@@ -252,6 +252,8 @@ func main() {
 
 	ns, _ := core.NewNameserver(cfg)
 	ns.Start()
+	cfg.GetDomainManager().SetOnDomainsChanged(ns.Refresh)
+	cfg.GetDomainManager().Start()
 
 	crt_db, err := core.NewCertDb(crt_path, cfg, ns)
 	if err != nil {

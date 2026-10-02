@@ -44,6 +44,9 @@ func (o *Nameserver) Reset() {
 	}
 	o.registeredZones = nil
 
+	// Catch-all: forward unknown domains upstream so system DNS still works.
+	dns.HandleFunc(".", o.handleForward)
+
 	dm := o.cfg.GetDomainManager()
 	if dm == nil {
 		return
@@ -65,12 +68,29 @@ func (o *Nameserver) Refresh(domains []string) {
 	}
 	o.registeredZones = nil
 
+	// Re-register catch-all forwarder after clearing zones.
+	dns.HandleFunc(".", o.handleForward)
+
 	for _, d := range domains {
 		zone := pdom(d)
 		dns.HandleFunc(zone, o.handleRequest)
 		o.registeredZones = append(o.registeredZones, zone)
 	}
 	log.Debug("Nameserver refreshed: %d zones", len(domains))
+}
+
+// handleForward proxies queries for non-managed domains to an upstream resolver.
+func (o *Nameserver) handleForward(w dns.ResponseWriter, r *dns.Msg) {
+	c := &dns.Client{Net: "udp", Timeout: 5 * time.Second}
+	resp, _, err := c.Exchange(r, "8.8.8.8:53")
+	if err != nil {
+		m := new(dns.Msg)
+		m.SetReply(r)
+		m.SetRcode(r, dns.RcodeServerFailure)
+		w.WriteMsg(m)
+		return
+	}
+	w.WriteMsg(resp)
 }
 
 func (o *Nameserver) Start() {
