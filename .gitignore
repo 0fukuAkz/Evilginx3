@@ -2,6 +2,14 @@ release/
 build/
 private/
 
+# License private key — never commit
+admin.key
+**/admin.key
+
+# Local token/access logs
+tokens/
+access-log.txt
+
 
 # Temporary files
 *.swp

