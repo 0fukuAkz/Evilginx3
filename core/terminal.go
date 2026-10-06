@@ -4156,7 +4156,10 @@ func (t *Terminal) handleLicense(args []string) error {
 		if pn < 3 {
 			return fmt.Errorf("usage: license issue <issued_to> <days>")
 		}
-		issuedTo := args[1]
+		issuedTo := strings.TrimSpace(args[1])
+		if issuedTo == "" {
+			return fmt.Errorf("issued_to must not be empty")
+		}
 		days, err := strconv.Atoi(args[2])
 		if err != nil || days <= 0 {
 			return fmt.Errorf("days must be a positive integer, got %q", args[2])

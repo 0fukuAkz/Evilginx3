@@ -36,7 +36,7 @@ func CheckLicense(cfgDir string) error {
 	licPath := filepath.Join(cfgDir, "license.key")
 	data, err := os.ReadFile(licPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return errors.New("no license key found — obtain a license from the admin")
 		}
 		return fmt.Errorf("failed to read license: %v", err)
@@ -77,6 +77,10 @@ func CheckLicense(cfgDir string) error {
 // IssueLicense signs a new license for issuedTo (valid for days days) using the
 // Ed25519 private key at privKeyPath and writes it to <cfgDir>/license.key.
 func IssueLicense(privKeyPath, cfgDir, issuedTo string, days int) error {
+	if days <= 0 || days > 36500 {
+		return fmt.Errorf("days must be between 1 and 36500, got %d", days)
+	}
+
 	privKeyData, err := os.ReadFile(privKeyPath)
 	if err != nil {
 		return fmt.Errorf("cannot read private key: %v", err)
@@ -100,18 +104,27 @@ func IssueLicense(privKeyPath, cfgDir, issuedTo string, days int) error {
 	}
 
 	sig := ed25519.Sign(ed25519.PrivateKey(privKeyBytes), payloadBytes)
+	for i := range privKeyBytes {
+		privKeyBytes[i] = 0
+	}
+
 	token := base64.RawURLEncoding.EncodeToString(payloadBytes) + "." + base64.RawURLEncoding.EncodeToString(sig)
 
 	licPath := filepath.Join(cfgDir, "license.key")
-	if err := os.WriteFile(licPath, []byte(token+"\n"), 0600); err != nil {
+	tmpPath := licPath + ".tmp"
+	if err := os.WriteFile(tmpPath, []byte(token+"\n"), 0600); err != nil {
 		return fmt.Errorf("failed to write license: %v", err)
+	}
+	if err := os.Rename(tmpPath, licPath); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to install license: %v", err)
 	}
 
 	return nil
 }
 
-// ReadLicenseInfo returns the fields of the current license without verifying the signature.
-// valid is true when the license has not expired (and public key verification is disabled or passes).
+// ReadLicenseInfo returns the fields of the current license.
+// valid is true only when the signature is valid AND the license has not expired.
 func ReadLicenseInfo(cfgDir string) (issuedTo string, issuedAt, expiresAt time.Time, valid bool, err error) {
 	if LICENSE_PUBLIC_KEY == "" {
 		return "n/a (verification disabled)", time.Time{}, time.Time{}, true, nil
@@ -120,6 +133,10 @@ func ReadLicenseInfo(cfgDir string) (issuedTo string, issuedAt, expiresAt time.T
 	licPath := filepath.Join(cfgDir, "license.key")
 	data, e := os.ReadFile(licPath)
 	if e != nil {
+		if errors.Is(e, os.ErrNotExist) {
+			err = errors.New("no license key installed — place license.key in the config directory")
+			return
+		}
 		err = e
 		return
 	}
@@ -146,6 +163,14 @@ func ReadLicenseInfo(cfgDir string) (issuedTo string, issuedAt, expiresAt time.T
 	issuedTo = pl.To
 	issuedAt = time.Unix(pl.Iat, 0)
 	expiresAt = time.Unix(pl.Exp, 0)
-	valid = time.Now().Unix() <= pl.Exp
+
+	pubKeyBytes, decErr := base64.StdEncoding.DecodeString(LICENSE_PUBLIC_KEY)
+	sigVerified := false
+	if decErr == nil && len(pubKeyBytes) == ed25519.PublicKeySize {
+		if sigBytes, decErr2 := base64.RawURLEncoding.DecodeString(parts[1]); decErr2 == nil {
+			sigVerified = ed25519.Verify(pubKeyBytes, payloadBytes, sigBytes)
+		}
+	}
+	valid = sigVerified && time.Now().Unix() <= pl.Exp
 	return
 }
