@@ -295,6 +295,44 @@ function Install-Files {
     Write-Success "Files installed to $INSTALL_DIR"
 }
 
+# Install license key
+function Install-LicenseKey {
+    Write-Step "Installing License Key"
+
+    $keyDest = "$CONFIG_DIR\license.key"
+
+    # Already installed — preserve on upgrade
+    if (Test-Path $keyDest) {
+        Write-Success "License key already present at $keyDest — skipping"
+        return
+    }
+
+    # Auto-install if license.key sits next to the installer script
+    $scriptDir = $PSScriptRoot
+    if (Test-Path "$scriptDir\license.key") {
+        Write-Info "Found license.key in installer directory — installing..."
+        New-Item -ItemType Directory -Path $CONFIG_DIR -Force | Out-Null
+        Copy-Item "$scriptDir\license.key" $keyDest -Force
+        Write-Success "License key installed to $keyDest"
+        return
+    }
+
+    # Prompt user to paste their key
+    Write-Warning "No license.key found next to the installer."
+    Write-Info "Evilginx requires a valid license key to start."
+    Write-Output ""
+    $licenseKey = Read-Host "Paste your license key (or press Enter to skip)"
+
+    if ($licenseKey) {
+        New-Item -ItemType Directory -Path $CONFIG_DIR -Force | Out-Null
+        Set-Content -Path $keyDest -Value $licenseKey -Encoding ASCII
+        Write-Success "License key installed to $keyDest"
+    } else {
+        Write-Warning "No license key installed — Evilginx will NOT start without one."
+        Write-Warning "Install manually: copy license.key to $keyDest"
+    }
+}
+
 # Configure Windows Firewall
 function Configure-Firewall {
     Write-Step "Step 5: Configuring Windows Firewall"
@@ -453,6 +491,7 @@ function Show-Completion {
     Write-Output "  • Phishlets Directory:  $PHISHLETS_DIR"
     Write-Output "  • Redirectors Directory: $REDIRECTORS_DIR"
     Write-Output "  • Configuration:        $CONFIG_DIR"
+    Write-Output "  • License Key:          $CONFIG_DIR\license.key"
     Write-Output "  • Logs:                 $LOG_DIR"
     Write-Output "  • Windows Service:      $SERVICE_NAME"
     Write-Output ""
@@ -546,6 +585,7 @@ function Main {
     Install-Go
     Build-Evilginx
     Install-Files
+    Install-LicenseKey
     Configure-Firewall
     Create-Service
     Create-HelperScripts

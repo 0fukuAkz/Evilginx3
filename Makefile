@@ -8,7 +8,13 @@ LDFLAGS = -ldflags "-X $(MODULE)/core.VERSION=$(VERSION) -X $(MODULE)/core.COMMI
 
 all: build
 
-build:
+# admin.key is a real file target: make only runs this rule when the file is absent.
+# Re-running keygen would rotate the key pair and invalidate all issued licenses.
+admin.key:
+	@echo "No admin.key found — generating license key pair (first-time setup)..."
+	@go run tools/keygen/main.go .
+
+build: admin.key
 	@mkdir -p ./build
 	@go build $(LDFLAGS) -o ./build/$(TARGET) -mod=vendor main.go
 

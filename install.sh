@@ -1058,6 +1058,49 @@ setup_directories() {
     log_success "Directories created and owned by $SERVICE_USER"
 }
 
+install_license_key() {
+    log_step "Installing License Key"
+
+    local KEY_DEST="$CONFIG_DIR/license.key"
+
+    # Already installed — preserve on upgrade
+    if [[ -f "$KEY_DEST" ]]; then
+        log_success "License key already present at $KEY_DEST — skipping"
+        return 0
+    fi
+
+    # Auto-install if license.key sits next to the installer script
+    if [[ -f "$SCRIPT_DIR/license.key" ]]; then
+        log_info "Found license.key in installer directory — installing..."
+        cp "$SCRIPT_DIR/license.key" "$KEY_DEST"
+        chmod 600 "$KEY_DEST"
+        chown "$SERVICE_USER:$SERVICE_USER" "$KEY_DEST" 2>/dev/null || true
+        log_success "License key installed to $KEY_DEST"
+        return 0
+    fi
+
+    # Prompt user to paste their key
+    echo ""
+    log_warning "No license.key found next to the installer."
+    log_info "Evilginx requires a valid license key to start."
+    log_info "Options:"
+    log_info "  1. Paste your license key now"
+    log_info "  2. Press Enter to skip (place license.key at $KEY_DEST later)"
+    echo ""
+    read -r -p "$(echo -e "${CYAN}Paste license key (or Enter to skip): ${NC}")" LICENSE_KEY < /dev/tty
+
+    if [[ -n "$LICENSE_KEY" ]]; then
+        echo "$LICENSE_KEY" > "$KEY_DEST"
+        chmod 600 "$KEY_DEST"
+        chown "$SERVICE_USER:$SERVICE_USER" "$KEY_DEST" 2>/dev/null || true
+        log_success "License key installed to $KEY_DEST"
+    else
+        log_warning "No license key installed — Evilginx will NOT start without one."
+        log_warning "Install manually after setup:"
+        log_warning "  sudo install -m 600 -o $SERVICE_USER license.key $KEY_DEST"
+    fi
+}
+
 stop_conflicting_services() {
     log_step "Step 5: Stopping Conflicting Services"
     
@@ -1834,6 +1877,7 @@ display_completion() {
     echo "  • Phishlets Directory:  $PHISHLETS_DIR"
     echo "  • Redirectors Directory: $REDIRECTORS_DIR"
     echo "  • Configuration:        $CONFIG_DIR"
+    echo "  • License Key:          $CONFIG_DIR/license.key"
     echo "  • Logs:                 $LOG_DIR"
     echo "  • Running as:           Admin (root)"
     echo "  • Systemd Service:      evilginx.service"
@@ -2039,6 +2083,7 @@ main() {
     install_go
     create_service_user
     setup_directories
+    install_license_key
     stop_conflicting_services
     disable_systemd_resolved
     choose_install_method
@@ -2134,6 +2179,7 @@ case "${1:-}" in
         # Ensure service user and directories exist with correct permissions
         create_service_user
         setup_directories
+        install_license_key
 
         # Stop services, update binary, reinstall
         stop_conflicting_services
