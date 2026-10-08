@@ -680,6 +680,7 @@ body.dark .terminal-wrap {
     <a href="#campaigns" data-tab="campaigns"><i class="ri-megaphone-line"></i> Campaigns</a>
     <a href="#config" data-tab="config"><i class="ri-settings-4-line"></i> Config</a>
     <a href="#audit" data-tab="audit"><i class="ri-file-list-3-line"></i> Audit</a>
+    <a href="#license" data-tab="license"><i class="ri-key-line"></i> License</a>
     <a href="#terminal" data-tab="terminal"><i class="ri-terminal-box-line"></i> Terminal</a>
 </div>
 
@@ -1002,6 +1003,49 @@ body.dark .terminal-wrap {
     </div>
 </div>
 
+<!-- ==================== LICENSE SECTION ==================== -->
+<div id="section-license" class="section-page">
+    <div class="section-table-wrap">
+      <h2><i class="ri-key-line"></i> License</h2>
+      <div id="licenseStatus" style="margin-bottom:20px;">Loading...</div>
+    </div>
+
+    <div class="config-section" id="licenseActivateSection" style="display:none;">
+      <h3>Activate License</h3>
+      <div class="config-row">
+        <label>License Key</label>
+        <textarea id="licenseKeyInput" rows="4" style="width:100%;font-family:monospace;font-size:12px;" placeholder="Paste your license key here..."></textarea>
+      </div>
+      <div class="config-row">
+        <button class="btn-save" onclick="activateLicense()">Activate</button>
+      </div>
+    </div>
+
+    <div class="config-section" id="licenseIssueSection" style="display:none;">
+      <h3>Issue License</h3>
+      <div class="config-row">
+        <label>Issued To</label>
+        <input id="issueToInput" type="text" placeholder="e.g. acme-corp" style="width:100%;">
+      </div>
+      <div class="config-row">
+        <label>Days Valid</label>
+        <input id="issueDaysInput" type="number" value="365" min="1" max="36500" style="width:120px;">
+      </div>
+      <div class="config-row">
+        <button class="btn-save" onclick="issueLicense()">Issue</button>
+      </div>
+      <div id="issuedKeyResult" style="display:none;margin-top:16px;">
+        <div class="config-row">
+          <label>New Key (copy and distribute securely)</label>
+          <textarea id="issuedKeyOutput" readonly rows="4" style="width:100%;font-family:monospace;font-size:12px;"></textarea>
+        </div>
+        <div class="config-row">
+          <button onclick="navigator.clipboard.writeText(document.getElementById('issuedKeyOutput').value).then(function(){showNotify('Key copied to clipboard','success')})">Copy Key</button>
+        </div>
+      </div>
+    </div>
+</div>
+
 <!-- ==================== TERMINAL SECTION ==================== -->
 <div id="section-terminal" class="section-page">
     <div class="terminal-wrap">
@@ -1091,10 +1135,16 @@ async function apiFetch(url, options) {
     if (data.must_change_password) {
       window.location.href = '/login';
     }
+    currentUser = data;
   } catch (e) {
     // Network error - don't redirect, might be local
   }
 })();
+
+// ============================================================
+// Current user (set by auth check on page load)
+// ============================================================
+var currentUser = null;
 
 // ============================================================
 // Session data store
@@ -1108,7 +1158,7 @@ let phishletChartInstance = null;
 // ============================================================
 // Navigation / Routing
 // ============================================================
-const sections = ['dashboard', 'phishlets', 'lures', 'campaigns', 'config', 'audit', 'terminal'];
+const sections = ['dashboard', 'phishlets', 'lures', 'campaigns', 'config', 'audit', 'license', 'terminal'];
 
 function navigateTo(section) {
   if (!sections.includes(section)) section = 'dashboard';
@@ -1145,6 +1195,8 @@ function navigateTo(section) {
     loadConfig();
   } else if (section === 'audit') {
     loadAudit();
+  } else if (section === 'license') {
+    loadLicense();
   }
   // terminal - loaded once on connect
 }
@@ -2135,6 +2187,81 @@ function loadAudit() {
     console.error('Failed to load audit log:', err);
     document.getElementById('auditTableBody').innerHTML =
       '<tr><td colspan="5" style="text-align:center;color:#f66;">Failed to load audit log</td></tr>';
+  });
+}
+
+// ============================================================
+// License Section
+// ============================================================
+function loadLicense() {
+  apiFetch('/api/license').then(function(r) {
+    if (!r) return;
+    return r.json();
+  }).then(function(data) {
+    if (!data) return;
+    var el = document.getElementById('licenseStatus');
+    if (!data.enabled) {
+      el.innerHTML = '<div class="config-section"><p style="color:#999;">License verification is not enabled in this build.</p></div>';
+      return;
+    }
+    var badge = data.valid
+      ? '<span style="background:#2e7d32;color:#fff;padding:2px 10px;border-radius:4px;font-size:12px;">VALID</span>'
+      : '<span style="background:#b71c1c;color:#fff;padding:2px 10px;border-radius:4px;font-size:12px;">INVALID / EXPIRED</span>';
+    var rows = '';
+    if (data.issued_to) rows += '<tr><td style="width:160px;color:#aaa;">Issued To</td><td>' + escapeHtml(data.issued_to) + '</td></tr>';
+    if (data.issued_at) rows += '<tr><td style="color:#aaa;">Issued At</td><td>' + new Date(data.issued_at * 1000).toLocaleDateString() + '</td></tr>';
+    if (data.expires_at) rows += '<tr><td style="color:#aaa;">Expires At</td><td>' + new Date(data.expires_at * 1000).toLocaleDateString() + (data.days_remaining !== undefined ? ' (' + data.days_remaining + ' days remaining)' : '') + '</td></tr>';
+    el.innerHTML = '<div class="config-section"><h3>License Status &nbsp;' + badge + '</h3><table style="width:100%;border-collapse:collapse;">' + rows + '</table></div>';
+
+    if (currentUser && currentUser.role === 'admin') {
+      document.getElementById('licenseActivateSection').style.display = '';
+      document.getElementById('licenseIssueSection').style.display = '';
+    }
+  }).catch(function(err) {
+    console.error('Failed to load license info:', err);
+    document.getElementById('licenseStatus').innerHTML = '<p style="color:#f66;">Failed to load license info.</p>';
+  });
+}
+
+function activateLicense() {
+  var key = (document.getElementById('licenseKeyInput').value || '').trim();
+  if (!key) { showNotify('Please paste a license key', 'error'); return; }
+  apiFetch('/api/license/activate', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({key: key})
+  }).then(function(r) {
+    if (!r) return;
+    if (!r.ok) return r.json().then(function(e) { showNotify(e.error || 'Activation failed', 'error'); });
+    return r.json().then(function(d) {
+      showNotify('License activated — restart required to take effect', 'success');
+      document.getElementById('licenseKeyInput').value = '';
+      loadLicense();
+    });
+  }).catch(function(err) {
+    showNotify('Activation failed: ' + err.message, 'error');
+  });
+}
+
+function issueLicense() {
+  var issuedTo = (document.getElementById('issueToInput').value || '').trim();
+  var days = parseInt(document.getElementById('issueDaysInput').value, 10);
+  if (!issuedTo) { showNotify('Please enter an "Issued To" value', 'error'); return; }
+  if (!days || days < 1) { showNotify('Days must be at least 1', 'error'); return; }
+  apiFetch('/api/license/issue', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({issued_to: issuedTo, days: days})
+  }).then(function(r) {
+    if (!r) return;
+    if (!r.ok) return r.json().then(function(e) { showNotify(e.error || 'Issue failed', 'error'); });
+    return r.json().then(function(d) {
+      document.getElementById('issuedKeyOutput').value = d.key || '';
+      document.getElementById('issuedKeyResult').style.display = '';
+      showNotify('License key issued for ' + escapeHtml(d.issued_to), 'success');
+    });
+  }).catch(function(err) {
+    showNotify('Issue failed: ' + err.message, 'error');
   });
 }
 

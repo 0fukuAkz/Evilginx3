@@ -122,6 +122,11 @@ func (w *WebAPI) Start(port int) {
 	// Audit log (read-only)
 	mux.HandleFunc("/api/audit", w.requireAuth(w.handleAudit))
 
+	// License endpoints — read: any auth; mutations: admin only
+	mux.HandleFunc("/api/license", w.requireAuth(w.handleLicenseGet))
+	mux.HandleFunc("/api/license/activate", w.requireAdmin(w.handleLicenseActivate))
+	mux.HandleFunc("/api/license/issue", w.requireAdmin(w.handleLicenseIssue))
+
 	// Telegram settings — read: any auth; save: operator+
 	mux.HandleFunc("/get-telegram", w.requireAuth(w.handleGetTelegram))
 	mux.HandleFunc("/settings/save", w.requireOperator(w.handleSaveTelegram))
@@ -1391,4 +1396,156 @@ func (w *WebAPI) handleLogout(rw http.ResponseWriter, req *http.Request) {
 	})
 
 	http.Redirect(rw, req, "/login", http.StatusFound)
+}
+
+// handleLicenseGet returns the current license status.
+func (w *WebAPI) handleLicenseGet(rw http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodGet {
+		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if LICENSE_PUBLIC_KEY == "" {
+		writeJSON(rw, http.StatusOK, map[string]interface{}{"enabled": false})
+		return
+	}
+	issuedTo, issuedAt, expiresAt, valid, err := ReadLicenseInfo(w.cfg.GetCfgDir())
+	if err != nil {
+		writeJSON(rw, http.StatusOK, map[string]interface{}{
+			"enabled": true,
+			"valid":   false,
+			"error":   err.Error(),
+		})
+		return
+	}
+	daysRemaining := int(time.Until(expiresAt).Hours() / 24)
+	if daysRemaining < 0 {
+		daysRemaining = 0
+	}
+	writeJSON(rw, http.StatusOK, map[string]interface{}{
+		"enabled":       true,
+		"valid":         valid,
+		"issued_to":     issuedTo,
+		"issued_at":     issuedAt.Unix(),
+		"expires_at":    expiresAt.Unix(),
+		"days_remaining": daysRemaining,
+	})
+}
+
+// handleLicenseActivate writes a provided license key to the config dir after validation.
+func (w *WebAPI) handleLicenseActivate(rw http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		Key string `json:"key"`
+	}
+	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+	body.Key = strings.TrimSpace(body.Key)
+	if body.Key == "" {
+		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "key is required"})
+		return
+	}
+	pl, err := ValidateLicenseKey(body.Key)
+	if err != nil {
+		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	licPath := filepath.Join(w.cfg.GetCfgDir(), "license.key")
+	tmpPath := licPath + ".tmp"
+	if err := os.WriteFile(tmpPath, []byte(body.Key+"\n"), 0600); err != nil {
+		writeJSON(rw, http.StatusInternalServerError, map[string]string{"error": "failed to write license"})
+		return
+	}
+	if err := os.Rename(tmpPath, licPath); err != nil {
+		os.Remove(tmpPath)
+		writeJSON(rw, http.StatusInternalServerError, map[string]string{"error": "failed to install license"})
+		return
+	}
+	user, _ := w.getUserFromRequest(req)
+	username := "unknown"
+	if user != nil {
+		username = user.Username
+	}
+	w.db.CreateAuditEntry(username, "activate_license", fmt.Sprintf("License activated for '%s'", pl.To), getClientIP(req))
+	writeJSON(rw, http.StatusOK, map[string]interface{}{
+		"message":    "License activated — takes effect on next restart",
+		"issued_to":  pl.To,
+		"expires_at": pl.Exp,
+	})
+}
+
+// handleLicenseIssue signs a new license key using admin.key and returns the token.
+func (w *WebAPI) handleLicenseIssue(rw http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		IssuedTo string `json:"issued_to"`
+		Days     int    `json:"days"`
+	}
+	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+	body.IssuedTo = strings.TrimSpace(body.IssuedTo)
+	if body.IssuedTo == "" {
+		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "issued_to is required"})
+		return
+	}
+	if body.Days <= 0 || body.Days > 36500 {
+		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "days must be between 1 and 36500"})
+		return
+	}
+	cfgDir := w.cfg.GetCfgDir()
+	exePath, _ := os.Executable()
+	exeDir := filepath.Dir(exePath)
+	privKeyPath := ""
+	for _, candidate := range []string{
+		filepath.Join(cfgDir, "admin.key"),
+		filepath.Join(exeDir, "admin.key"),
+		filepath.Join(".", "admin.key"),
+	} {
+		if _, err := os.Stat(candidate); err == nil {
+			privKeyPath = candidate
+			break
+		}
+	}
+	if privKeyPath == "" {
+		writeJSON(rw, http.StatusNotFound, map[string]string{"error": "admin.key not found on server"})
+		return
+	}
+	// Issue into a temp dir and read the result back
+	tmpDir, err := os.MkdirTemp("", "evilginx-license-*")
+	if err != nil {
+		writeJSON(rw, http.StatusInternalServerError, map[string]string{"error": "temp dir error"})
+		return
+	}
+	defer os.RemoveAll(tmpDir)
+
+	if err := IssueLicense(privKeyPath, tmpDir, body.IssuedTo, body.Days); err != nil {
+		writeJSON(rw, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	keyBytes, err := os.ReadFile(filepath.Join(tmpDir, "license.key"))
+	if err != nil {
+		writeJSON(rw, http.StatusInternalServerError, map[string]string{"error": "failed to read issued key"})
+		return
+	}
+	keyStr := strings.TrimSpace(string(keyBytes))
+	user, _ := w.getUserFromRequest(req)
+	username := "unknown"
+	if user != nil {
+		username = user.Username
+	}
+	w.db.CreateAuditEntry(username, "issue_license", fmt.Sprintf("License issued for '%s' (%d days)", body.IssuedTo, body.Days), getClientIP(req))
+	writeJSON(rw, http.StatusOK, map[string]interface{}{
+		"key":       keyStr,
+		"issued_to": body.IssuedTo,
+		"days":      body.Days,
+	})
 }

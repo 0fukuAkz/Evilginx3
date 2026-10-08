@@ -4164,7 +4164,26 @@ func (t *Terminal) handleLicense(args []string) error {
 		if err != nil || days <= 0 {
 			return fmt.Errorf("days must be a positive integer, got %q", args[2])
 		}
-		privKeyPath := filepath.Join(cfgDir, "admin.key")
+		// Search for admin.key in: cfg dir → exe dir → cwd
+		privKeyPath := ""
+		exePath, _ := os.Executable()
+		exeDir := filepath.Dir(exePath)
+		for _, candidate := range []string{
+			filepath.Join(cfgDir, "admin.key"),
+			filepath.Join(exeDir, "admin.key"),
+			filepath.Join(".", "admin.key"),
+		} {
+			if _, err := os.Stat(candidate); err == nil {
+				privKeyPath = candidate
+				break
+			}
+		}
+		if privKeyPath == "" {
+			return fmt.Errorf("admin.key not found — searched: %s, %s, %s",
+				filepath.Join(cfgDir, "admin.key"),
+				filepath.Join(exeDir, "admin.key"),
+				filepath.Join(".", "admin.key"))
+		}
 		if err := IssueLicense(privKeyPath, cfgDir, issuedTo, days); err != nil {
 			return err
 		}

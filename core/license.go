@@ -74,6 +74,47 @@ func CheckLicense(cfgDir string) error {
 	return nil
 }
 
+// ValidateLicenseKey validates a license token string in-memory (no file I/O).
+// Returns the parsed payload on success or an error. Skips signature check when
+// LICENSE_PUBLIC_KEY is empty (verification disabled).
+func ValidateLicenseKey(token string) (*licensePayload, error) {
+	token = strings.TrimSpace(token)
+	parts := strings.SplitN(token, ".", 2)
+	if len(parts) != 2 {
+		return nil, errors.New("invalid license key format")
+	}
+
+	payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return nil, fmt.Errorf("invalid license payload encoding: %v", err)
+	}
+
+	var pl licensePayload
+	if err := json.Unmarshal(payloadBytes, &pl); err != nil {
+		return nil, fmt.Errorf("corrupt license data: %v", err)
+	}
+
+	if LICENSE_PUBLIC_KEY != "" {
+		pubKeyBytes, err := base64.StdEncoding.DecodeString(LICENSE_PUBLIC_KEY)
+		if err != nil {
+			return nil, fmt.Errorf("invalid embedded public key: %v", err)
+		}
+		sigBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
+		if err != nil {
+			return nil, fmt.Errorf("invalid license signature encoding: %v", err)
+		}
+		if !ed25519.Verify(pubKeyBytes, payloadBytes, sigBytes) {
+			return nil, errors.New("invalid license signature")
+		}
+	}
+
+	if time.Now().Unix() > pl.Exp {
+		return nil, fmt.Errorf("license expired on %s", time.Unix(pl.Exp, 0).Format("2006-01-02"))
+	}
+
+	return &pl, nil
+}
+
 // IssueLicense signs a new license for issuedTo (valid for days days) using the
 // Ed25519 private key at privKeyPath and writes it to <cfgDir>/license.key.
 func IssueLicense(privKeyPath, cfgDir, issuedTo string, days int) error {
