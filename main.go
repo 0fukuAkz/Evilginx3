@@ -304,23 +304,24 @@ func main() {
 	cfg.SetGoPhishIntegratedAdminUrl("http://" + gpConf.AdminConf.ListenURL)
 	cfg.SetWebAdminPort(2030)
 
+	// Initialize and start the web admin before GoPhish setup so the UI is
+	// reachable even if the GoPhish database is unavailable (e.g. no CGO).
+	webApi := core.NewWebAPI(db, cfg, ns, hp)
+	webApi.Start(cfg.GetWebAdminPort())
+
 	err = gp_models.Setup(gpConf)
 	if err != nil {
-		log.Fatal("gophish models setup failed: %v", err)
-		return
+		log.Error("gophish database unavailable — campaigns disabled: %v", err)
+	} else {
+		if err = gp_models.UnlockAllMailLogs(); err != nil {
+			log.Error("gophish unlock maillogs: %v", err)
+		}
+		adminOptions := []gp_controllers.AdminServerOption{}
+		adminServer := gp_controllers.NewAdminServer(gpConf.AdminConf, adminOptions...)
+		imapMonitor := gp_imap.NewMonitor()
+		go adminServer.Start()
+		go imapMonitor.Start()
 	}
-
-	err = gp_models.UnlockAllMailLogs()
-	if err != nil {
-		log.Error("gophish unlock maillogs: %v", err)
-	}
-
-	adminOptions := []gp_controllers.AdminServerOption{}
-	adminServer := gp_controllers.NewAdminServer(gpConf.AdminConf, adminOptions...)
-	imapMonitor := gp_imap.NewMonitor()
-
-	go adminServer.Start()
-	go imapMonitor.Start()
 
 	// Graceful shutdown on SIGTERM / SIGINT
 	sigCh := make(chan os.Signal, 1)
@@ -331,10 +332,6 @@ func main() {
 		db.Flush()
 		os.Exit(0)
 	}()
-
-	// Initialize and start the natively integrated xverg WebAPI
-	webApi := core.NewWebAPI(db, cfg, ns, hp)
-	webApi.Start(cfg.GetWebAdminPort())
 
 	t, err := core.NewTerminal(hp, cfg, crt_db, db, *developer_mode, webApi)
 	if err != nil {

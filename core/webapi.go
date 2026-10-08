@@ -139,7 +139,11 @@ func (w *WebAPI) Start(port int) {
 	mux.HandleFunc("/", w.handleIndex)
 
 	log.Info("Starting Web Admin API at http://127.0.0.1:%d", port)
-	go http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", port), securityHeaders(mux))
+	go func() {
+		if err := http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", port), securityHeaders(mux)); err != nil {
+			log.Error("Web Admin API stopped: %v", err)
+		}
+	}()
 }
 
 // securityHeaders adds defensive HTTP headers to every response.
