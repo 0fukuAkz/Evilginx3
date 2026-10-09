@@ -4,7 +4,7 @@
 //
 // Usage:
 //
-//	go run tools/licensegen/main.go -admin-key ./admin.key -to 1.2.3.4 -days 365
+//	go run cmd/licensegen/main.go -admin-key ./admin.key -to 1.2.3.4 -days 365
 //	./build/licensegen -admin-key ./admin.key -to 1.2.3.4 -days 365
 //
 // Prints the license token to stdout. Pipe or copy it to the recipient.

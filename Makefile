@@ -46,4 +46,4 @@ keygen:
 
 licensegen:
 	@mkdir -p ./build
-	@go build -o ./build/licensegen tools/licensegen/main.go
+	@go build -o ./build/licensegen cmd/licensegen/main.go
