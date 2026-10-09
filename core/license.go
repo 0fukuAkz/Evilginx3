@@ -2,6 +2,7 @@ package core
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/base64"
@@ -326,6 +327,64 @@ func CheckRevocationFast(token, revocationURL string, etag *string) error {
 		}
 	}
 	return nil
+}
+
+// SendHeartbeat POSTs a heartbeat to heartbeatURL so the admin can monitor
+// which VPSes are alive. The server responds 200 (active) or 403 (revoked).
+// A 403 response returns an error so the caller can shut down evilginx.
+// All other errors (network, timeout, non-403 HTTP) are fail-open (nil).
+func SendHeartbeat(token, heartbeatURL string) error {
+	if heartbeatURL == "" || token == "" {
+		return nil
+	}
+
+	h := sha256.Sum256([]byte(strings.TrimSpace(token)))
+	hash := hex.EncodeToString(h[:])
+
+	localIP := firstPublicIPv4()
+
+	payload, _ := json.Marshal(map[string]interface{}{
+		"token_hash": hash,
+		"ip":         localIP,
+		"ts":         time.Now().Unix(),
+	})
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Post(heartbeatURL, "application/json", bytes.NewReader(payload))
+	if err != nil {
+		return nil // fail open on network error
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusForbidden {
+		return errors.New("license has been revoked — contact the admin for a new key")
+	}
+	return nil
+}
+
+// firstPublicIPv4 returns the first non-loopback IPv4 address on a running
+// interface, or empty string when none is found.
+func firstPublicIPv4() string {
+	ifaces, _ := net.Interfaces()
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+		addrs, _ := iface.Addrs()
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip != nil && !ip.IsLoopback() && ip.To4() != nil {
+				return ip.String()
+			}
+		}
+	}
+	return ""
 }
 
 // ReadLicenseInfo returns the fields of the current license.

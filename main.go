@@ -357,6 +357,31 @@ func main() {
 		}
 	}()
 
+	// Heartbeat: phone-home every 5 minutes. Server 403 triggers immediate shutdown.
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("heartbeat panic: %v", r)
+			}
+		}()
+		send := func() {
+			url := core.LICENSE_HEARTBEAT_URL
+			if url == "" || licenseToken == "" {
+				return
+			}
+			if err := core.SendHeartbeat(licenseToken, url); err != nil {
+				log.Fatal("heartbeat: %v — shutting down", err)
+				os.Exit(1)
+			}
+		}
+		send()
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			send()
+		}
+	}()
+
 	// Graceful shutdown on SIGTERM / SIGINT
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
