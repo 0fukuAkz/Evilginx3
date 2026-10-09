@@ -327,13 +327,15 @@ func main() {
 		go imapMonitor.Start()
 	}
 
-	// Revocation check: startup + every 6 hours.
+	// Revocation check: startup + every minute using conditional GET (ETag).
+	// 304 Not Modified responses are free — only changed revoked.json triggers a parse.
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				log.Error("revocation checker panic: %v", r)
 			}
 		}()
+		var revocationETag string
 		check := func() {
 			url := cfg.GetLicenseRevocationURL()
 			if url == "" {
@@ -342,13 +344,13 @@ func main() {
 			if url == "" || licenseToken == "" {
 				return
 			}
-			if err := core.CheckRevocation(licenseToken, url); err != nil {
+			if err := core.CheckRevocationFast(licenseToken, url, &revocationETag); err != nil {
 				log.Fatal("license revoked: %v — shutting down", err)
 				os.Exit(1)
 			}
 		}
 		check()
-		ticker := time.NewTicker(6 * time.Hour)
+		ticker := time.NewTicker(1 * time.Minute)
 		defer ticker.Stop()
 		for range ticker.C {
 			check()

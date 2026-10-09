@@ -264,19 +264,46 @@ func ReadLicenseToken(cfgDir string) string {
 // CheckRevocation fetches revoked.json from revocationURL and returns an error
 // if the given token is in the revoked list. Network errors are non-fatal
 // (returns nil) so an unreachable URL never blocks startup.
+// Used for on-demand checks (web API). For the background ticker use CheckRevocationFast.
 func CheckRevocation(token, revocationURL string) error {
+	return CheckRevocationFast(token, revocationURL, nil)
+}
+
+// CheckRevocationFast is like CheckRevocation but sends a conditional GET using
+// the ETag from the previous response. On 304 Not Modified it returns nil
+// immediately without parsing — making 1-minute polling nearly free.
+// etag is read and updated in place; pass nil to skip caching (on-demand use).
+func CheckRevocationFast(token, revocationURL string, etag *string) error {
 	if revocationURL == "" {
 		return nil
 	}
 
+	req, err := http.NewRequest("GET", revocationURL, nil)
+	if err != nil {
+		return nil
+	}
+	if etag != nil && *etag != "" {
+		req.Header.Set("If-None-Match", *etag)
+	}
+
 	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(revocationURL)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil // fail open on network error
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotModified {
+		return nil // revoked.json unchanged — no need to re-parse
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil // fail open on HTTP errors
+	}
+
+	if etag != nil {
+		if e := resp.Header.Get("ETag"); e != "" {
+			*etag = e
+		}
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
