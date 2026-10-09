@@ -128,6 +128,7 @@ func (w *WebAPI) Start(port int) {
 	mux.HandleFunc("/api/license/issue", w.requireAdmin(w.handleLicenseIssue))
 	mux.HandleFunc("/api/license/revocation-check", w.requireAuth(w.handleLicenseRevocationCheck))
 	mux.HandleFunc("/api/license/set-revocation-url", w.requireAdmin(w.handleLicenseSetRevocationURL))
+	mux.HandleFunc("/api/license/set-heartbeat-url", w.requireAdmin(w.handleLicenseSetHeartbeatURL))
 
 	// Telegram settings — read: any auth; save: operator+
 	mux.HandleFunc("/get-telegram", w.requireAuth(w.handleGetTelegram))
@@ -1434,7 +1435,8 @@ func (w *WebAPI) handleLicenseGet(rw http.ResponseWriter, req *http.Request) {
 		"issued_at":        issuedAt.Unix(),
 		"expires_at":       expiresAt.Unix(),
 		"days_remaining":   daysRemaining,
-		"revocation_url":   w.cfg.GetLicenseRevocationURL(),
+		"revocation_url":  w.cfg.GetLicenseRevocationURL(),
+		"heartbeat_url":   w.cfg.GetLicenseHeartbeatURL(),
 	})
 }
 
@@ -1616,4 +1618,27 @@ func (w *WebAPI) handleLicenseSetRevocationURL(rw http.ResponseWriter, req *http
 	}
 	w.db.CreateAuditEntry(username, "set_revocation_url", "License revocation URL updated", getClientIP(req))
 	writeJSON(rw, http.StatusOK, map[string]string{"message": "Revocation URL saved"})
+}
+
+// handleLicenseSetHeartbeatURL saves the heartbeat URL to the config.
+func (w *WebAPI) handleLicenseSetHeartbeatURL(rw http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		URL string `json:"url"`
+	}
+	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+	w.cfg.SetLicenseHeartbeatURL(strings.TrimSpace(body.URL))
+	user, _ := w.getUserFromRequest(req)
+	username := "unknown"
+	if user != nil {
+		username = user.Username
+	}
+	w.db.CreateAuditEntry(username, "set_heartbeat_url", "License heartbeat URL updated", getClientIP(req))
+	writeJSON(rw, http.StatusOK, map[string]string{"message": "Heartbeat URL saved"})
 }

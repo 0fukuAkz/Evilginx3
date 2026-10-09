@@ -365,7 +365,10 @@ func main() {
 			}
 		}()
 		send := func() {
-			url := core.LICENSE_HEARTBEAT_URL
+			url := cfg.GetLicenseHeartbeatURL()
+			if url == "" {
+				url = core.LICENSE_HEARTBEAT_URL
+			}
 			if url == "" || licenseToken == "" {
 				return
 			}

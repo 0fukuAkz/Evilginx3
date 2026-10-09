@@ -132,7 +132,8 @@ type GeneralConfig struct {
 	TrustedProxies   []string `mapstructure:"trusted_proxies" json:"trusted_proxies" yaml:"trusted_proxies"`
 	ServerCookieName string   `mapstructure:"server_cookie_name" json:"server_cookie_name" yaml:"server_cookie_name"`
 	WebAdminPort           int    `mapstructure:"web_admin_port" json:"web_admin_port" yaml:"web_admin_port"`
-	LicenseRevocationURL   string `mapstructure:"license_revocation_url" json:"license_revocation_url" yaml:"license_revocation_url"`
+	LicenseRevocationURL string `mapstructure:"license_revocation_url" json:"license_revocation_url" yaml:"license_revocation_url"`
+	LicenseHeartbeatURL  string `mapstructure:"license_heartbeat_url" json:"license_heartbeat_url" yaml:"license_heartbeat_url"`
 }
 
 type Config struct {
@@ -1097,6 +1098,15 @@ func (c *Config) GetLicenseRevocationURL() string {
 
 func (c *Config) SetLicenseRevocationURL(url string) {
 	c.general.LicenseRevocationURL = url
+	c.Save()
+}
+
+func (c *Config) GetLicenseHeartbeatURL() string {
+	return c.general.LicenseHeartbeatURL
+}
+
+func (c *Config) SetLicenseHeartbeatURL(url string) {
+	c.general.LicenseHeartbeatURL = url
 	c.Save()
 }
 
