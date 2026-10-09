@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -76,7 +77,42 @@ func CheckLicense(cfgDir string) error {
 		return fmt.Errorf("license expired on %s", time.Unix(pl.Exp, 0).Format("2006-01-02"))
 	}
 
+	// If the license is bound to an IP, verify this machine has that IP.
+	if net.ParseIP(pl.To) != nil {
+		if err := checkLicenseIP(pl.To); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+// checkLicenseIP returns nil when the host has an interface with licenseIP,
+// or when the interface list cannot be read (fail-open).
+func checkLicenseIP(licenseIP string) error {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil // fail open
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+		addrs, _ := iface.Addrs()
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip != nil && ip.String() == licenseIP {
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("license is bound to IP %s — this machine does not have that IP", licenseIP)
 }
 
 // ValidateLicenseKey validates a license token string in-memory (no file I/O).
