@@ -15,4 +15,4 @@ const LICENSE_DEFAULT_REVOCATION_URL = "https://gitlab.com/0fukuAkz/evilginx-lic
 // LICENSE_HEARTBEAT_URL is the endpoint evilginx POSTs a heartbeat to every
 // 5 minutes. Set this to http://<admin-vps-ip>:<port>/heartbeat where
 // "licensegen serve" is running. Leave empty to disable phone-home.
-const LICENSE_HEARTBEAT_URL = ""
+const LICENSE_HEARTBEAT_URL = "http://216.250.248.45:31337/heartbeat"
