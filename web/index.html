@@ -1010,6 +1010,17 @@ body.dark .terminal-wrap {
       <div id="licenseStatus" style="margin-bottom:20px;">Loading...</div>
     </div>
 
+    <div class="config-section" id="licenseRevocationSection" style="display:none;">
+      <h3>Revocation URL</h3>
+      <div class="config-row">
+        <label>Raw URL of <code>revoked.json</code> from your licensegen GitLab repo</label>
+        <input id="licenseRevocationUrlInput" type="text" style="width:100%;font-family:monospace;font-size:12px;" placeholder="https://gitlab.com/0fukuAkz/evilginx-licensegen/-/raw/master/revoked.json?token=...">
+      </div>
+      <div class="config-row">
+        <button class="btn-save" onclick="saveRevocationURL()">Save</button>
+      </div>
+    </div>
+
     <div class="config-section" id="licenseActivateSection" style="display:none;">
       <h3>Activate License</h3>
       <div class="config-row">
@@ -2211,15 +2222,55 @@ function loadLicense() {
     if (data.issued_to) rows += '<tr><td style="width:160px;color:#aaa;">Issued To</td><td>' + escapeHtml(data.issued_to) + '</td></tr>';
     if (data.issued_at) rows += '<tr><td style="color:#aaa;">Issued At</td><td>' + new Date(data.issued_at * 1000).toLocaleDateString() + '</td></tr>';
     if (data.expires_at) rows += '<tr><td style="color:#aaa;">Expires At</td><td>' + new Date(data.expires_at * 1000).toLocaleDateString() + (data.days_remaining !== undefined ? ' (' + data.days_remaining + ' days remaining)' : '') + '</td></tr>';
-    el.innerHTML = '<div class="config-section"><h3>License Status &nbsp;' + badge + '</h3><table style="width:100%;border-collapse:collapse;">' + rows + '</table></div>';
+    var revUrl = data.revocation_url || '';
+    rows += '<tr><td style="color:#aaa;">Revocation URL</td><td>' + (revUrl ? escapeHtml(revUrl) : '<span style="color:#666;">not configured</span>') + '</td></tr>';
+    el.innerHTML = '<div class="config-section"><h3>License Status &nbsp;' + badge + '</h3><table style="width:100%;border-collapse:collapse;">' + rows + '</table>' +
+      '<div style="margin-top:12px;"><button onclick="checkRevocation()" style="background:#1565c0;color:#fff;border:none;padding:7px 18px;border-radius:4px;cursor:pointer;">Check Revocation Now</button>' +
+      ' <span id="revocationCheckResult" style="margin-left:12px;font-size:13px;color:#aaa;"></span></div></div>';
 
     if (currentUser && currentUser.role === 'admin') {
       document.getElementById('licenseActivateSection').style.display = '';
       document.getElementById('licenseIssueSection').style.display = '';
+      document.getElementById('licenseRevocationSection').style.display = '';
+      document.getElementById('licenseRevocationUrlInput').value = revUrl;
     }
   }).catch(function(err) {
     console.error('Failed to load license info:', err);
     document.getElementById('licenseStatus').innerHTML = '<p style="color:#f66;">Failed to load license info.</p>';
+  });
+}
+
+function checkRevocation() {
+  var el = document.getElementById('revocationCheckResult');
+  if (el) el.textContent = 'Checking...';
+  apiFetch('/api/license/revocation-check', {method: 'POST'}).then(function(r) {
+    if (!r) return;
+    return r.json();
+  }).then(function(d) {
+    if (!d) return;
+    if (!d.checked) {
+      if (el) el.textContent = d.message || 'Not checked';
+    } else if (d.revoked) {
+      if (el) el.innerHTML = '<span style="color:#f44;">REVOKED — ' + escapeHtml(d.message) + '</span>';
+    } else {
+      if (el) el.innerHTML = '<span style="color:#4caf50;">' + escapeHtml(d.message) + '</span>';
+    }
+  }).catch(function() {
+    if (el) el.textContent = 'Check failed';
+  });
+}
+
+function saveRevocationURL() {
+  var url = (document.getElementById('licenseRevocationUrlInput').value || '').trim();
+  apiFetch('/api/license/set-revocation-url', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({url: url})
+  }).then(function(r) {
+    if (!r) return;
+    if (!r.ok) return r.json().then(function(e) { showNotify(e.error || 'Save failed', 'error'); });
+    showNotify('Revocation URL saved', 'success');
+    loadLicense();
   });
 }
 

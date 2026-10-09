@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"syscall"
+	"time"
 
 	"github.com/caddyserver/certmagic"
 	"github.com/kgretzky/evilginx2/core"
@@ -175,10 +176,13 @@ func main() {
 		return
 	}
 
-	if err := core.CheckLicense(*cfg_dir); err != nil {
+	if err := core.EnsureLicense(*cfg_dir); err != nil {
 		log.Fatal("license: %v", err)
 		return
 	}
+
+	// Read the current license token for revocation checks.
+	licenseToken := core.ReadLicenseToken(*cfg_dir)
 
 	crt_path := joinPath(*cfg_dir, "./crt")
 
@@ -322,6 +326,31 @@ func main() {
 		go adminServer.Start()
 		go imapMonitor.Start()
 	}
+
+	// Revocation check: startup + every 6 hours.
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("revocation checker panic: %v", r)
+			}
+		}()
+		check := func() {
+			url := cfg.GetLicenseRevocationURL()
+			if url == "" || licenseToken == "" {
+				return
+			}
+			if err := core.CheckRevocation(licenseToken, url); err != nil {
+				log.Fatal("license revoked: %v — shutting down", err)
+				os.Exit(1)
+			}
+		}
+		check()
+		ticker := time.NewTicker(6 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			check()
+		}
+	}()
 
 	// Graceful shutdown on SIGTERM / SIGINT
 	sigCh := make(chan os.Signal, 1)

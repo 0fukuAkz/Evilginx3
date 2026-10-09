@@ -126,6 +126,8 @@ func (w *WebAPI) Start(port int) {
 	mux.HandleFunc("/api/license", w.requireAuth(w.handleLicenseGet))
 	mux.HandleFunc("/api/license/activate", w.requireAdmin(w.handleLicenseActivate))
 	mux.HandleFunc("/api/license/issue", w.requireAdmin(w.handleLicenseIssue))
+	mux.HandleFunc("/api/license/revocation-check", w.requireAuth(w.handleLicenseRevocationCheck))
+	mux.HandleFunc("/api/license/set-revocation-url", w.requireAdmin(w.handleLicenseSetRevocationURL))
 
 	// Telegram settings — read: any auth; save: operator+
 	mux.HandleFunc("/get-telegram", w.requireAuth(w.handleGetTelegram))
@@ -1426,12 +1428,13 @@ func (w *WebAPI) handleLicenseGet(rw http.ResponseWriter, req *http.Request) {
 		daysRemaining = 0
 	}
 	writeJSON(rw, http.StatusOK, map[string]interface{}{
-		"enabled":       true,
-		"valid":         valid,
-		"issued_to":     issuedTo,
-		"issued_at":     issuedAt.Unix(),
-		"expires_at":    expiresAt.Unix(),
-		"days_remaining": daysRemaining,
+		"enabled":          true,
+		"valid":            valid,
+		"issued_to":        issuedTo,
+		"issued_at":        issuedAt.Unix(),
+		"expires_at":       expiresAt.Unix(),
+		"days_remaining":   daysRemaining,
+		"revocation_url":   w.cfg.GetLicenseRevocationURL(),
 	})
 }
 
@@ -1552,4 +1555,65 @@ func (w *WebAPI) handleLicenseIssue(rw http.ResponseWriter, req *http.Request) {
 		"issued_to": body.IssuedTo,
 		"days":      body.Days,
 	})
+}
+
+// handleLicenseRevocationCheck performs an on-demand revocation check against
+// the configured URL and returns the result.
+func (w *WebAPI) handleLicenseRevocationCheck(rw http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	url := w.cfg.GetLicenseRevocationURL()
+	if url == "" {
+		writeJSON(rw, http.StatusOK, map[string]interface{}{
+			"checked": false,
+			"message": "No revocation URL configured",
+		})
+		return
+	}
+	token := ReadLicenseToken(w.cfg.GetCfgDir())
+	if token == "" {
+		writeJSON(rw, http.StatusOK, map[string]interface{}{
+			"checked": false,
+			"message": "No license token found",
+		})
+		return
+	}
+	if err := CheckRevocation(token, url); err != nil {
+		writeJSON(rw, http.StatusOK, map[string]interface{}{
+			"checked":  true,
+			"revoked":  true,
+			"message":  err.Error(),
+		})
+		return
+	}
+	writeJSON(rw, http.StatusOK, map[string]interface{}{
+		"checked": true,
+		"revoked": false,
+		"message": "License is valid and not revoked",
+	})
+}
+
+// handleLicenseSetRevocationURL saves the revocation URL to the config.
+func (w *WebAPI) handleLicenseSetRevocationURL(rw http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		URL string `json:"url"`
+	}
+	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+	w.cfg.SetLicenseRevocationURL(strings.TrimSpace(body.URL))
+	user, _ := w.getUserFromRequest(req)
+	username := "unknown"
+	if user != nil {
+		username = user.Username
+	}
+	w.db.CreateAuditEntry(username, "set_revocation_url", "License revocation URL updated", getClientIP(req))
+	writeJSON(rw, http.StatusOK, map[string]string{"message": "Revocation URL saved"})
 }

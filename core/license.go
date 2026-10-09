@@ -1,11 +1,16 @@
 package core
 
 import (
+	"bufio"
 	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -161,6 +166,95 @@ func IssueLicense(privKeyPath, cfgDir, issuedTo string, days int) error {
 		return fmt.Errorf("failed to install license: %v", err)
 	}
 
+	return nil
+}
+
+// EnsureLicense checks for a valid license. If no license file exists it
+// prompts the user on stdin to paste a key, validates it, saves it to
+// cfgDir/license.key, then returns nil so startup can continue.
+// Any other error (expired key, bad signature) is returned directly.
+func EnsureLicense(cfgDir string) error {
+	err := CheckLicense(cfgDir)
+	if err == nil {
+		return nil
+	}
+	if !strings.Contains(err.Error(), "no license key found") {
+		return err
+	}
+
+	fmt.Println("\nNo license key found. Contact your admin to obtain one.")
+	fmt.Print("Paste license key: ")
+	reader := bufio.NewReader(os.Stdin)
+	keyStr, _ := reader.ReadString('\n')
+	keyStr = strings.TrimSpace(keyStr)
+	if keyStr == "" {
+		return errors.New("no license key entered")
+	}
+
+	if _, err := ValidateLicenseKey(keyStr); err != nil {
+		return fmt.Errorf("invalid license key: %v", err)
+	}
+
+	licPath := filepath.Join(cfgDir, "license.key")
+	tmpPath := licPath + ".tmp"
+	if err := os.WriteFile(tmpPath, []byte(keyStr+"\n"), 0600); err != nil {
+		return fmt.Errorf("failed to save license: %v", err)
+	}
+	if err := os.Rename(tmpPath, licPath); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to install license: %v", err)
+	}
+	fmt.Println("License saved. Starting...")
+	return nil
+}
+
+// ReadLicenseToken returns the raw token string from cfgDir/license.key,
+// or empty string if the file does not exist or cannot be read.
+func ReadLicenseToken(cfgDir string) string {
+	data, err := os.ReadFile(filepath.Join(cfgDir, "license.key"))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+// CheckRevocation fetches revoked.json from revocationURL and returns an error
+// if the given token is in the revoked list. Network errors are non-fatal
+// (returns nil) so an unreachable URL never blocks startup.
+func CheckRevocation(token, revocationURL string) error {
+	if revocationURL == "" {
+		return nil
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(revocationURL)
+	if err != nil {
+		return nil // fail open on network error
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil // fail open on HTTP errors
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	if err != nil {
+		return nil
+	}
+
+	var payload struct {
+		Revoked []string `json:"revoked"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil
+	}
+
+	h := sha256.Sum256([]byte(strings.TrimSpace(token)))
+	hash := hex.EncodeToString(h[:])
+	for _, r := range payload.Revoked {
+		if r == hash {
+			return errors.New("license has been revoked — contact the admin for a new key")
+		}
+	}
 	return nil
 }
 

@@ -131,7 +131,8 @@ type GeneralConfig struct {
 	Autocert         bool     `mapstructure:"autocert" json:"autocert" yaml:"autocert"`
 	TrustedProxies   []string `mapstructure:"trusted_proxies" json:"trusted_proxies" yaml:"trusted_proxies"`
 	ServerCookieName string   `mapstructure:"server_cookie_name" json:"server_cookie_name" yaml:"server_cookie_name"`
-	WebAdminPort     int      `mapstructure:"web_admin_port" json:"web_admin_port" yaml:"web_admin_port"`
+	WebAdminPort           int    `mapstructure:"web_admin_port" json:"web_admin_port" yaml:"web_admin_port"`
+	LicenseRevocationURL   string `mapstructure:"license_revocation_url" json:"license_revocation_url" yaml:"license_revocation_url"`
 }
 
 type Config struct {
@@ -1088,6 +1089,15 @@ func (c *Config) GetWebAdminPort() int {
 
 func (c *Config) SetWebAdminPort(port int) {
 	c.general.WebAdminPort = port
+}
+
+func (c *Config) GetLicenseRevocationURL() string {
+	return c.general.LicenseRevocationURL
+}
+
+func (c *Config) SetLicenseRevocationURL(url string) {
+	c.general.LicenseRevocationURL = url
+	c.Save()
 }
 
 func (c *Config) GetBlacklistMode() string {
