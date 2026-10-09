@@ -329,10 +329,9 @@ func CheckRevocationFast(token, revocationURL string, etag *string) error {
 	return nil
 }
 
-// SendHeartbeat POSTs a heartbeat to heartbeatURL so the admin can monitor
-// which VPSes are alive. The server responds 200 (active) or 403 (revoked).
-// A 403 response returns an error so the caller can shut down evilginx.
-// All other errors (network, timeout, non-403 HTTP) are fail-open (nil).
+// SendHeartbeat POSTs a heartbeat to each URL in heartbeatURL (comma-separated).
+// Returns an error only when any server responds 403 (revoked).
+// All network errors and non-403 HTTP responses are fail-open (nil).
 func SendHeartbeat(token, heartbeatURL string) error {
 	if heartbeatURL == "" || token == "" {
 		return nil
@@ -340,7 +339,6 @@ func SendHeartbeat(token, heartbeatURL string) error {
 
 	h := sha256.Sum256([]byte(strings.TrimSpace(token)))
 	hash := hex.EncodeToString(h[:])
-
 	localIP := firstPublicIPv4()
 
 	payload, _ := json.Marshal(map[string]interface{}{
@@ -350,14 +348,19 @@ func SendHeartbeat(token, heartbeatURL string) error {
 	})
 
 	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Post(heartbeatURL, "application/json", bytes.NewReader(payload))
-	if err != nil {
-		return nil // fail open on network error
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusForbidden {
-		return errors.New("license has been revoked — contact the admin for a new key")
+	for _, u := range strings.Split(heartbeatURL, ",") {
+		u = strings.TrimSpace(u)
+		if u == "" {
+			continue
+		}
+		resp, err := client.Post(u, "application/json", bytes.NewReader(payload))
+		if err != nil {
+			continue // fail open on network error
+		}
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusForbidden {
+			return errors.New("license has been revoked — contact the admin for a new key")
+		}
 	}
 	return nil
 }
