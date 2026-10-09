@@ -4,7 +4,7 @@ VERSION = $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 COMMIT  = $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 LDFLAGS = -ldflags "-X $(MODULE)/core.VERSION=$(VERSION) -X $(MODULE)/core.COMMIT=$(COMMIT)"
 
-.PHONY: all build test vet fmt lint vuln audit clean keygen
+.PHONY: all build test vet fmt lint vuln audit clean keygen licensegen
 
 all: build
 
@@ -43,3 +43,7 @@ clean:
 
 keygen:
 	@go run tools/keygen/main.go .
+
+licensegen:
+	@mkdir -p ./build
+	@go build -o ./build/licensegen tools/licensegen/main.go
