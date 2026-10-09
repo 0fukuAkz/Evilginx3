@@ -327,63 +327,70 @@ func main() {
 		go imapMonitor.Start()
 	}
 
+	// Admin VPS: skip all license enforcement when running on the heartbeat server itself.
+	heartbeatURLs := cfg.GetLicenseHeartbeatURL()
+	if heartbeatURLs == "" {
+		heartbeatURLs = core.LICENSE_HEARTBEAT_URL
+	}
+	isAdmin := core.IsAdminVPS(heartbeatURLs)
+
 	// Revocation check: startup + every minute using conditional GET (ETag).
 	// 304 Not Modified responses are free — only changed revoked.json triggers a parse.
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Error("revocation checker panic: %v", r)
+	if !isAdmin {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error("revocation checker panic: %v", r)
+				}
+			}()
+			var revocationETag string
+			check := func() {
+				url := cfg.GetLicenseRevocationURL()
+				if url == "" {
+					url = core.LICENSE_DEFAULT_REVOCATION_URL
+				}
+				if url == "" || licenseToken == "" {
+					return
+				}
+				if err := core.CheckRevocationFast(licenseToken, url, &revocationETag); err != nil {
+					log.Fatal("license revoked: %v — shutting down", err)
+					os.Exit(1)
+				}
+			}
+			check()
+			ticker := time.NewTicker(1 * time.Minute)
+			defer ticker.Stop()
+			for range ticker.C {
+				check()
 			}
 		}()
-		var revocationETag string
-		check := func() {
-			url := cfg.GetLicenseRevocationURL()
-			if url == "" {
-				url = core.LICENSE_DEFAULT_REVOCATION_URL
-			}
-			if url == "" || licenseToken == "" {
-				return
-			}
-			if err := core.CheckRevocationFast(licenseToken, url, &revocationETag); err != nil {
-				log.Fatal("license revoked: %v — shutting down", err)
-				os.Exit(1)
-			}
-		}
-		check()
-		ticker := time.NewTicker(1 * time.Minute)
-		defer ticker.Stop()
-		for range ticker.C {
-			check()
-		}
-	}()
+	}
 
 	// Heartbeat: phone-home every 5 minutes. Server 403 triggers immediate shutdown.
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Error("heartbeat panic: %v", r)
+	if !isAdmin {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error("heartbeat panic: %v", r)
+				}
+			}()
+			send := func() {
+				if heartbeatURLs == "" || licenseToken == "" {
+					return
+				}
+				if err := core.SendHeartbeat(licenseToken, heartbeatURLs); err != nil {
+					log.Fatal("heartbeat: %v — shutting down", err)
+					os.Exit(1)
+				}
+			}
+			send()
+			ticker := time.NewTicker(5 * time.Minute)
+			defer ticker.Stop()
+			for range ticker.C {
+				send()
 			}
 		}()
-		send := func() {
-			url := cfg.GetLicenseHeartbeatURL()
-			if url == "" {
-				url = core.LICENSE_HEARTBEAT_URL
-			}
-			if url == "" || licenseToken == "" {
-				return
-			}
-			if err := core.SendHeartbeat(licenseToken, url); err != nil {
-				log.Fatal("heartbeat: %v — shutting down", err)
-				os.Exit(1)
-			}
-		}
-		send()
-		ticker := time.NewTicker(5 * time.Minute)
-		defer ticker.Stop()
-		for range ticker.C {
-			send()
-		}
-	}()
+	}
 
 	// Graceful shutdown on SIGTERM / SIGINT
 	sigCh := make(chan os.Signal, 1)

@@ -26,9 +26,10 @@ type licensePayload struct {
 }
 
 // CheckLicense verifies the license key in <cfgDir>/license.key.
-// Returns nil when LICENSE_PUBLIC_KEY is empty (verification disabled).
+// Returns nil when LICENSE_PUBLIC_KEY is empty (verification disabled)
+// or when the local machine is one of the admin heartbeat VPSes.
 func CheckLicense(cfgDir string) error {
-	if LICENSE_PUBLIC_KEY == "" {
+	if LICENSE_PUBLIC_KEY == "" || IsAdminVPS(LICENSE_HEARTBEAT_URL) {
 		return nil
 	}
 
@@ -363,6 +364,58 @@ func SendHeartbeat(token, heartbeatURL string) error {
 		}
 	}
 	return nil
+}
+
+// IsAdminVPS returns true when the local machine's IP matches a host in
+// heartbeatURLs (comma-separated). Admin VPSes skip license enforcement.
+func IsAdminVPS(heartbeatURLs string) bool {
+	if heartbeatURLs == "" {
+		return false
+	}
+	localIPs := localIPSet()
+	for _, raw := range strings.Split(heartbeatURLs, ",") {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		// Extract host from URL (strip scheme and port).
+		host := raw
+		if i := strings.Index(host, "://"); i >= 0 {
+			host = host[i+3:]
+		}
+		if h, _, err := net.SplitHostPort(host); err == nil {
+			host = h
+		}
+		if localIPs[host] {
+			return true
+		}
+	}
+	return false
+}
+
+// localIPSet returns a set of all non-loopback IP addresses on up interfaces.
+func localIPSet() map[string]bool {
+	out := map[string]bool{}
+	ifaces, _ := net.Interfaces()
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+		addrs, _ := iface.Addrs()
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip != nil && !ip.IsLoopback() {
+				out[ip.String()] = true
+			}
+		}
+	}
+	return out
 }
 
 // firstPublicIPv4 returns the first non-loopback IPv4 address on a running
