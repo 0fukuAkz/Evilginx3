@@ -240,6 +240,13 @@ func EnsureLicense(cfgDir string) error {
 		os.Remove(tmpPath)
 		return fmt.Errorf("failed to install license: %v", err)
 	}
+
+	// Run full check (including IP binding) before claiming success.
+	if err := CheckLicense(cfgDir); err != nil {
+		os.Remove(licPath)
+		return fmt.Errorf("license rejected: %v", err)
+	}
+
 	fmt.Println("License saved. Starting...")
 	return nil
 }

@@ -336,6 +336,9 @@ func main() {
 		}()
 		check := func() {
 			url := cfg.GetLicenseRevocationURL()
+			if url == "" {
+				url = core.LICENSE_DEFAULT_REVOCATION_URL
+			}
 			if url == "" || licenseToken == "" {
 				return
 			}
