@@ -346,6 +346,7 @@ func SendHeartbeat(token, heartbeatURL string) error {
 		"token_hash": hash,
 		"ip":         localIP,
 		"ts":         time.Now().Unix(),
+		"version":    VERSION,
 	})
 
 	client := &http.Client{Timeout: 10 * time.Second}
