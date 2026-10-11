@@ -99,6 +99,51 @@ make clean   # Remove build artifact
 
 ---
 
+## Licensing
+
+This edition requires a license key issued by the admin.
+
+### Installing the license
+
+Place the token in the config directory before first launch:
+
+```bash
+cat > ~/.evilginx/license.key <<'EOF'
+<paste token here>
+EOF
+```
+
+Or just launch evilginx — if the file is missing, it will prompt you to paste the key interactively:
+
+```
+No license key found. Contact your admin to obtain one.
+Paste license key:
+```
+
+### What the license checks
+
+On every startup evilginx:
+
+1. Reads `<cfgDir>/license.key` and verifies the Ed25519 signature.
+2. Checks the expiry date.
+3. If the license is bound to an IP, verifies the machine has that IP on a live network interface.
+
+If any check fails, the process exits with a clear error message.
+
+### Heartbeat (phone-home)
+
+After startup, evilginx phones home every **5 minutes** to the admin's heartbeat server and checks the revocation list every **1 minute**. If either signals the license is revoked, the process exits immediately.
+
+- Network errors (server unreachable, timeout) are non-fatal — evilginx keeps running.
+- HTTP 403 from the heartbeat server or a match in `revoked.json` → immediate shutdown.
+- The heartbeat includes an HMAC proof so the server can verify the client holds the actual token.
+
+### Admin VPS bypass
+
+If evilginx is running on the same machine as the heartbeat server, all license checks are automatically skipped — no `license.key` needed on the admin machine.
+
+---
+
 ## What's New
 
 ### v3.6.5
