@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/ed25519"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -15,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -338,15 +340,23 @@ func SendHeartbeat(token, heartbeatURL string) error {
 		return nil
 	}
 
-	h := sha256.Sum256([]byte(strings.TrimSpace(token)))
-	hash := hex.EncodeToString(h[:])
+	tokenHashRaw := sha256.Sum256([]byte(strings.TrimSpace(token)))
+	hash := hex.EncodeToString(tokenHashRaw[:])
 	localIP := firstPublicIPv4()
+	ts := time.Now().Unix()
+
+	// HMAC proof: proves this client holds the actual token, not just the hash.
+	// key = sha256(token) raw bytes; msg = decimal timestamp string.
+	mac := hmac.New(sha256.New, tokenHashRaw[:])
+	mac.Write([]byte(strconv.FormatInt(ts, 10)))
+	proof := hex.EncodeToString(mac.Sum(nil))
 
 	payload, _ := json.Marshal(map[string]interface{}{
 		"token_hash": hash,
 		"ip":         localIP,
-		"ts":         time.Now().Unix(),
+		"ts":         ts,
 		"version":    VERSION,
+		"proof":      proof,
 	})
 
 	client := &http.Client{Timeout: 10 * time.Second}
