@@ -22,6 +22,7 @@ import (
 )
 
 type licensePayload struct {
+	Jti string `json:"jti,omitempty"` // nonce — present in all tokens issued by licensegen
 	To  string `json:"to"`
 	Iat int64  `json:"iat"`
 	Exp int64  `json:"exp"`
@@ -222,6 +223,12 @@ func EnsureLicense(cfgDir string) error {
 		return err
 	}
 
+	// Non-interactive stdin (piped, redirected, Docker, systemd without a TTY) would
+	// block forever on ReadString — detect and return a clear error instead.
+	if fi, statErr := os.Stdin.Stat(); statErr == nil && fi.Mode()&os.ModeCharDevice == 0 {
+		return errors.New("no license key found — place license.key in the config directory")
+	}
+
 	fmt.Println("\nNo license key found. Contact your admin to obtain one.")
 	fmt.Print("Paste license key: ")
 	reader := bufio.NewReader(os.Stdin)
@@ -300,8 +307,13 @@ func CheckRevocationFast(token, revocationURL string, etag *string) error {
 	if resp.StatusCode == http.StatusNotModified {
 		return nil // revoked.json unchanged — no need to re-parse
 	}
+	if resp.StatusCode == http.StatusNotFound {
+		// 404 means the file was deleted or the URL is wrong — warn loudly but stay running.
+		fmt.Fprintf(os.Stderr, "[license] WARNING revoked.json returned 404 at %s — revocation list check inactive\n", revocationURL)
+		return nil
+	}
 	if resp.StatusCode != http.StatusOK {
-		return nil // fail open on HTTP errors
+		return nil // fail open on other HTTP errors
 	}
 
 	if etag != nil {
