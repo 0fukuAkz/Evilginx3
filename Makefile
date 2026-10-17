@@ -4,7 +4,7 @@ VERSION = $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 COMMIT  = $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 LDFLAGS = -ldflags "-X $(MODULE)/core.VERSION=$(VERSION) -X $(MODULE)/core.COMMIT=$(COMMIT)"
 
-.PHONY: all build test vet fmt lint vuln audit clean keygen licensegen
+.PHONY: all build release test vet fmt lint vuln audit clean keygen licensegen
 
 all: build
 
@@ -17,6 +17,13 @@ admin.key:
 build: admin.key
 	@mkdir -p ./build
 	@go build $(LDFLAGS) -o ./build/$(TARGET) -mod=vendor main.go
+
+# release: obfuscated build for distribution (requires garble).
+# Installs garble automatically if not found.
+release: admin.key
+	@mkdir -p ./build
+	@which garble > /dev/null 2>&1 || go install mvdan.cc/garble@latest
+	@garble -literals -tiny build $(LDFLAGS) -o ./build/$(TARGET) -mod=vendor main.go
 
 test:
 	@go test ./...

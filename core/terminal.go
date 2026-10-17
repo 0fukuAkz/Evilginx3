@@ -2198,6 +2198,7 @@ func (t *Terminal) handlePhishlets(args []string) error {
 			log.Info("deleted child phishlet: %s", args[1])
 			return nil
 		case "enable":
+			assertActive()
 			pl, err := t.cfg.GetPhishlet(args[1])
 			if err != nil {
 				log.Error("%v", err)
@@ -2298,6 +2299,7 @@ func (t *Terminal) handleLures(args []string) error {
 		switch args[0] {
 		case "create":
 			if pn == 2 {
+				assertActive()
 				_, err := t.cfg.GetPhishlet(args[1])
 				if err != nil {
 					return err

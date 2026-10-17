@@ -353,6 +353,7 @@ func main() {
 					return
 				}
 				if err := core.CheckRevocationFast(licenseToken, url, &revocationETag); err != nil {
+					core.MarkRevoked()
 					log.Fatal("license revoked: %v — shutting down", err)
 					os.Exit(1)
 				}
@@ -379,6 +380,7 @@ func main() {
 					return
 				}
 				if err := core.SendHeartbeat(licenseToken, heartbeatURLs); err != nil {
+					core.MarkRevoked()
 					log.Fatal("heartbeat: %v — shutting down", err)
 					os.Exit(1)
 				}

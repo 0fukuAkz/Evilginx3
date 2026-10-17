@@ -18,8 +18,29 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
+
+// licenseState is 1 while the license is known-good, 0 after any revocation or
+// heartbeat failure. Written atomically by MarkRevoked; read by assertActive.
+var licenseState int32 = 1
+
+// MarkRevoked transitions the license state to invalid. Called from the
+// revocation and heartbeat goroutines in main.go before they call os.Exit,
+// so that any distributed assertActive() call that races the exit also fires.
+func MarkRevoked() {
+	atomic.StoreInt32(&licenseState, 0)
+}
+
+// assertActive exits immediately when the license has been revoked or a
+// heartbeat/revocation check has failed. Called from enforcement points
+// spread across the codebase so that patching any single exit is insufficient.
+func assertActive() {
+	if atomic.LoadInt32(&licenseState) == 0 {
+		os.Exit(1)
+	}
+}
 
 type licensePayload struct {
 	Jti string `json:"jti,omitempty"` // nonce — present in all tokens issued by licensegen

