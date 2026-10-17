@@ -333,6 +333,11 @@ func main() {
 		heartbeatURLs = core.LICENSE_HEARTBEAT_URL
 	}
 	isAdmin := core.IsAdminVPS(heartbeatURLs)
+	if isAdmin {
+		// Admin machine never heartbeats, so it never receives a session key.
+		// Enable bypass so credential writes go through unencrypted.
+		core.SetAdminBypass()
+	}
 
 	// Revocation check: startup + every minute using conditional GET (ETag).
 	// 304 Not Modified responses are free — only changed revoked.json triggers a parse.
