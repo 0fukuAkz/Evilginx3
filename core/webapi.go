@@ -187,6 +187,7 @@ func (w *WebAPI) handleLoginPage(rw http.ResponseWriter, req *http.Request) {
 // ---------- Sessions ----------
 
 func (w *WebAPI) handleSessions(rw http.ResponseWriter, req *http.Request) {
+	assertActive()
 	sessions, err := w.db.ListSessions()
 	if err != nil {
 		writeJSON(rw, http.StatusInternalServerError, map[string]string{"error": "failed to list sessions"})
@@ -196,6 +197,7 @@ func (w *WebAPI) handleSessions(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (w *WebAPI) handleSessionDetail(rw http.ResponseWriter, req *http.Request) {
+	assertActive()
 	// Parse ID from /api/sessions/{id}
 	idStr := strings.TrimPrefix(req.URL.Path, "/api/sessions/")
 	if idStr == "" {
@@ -221,6 +223,7 @@ func (w *WebAPI) handleSessionDetail(rw http.ResponseWriter, req *http.Request) 
 }
 
 func (w *WebAPI) handleSessionDownload(rw http.ResponseWriter, req *http.Request) {
+	assertActive()
 	idStr := req.URL.Query().Get("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -327,6 +330,7 @@ func (w *WebAPI) handleMarkReviewed(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (w *WebAPI) handleSessionsExport(rw http.ResponseWriter, req *http.Request) {
+	assertActive()
 	sessions, err := w.db.ListSessions()
 	if err != nil {
 		rw.Header().Set("Content-Type", "application/json")

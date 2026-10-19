@@ -216,6 +216,85 @@ function Install-NSSM {
     return $nssmExe
 }
 
+# Prompt the operator to set the admin Ed25519 public key in core\license_pubkey.go
+# before compilation.  If a key is already set it is shown and can be kept as-is.
+function Configure-LicensePubkey {
+    param([string]$BuildDir)
+    $pubkeyFile = Join-Path $BuildDir "core\license_pubkey.go"
+    if (-not (Test-Path $pubkeyFile)) {
+        Write-Warning "core\license_pubkey.go not found — skipping public key configuration"
+        return
+    }
+
+    # Auto-read public.key from the installer directory (written by: licensegen keygen)
+    $autoKeyFile = Join-Path $PSScriptRoot "public.key"
+    if (Test-Path $autoKeyFile) {
+        $autoKey = (Get-Content $autoKeyFile -Raw).Trim()
+        if ($autoKey) {
+            Write-Info "Found public.key alongside installer — applying automatically"
+            $content = Get-Content $pubkeyFile -Raw
+            $content = $content -replace 'LICENSE_PUBLIC_KEY = "[^"]*"', "LICENSE_PUBLIC_KEY = `"$autoKey`""
+            Set-Content -Path $pubkeyFile -Value $content -Encoding UTF8 -NoNewline
+            Write-Success "Admin public key set from public.key"
+            Write-Host ""
+            return
+        }
+    }
+
+    $content = Get-Content $pubkeyFile -Raw
+    $currentKey = ""
+    if ($content -match 'LICENSE_PUBLIC_KEY\s*=\s*"([^"]*)"') {
+        $currentKey = $Matches[1]
+    }
+
+    Write-Host ""
+    if ($currentKey) {
+        $preview = $currentKey.Substring(0, [Math]::Min(24, $currentKey.Length))
+        $suffix  = if ($currentKey.Length -gt 8) { $currentKey.Substring($currentKey.Length - 8) } else { "" }
+        Write-Info "Admin public key: ${preview}...${suffix}"
+        $answer = Read-Host "  Keep this key? [Y/n]"
+        if ($answer -ne "n" -and $answer -ne "N") {
+            Write-Info "Keeping existing admin public key"
+            Write-Host ""
+            return
+        }
+    } else {
+        Write-Warning "No admin public key is set in core\license_pubkey.go"
+        Write-Host ""
+        Write-Info "  The admin public key comes from your licensegen admin machine:"
+        Write-Info "    1. Run: licensegen keygen   (or: make keygen  in the Evilginx3 repo)"
+        Write-Info "    2. Copy the base64 public key that is printed"
+        Write-Info "    3. Paste it below"
+        Write-Host ""
+    }
+
+    $newKey = ""
+    while ($true) {
+        $newKey = Read-Host "  Paste admin public key (base64, ~44 chars)"
+        if (-not $newKey) {
+            if ($currentKey) {
+                Write-Info "Keeping existing admin public key"
+                Write-Host ""
+                return
+            }
+            Write-Err "  A public key is required — Evilginx will not verify licenses without it."
+            Write-Err "  Press Ctrl-C to abort, or paste the key."
+            continue
+        }
+        if ($newKey -notmatch '^[A-Za-z0-9+/=]{40,50}$') {
+            Write-Warning "  Key doesn't look like a standard base64 Ed25519 public key (expected ~44 chars)."
+            $confirm = Read-Host "  Use it anyway? [y/N]"
+            if ($confirm -ne "y" -and $confirm -ne "Y") { continue }
+        }
+        break
+    }
+
+    $content = $content -replace 'LICENSE_PUBLIC_KEY = "[^"]*"', "LICENSE_PUBLIC_KEY = `"$newKey`""
+    Set-Content -Path $pubkeyFile -Value $content -Encoding UTF8 -NoNewline
+    Write-Success "Admin public key updated in core\license_pubkey.go"
+    Write-Host ""
+}
+
 # Build Evilginx
 function Build-Evilginx {
     Write-Step "Step 3: Building Evilginx"
@@ -231,8 +310,11 @@ function Build-Evilginx {
         exit 1
     }
     
+    # Ensure the admin public key is set in source before compilation
+    Configure-LicensePubkey -BuildDir $scriptDir
+
     Push-Location $scriptDir
-    
+
     try {
         Write-Info "Compiling Evilginx..."
         # CGO_ENABLED=1 is required for go-sqlite3 (CGo-based SQLite driver)

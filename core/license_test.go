@@ -1,8 +1,12 @@
 package core
 
 import (
+	"crypto/ed25519"
+	"encoding/base64"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -67,36 +71,63 @@ func TestLicenseRoundTrip(t *testing.T) {
 	}
 }
 
-// TestLicenseExpired ensures an expired token is rejected.
+// TestLicenseMissingFile verifies CheckLicense returns an error when no license.key exists.
+func TestLicenseMissingFile(t *testing.T) {
+	if LICENSE_PUBLIC_KEY == "" {
+		t.Skip("verification disabled")
+	}
+	err := CheckLicense(t.TempDir())
+	if err == nil {
+		t.Fatal("CheckLicense: expected error for missing license.key, got nil")
+	}
+}
+
+// TestLicenseExpired verifies that a validly-signed but expired token is rejected.
 func TestLicenseExpired(t *testing.T) {
 	if LICENSE_PUBLIC_KEY == "" {
 		t.Skip("verification disabled")
 	}
-
 	adminKeyPath := filepath.Join("..", "admin.key")
 	if _, err := os.Stat(adminKeyPath); err != nil {
-		t.Skipf("admin.key not found: %s", adminKeyPath)
+		t.Skipf("admin.key not found at %s — skipping", adminKeyPath)
 	}
+
+	privData, err := os.ReadFile(adminKeyPath)
+	if err != nil {
+		t.Fatalf("read admin.key: %v", err)
+	}
+	privBytes, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(privData)))
+	if err != nil {
+		t.Fatalf("decode admin.key: %v", err)
+	}
+
+	type payload struct {
+		To  string `json:"to"`
+		Iat int64  `json:"iat"`
+		Exp int64  `json:"exp"`
+	}
+	pl := payload{
+		To:  "test-expired",
+		Iat: time.Now().Unix() - 86400*2,
+		Exp: time.Now().Unix() - 86400, // expired 24 hours ago
+	}
+	plBytes, _ := json.Marshal(pl)
+	sig := ed25519.Sign(ed25519.PrivateKey(privBytes), plBytes)
+	token := base64.RawURLEncoding.EncodeToString(plBytes) + "." +
+		base64.RawURLEncoding.EncodeToString(sig)
 
 	dir := t.TempDir()
-
-	// Issue a -1 day license via IssueLicense, then manually back-date by re-issuing
-	// with days=1 and wait... instead just call the low-level helpers directly.
-	// Easiest: issue normally, then overwrite the file with a known-expired token.
-	// We use a separate temp dir so we can corrupt the file freely.
-	if err := IssueLicense(adminKeyPath, dir, "expired-user", 1); err != nil {
-		t.Fatalf("IssueLicense: %v", err)
+	if err := os.WriteFile(filepath.Join(dir, "license.key"), []byte(token+"\n"), 0600); err != nil {
+		t.Fatalf("write license.key: %v", err)
 	}
 
-	// Manually craft an expired token by calling IssueLicense with days=1 but
-	// we can't backdating without modifying the source.  Instead verify that
-	// CheckLicense on a missing file returns the expected sentinel error.
-	emptyDir := t.TempDir()
-	err := CheckLicense(emptyDir)
+	err = CheckLicense(dir)
 	if err == nil {
-		t.Fatal("CheckLicense: expected error for missing license.key, got nil")
+		t.Fatal("CheckLicense: expected error for expired license, got nil")
 	}
-	t.Logf("CheckLicense (missing file) returned expected error: %v", err)
+	if !strings.Contains(err.Error(), "expired") {
+		t.Errorf("expected error containing 'expired', got: %v", err)
+	}
 }
 
 // TestValidateLicenseKeyBadInput covers format and signature errors.

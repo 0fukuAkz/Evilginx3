@@ -860,6 +860,9 @@ resolve_release_version() {
 download_evilginx() {
     log_step "Step 6: Downloading Pre-Built Evilginx Binary"
 
+    log_warning "Pre-built binaries have the admin public key baked in at compile time."
+    log_warning "To use your own public key, re-run with --source instead of --prebuilt."
+
     local RELEASE_ARCH
     case "$GO_ARCH" in
         amd64)  RELEASE_ARCH="amd64" ;;
@@ -1296,6 +1299,84 @@ WRAPEOF
     log_success "Data files installed"
 }
 
+# Prompt the operator to set the admin Ed25519 public key in core/license_pubkey.go
+# before compilation.  If a key is already set it is shown and the operator can keep it.
+# When the key is absent the operator must supply one — Evilginx cannot verify licenses
+# without it.
+configure_license_pubkey() {
+    local build_dir="$1"
+    local pubkey_file="$build_dir/core/license_pubkey.go"
+
+    if [[ ! -f "$pubkey_file" ]]; then
+        log_warning "core/license_pubkey.go not found — skipping public key configuration"
+        return 0
+    fi
+
+    # Auto-read public.key from the installer directory (written by: licensegen keygen)
+    local auto_key_file="$SCRIPT_DIR/public.key"
+    if [[ -f "$auto_key_file" ]]; then
+        local auto_key
+        auto_key=$(tr -d '[:space:]' < "$auto_key_file")
+        if [[ -n "$auto_key" ]]; then
+            log_info "Found public.key alongside installer — applying automatically"
+            sed -i "s|LICENSE_PUBLIC_KEY = \"[^\"]*\"|LICENSE_PUBLIC_KEY = \"${auto_key}\"|" "$pubkey_file"
+            log_success "Admin public key set from public.key"
+            echo ""
+            return 0
+        fi
+    fi
+
+    local current_key
+    current_key=$(grep -oP 'LICENSE_PUBLIC_KEY\s*=\s*"\K[^"]*' "$pubkey_file" 2>/dev/null || true)
+
+    echo ""
+    if [[ -n "$current_key" ]]; then
+        log_info "Admin public key: ${current_key:0:24}...${current_key: -8}"
+        local answer
+        read -r -p "$(echo -e "${CYAN}  Keep this key? [Y/n]: ${NC}")" answer < /dev/tty
+        if [[ "${answer,,}" != "n" ]]; then
+            log_info "Keeping existing admin public key"
+            echo ""
+            return 0
+        fi
+    else
+        log_warning "No admin public key is set in core/license_pubkey.go"
+        echo ""
+        log_info "  The admin public key comes from your licensegen admin machine:"
+        log_info "    1. Run: licensegen keygen   (or: make keygen  in the Evilginx3 repo)"
+        log_info "    2. Copy the base64 public key that is printed"
+        log_info "    3. Paste it below"
+        echo ""
+    fi
+
+    local new_key=""
+    while true; do
+        read -r -p "$(echo -e "${CYAN}  Paste admin public key (base64, ~44 chars): ${NC}")" new_key < /dev/tty
+        if [[ -z "$new_key" ]]; then
+            if [[ -n "$current_key" ]]; then
+                log_info "Keeping existing admin public key"
+                echo ""
+                return 0
+            fi
+            log_error "  A public key is required — Evilginx will not verify licenses without it."
+            log_error "  Press Ctrl-C to abort, or paste the key."
+            continue
+        fi
+        # Sanity-check: standard base64, ~44 chars for a 32-byte Ed25519 key
+        if ! echo "$new_key" | grep -qE '^[A-Za-z0-9+/=]{40,50}$'; then
+            log_warning "  Key doesn't look like a standard base64 Ed25519 public key (expected ~44 chars)."
+            local confirm
+            read -r -p "$(echo -e "${CYAN}  Use it anyway? [y/N]: ${NC}")" confirm < /dev/tty
+            [[ "${confirm,,}" == "y" ]] || continue
+        fi
+        break
+    done
+
+    sed -i "s|LICENSE_PUBLIC_KEY = \"[^\"]*\"|LICENSE_PUBLIC_KEY = \"${new_key}\"|" "$pubkey_file"
+    log_success "Admin public key updated in core/license_pubkey.go"
+    echo ""
+}
+
 build_evilginx() {
     log_step "Step 6: Building and Installing Evilginx from Source"
 
@@ -1324,6 +1405,9 @@ build_evilginx() {
         log_error "Please run: cd ~/Evilginx3 && sudo ./install.sh"
         exit 1
     }
+
+    # Ensure the admin public key is set in source before compilation
+    configure_license_pubkey "$BUILD_DIR"
 
     # Build in a subshell to avoid changing the working directory
     (
