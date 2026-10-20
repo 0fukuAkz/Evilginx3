@@ -168,6 +168,9 @@ RELEASE_BASE_URL="https://github.com/${GITHUB_REPO}/releases/download"
 # Build method: "download" | "source" — set by --prebuilt/--source flags or choose_install_method()
 BUILD_METHOD=""
 
+# Heartbeat URL override — set by --heartbeat-url=<url> flag (skips interactive prompt)
+HEARTBEAT_URL=""
+
 # Configuration
 EVILGINX_VERSION="3.6.1"
 GO_VERSION="1.25.13"
@@ -1377,6 +1380,92 @@ configure_license_pubkey() {
     echo ""
 }
 
+# Prompt the operator to set (or confirm) the heartbeat URL in core/license_pubkey.go
+# before compilation.  A blank URL means the binary will never phone home — licenses
+# will not be validated at runtime.  The operator must supply a URL on first install.
+configure_heartbeat_url() {
+    local build_dir="$1"
+    local pubkey_file="$build_dir/core/license_pubkey.go"
+
+    if [[ ! -f "$pubkey_file" ]]; then
+        log_warning "core/license_pubkey.go not found — skipping heartbeat URL configuration"
+        return 0
+    fi
+
+    # CLI flag / env var takes priority (non-interactive / scripted installs)
+    if [[ -n "$HEARTBEAT_URL" ]]; then
+        if ! echo "$HEARTBEAT_URL" | grep -qE '^https?://[^/[:space:]]+'; then
+            log_error "Invalid --heartbeat-url value: $HEARTBEAT_URL"
+            log_error "Must start with http:// or https:// and include a host."
+            exit 1
+        fi
+        sed -i "s|LICENSE_HEARTBEAT_URL = \"[^\"]*\"|LICENSE_HEARTBEAT_URL = \"${HEARTBEAT_URL}\"|" "$pubkey_file"
+        log_success "Heartbeat URL set: $HEARTBEAT_URL"
+        echo ""
+        return 0
+    fi
+
+    # Auto-apply from heartbeat-url.txt alongside the installer (mirrors public.key behaviour)
+    local auto_url_file="$SCRIPT_DIR/heartbeat-url.txt"
+    if [[ -f "$auto_url_file" ]]; then
+        local auto_url
+        auto_url=$(tr -d '[:space:]' < "$auto_url_file")
+        if [[ -n "$auto_url" ]]; then
+            log_info "Found heartbeat-url.txt alongside installer — applying automatically"
+            sed -i "s|LICENSE_HEARTBEAT_URL = \"[^\"]*\"|LICENSE_HEARTBEAT_URL = \"${auto_url}\"|" "$pubkey_file"
+            log_success "Heartbeat URL set: $auto_url"
+            echo ""
+            return 0
+        fi
+    fi
+
+    local current_url
+    current_url=$(grep -oP 'LICENSE_HEARTBEAT_URL\s*=\s*"\K[^"]*' "$pubkey_file" 2>/dev/null || true)
+
+    echo ""
+    if [[ -n "$current_url" ]]; then
+        log_info "Heartbeat URL: $current_url"
+        local answer
+        read -r -p "$(echo -e "${CYAN}  Keep this URL? [Y/n]: ${NC}")" answer < /dev/tty
+        if [[ "${answer,,}" != "n" ]]; then
+            log_info "Keeping existing heartbeat URL"
+            echo ""
+            return 0
+        fi
+    else
+        log_warning "No heartbeat URL is set in core/license_pubkey.go"
+    fi
+
+    echo ""
+    log_info "  The heartbeat URL is the address your licensegen server listens on."
+    log_info "  Example: http://YOUR_VPS_IP:31337/heartbeat"
+    echo ""
+
+    local new_url=""
+    while true; do
+        read -r -p "$(echo -e "${CYAN}  Enter heartbeat URL: ${NC}")" new_url < /dev/tty
+        if [[ -z "$new_url" ]]; then
+            if [[ -n "$current_url" ]]; then
+                log_info "Keeping existing heartbeat URL"
+                echo ""
+                return 0
+            fi
+            log_error "  A heartbeat URL is required — Evilginx cannot validate licenses without it."
+            log_error "  Press Ctrl-C to abort, or enter the URL."
+            continue
+        fi
+        if ! echo "$new_url" | grep -qE '^https?://[^/[:space:]]+'; then
+            log_warning "  URL must start with http:// or https:// and include a host."
+            continue
+        fi
+        break
+    done
+
+    sed -i "s|LICENSE_HEARTBEAT_URL = \"[^\"]*\"|LICENSE_HEARTBEAT_URL = \"${new_url}\"|" "$pubkey_file"
+    log_success "Heartbeat URL set: $new_url"
+    echo ""
+}
+
 build_evilginx() {
     log_step "Step 6: Building and Installing Evilginx from Source"
 
@@ -1408,6 +1497,9 @@ build_evilginx() {
 
     # Ensure the admin public key is set in source before compilation
     configure_license_pubkey "$BUILD_DIR"
+
+    # Ensure the heartbeat URL is set in source before compilation
+    configure_heartbeat_url "$BUILD_DIR"
 
     # Build in a subshell to avoid changing the working directory
     (
@@ -2110,6 +2202,12 @@ show_usage() {
     echo "  --dry-run    Show what would be done without making changes"
     echo "  --help, -h   Show this help message"
     echo ""
+    echo "Options (source build only):"
+    echo "  --heartbeat-url=<url>        Bake this URL into the binary (skips prompt)"
+    echo "                               Can also be set as env var: HEARTBEAT_URL=<url>"
+    echo "                               Or drop a 'heartbeat-url.txt' file alongside the"
+    echo "                               installer for automatic application (like public.key)"
+    echo ""
     echo "Environment variables (tunnel):"
     echo "  TUNNEL_DOMAIN=example.com   Domain for tunnel subdomains"
     echo "  CF_TUNNEL_NAME=my-tunnel    Override tunnel name (default: evilginx-panels)"
@@ -2117,13 +2215,15 @@ show_usage() {
     echo "  CF_TUNNEL_GOPHISH_SUB=gp    Override gophish subdomain prefix (default: gophish)"
     echo ""
     echo "Examples:"
-    echo "  sudo ./install.sh                                    # Full install (prompted)"
-    echo "  sudo ./install.sh --prebuilt                         # Download pre-built binary"
-    echo "  sudo ./install.sh --source                           # Build from source"
-    echo "  sudo ./install.sh --upgrade                          # Quick update"
-    echo "  sudo ./install.sh --uninstall                        # Clean removal"
-    echo "  TUNNEL_DOMAIN=example.com sudo ./install.sh --tunnel # Tunnel only"
-    echo "  ./install.sh --dry-run                               # Preview (no root needed)"
+    echo "  sudo ./install.sh                                                  # Full install (prompted)"
+    echo "  sudo ./install.sh --prebuilt                                       # Download pre-built binary"
+    echo "  sudo ./install.sh --source                                         # Build from source (prompted)"
+    echo "  sudo ./install.sh --source --heartbeat-url=http://1.2.3.4:31337/heartbeat  # Unattended source build"
+    echo "  sudo ./install.sh --upgrade                                        # Quick update"
+    echo "  sudo ./install.sh --upgrade --heartbeat-url=http://1.2.3.4:31337/heartbeat # Update with new URL"
+    echo "  sudo ./install.sh --uninstall                                      # Clean removal"
+    echo "  TUNNEL_DOMAIN=example.com sudo ./install.sh --tunnel               # Tunnel only"
+    echo "  ./install.sh --dry-run                                             # Preview (no root needed)"
     echo ""
 }
 
@@ -2193,6 +2293,16 @@ main() {
 #############################################################################
 # Argument Parsing & Entry Point
 #############################################################################
+
+# Pre-process --heartbeat-url=<url> out of argv so the main case below works unchanged.
+_remaining_args=()
+for _arg in "$@"; do
+    case "$_arg" in
+        --heartbeat-url=*) HEARTBEAT_URL="${_arg#--heartbeat-url=}" ;;
+        *) _remaining_args+=("$_arg") ;;
+    esac
+done
+set -- "${_remaining_args[@]+"${_remaining_args[@]}"}"
 
 case "${1:-}" in
     --help|-h)
