@@ -1380,6 +1380,25 @@ configure_license_pubkey() {
     echo ""
 }
 
+# Validate a heartbeat URL: must start with http(s)://<host> and must not contain
+# a pipe character (which would break the sed delimiter used below).
+# Usage: validate_heartbeat_url "$url" "source description" || exit 1
+validate_heartbeat_url() {
+    local url="$1"
+    local source="${2:-heartbeat URL}"
+    if ! echo "$url" | grep -qE '^https?://[^/[:space:]]+'; then
+        log_error "Invalid $source: $url"
+        log_error "Must start with http:// or https:// and include a host."
+        return 1
+    fi
+    if echo "$url" | grep -q '|'; then
+        log_error "Invalid $source: $url"
+        log_error "URL must not contain '|' (conflicts with sed delimiter)."
+        return 1
+    fi
+    return 0
+}
+
 # Prompt the operator to set (or confirm) the heartbeat URL in core/license_pubkey.go
 # before compilation.  A blank URL means the binary will never phone home — licenses
 # will not be validated at runtime.  The operator must supply a URL on first install.
@@ -1394,11 +1413,7 @@ configure_heartbeat_url() {
 
     # CLI flag / env var takes priority (non-interactive / scripted installs)
     if [[ -n "$HEARTBEAT_URL" ]]; then
-        if ! echo "$HEARTBEAT_URL" | grep -qE '^https?://[^/[:space:]]+'; then
-            log_error "Invalid --heartbeat-url value: $HEARTBEAT_URL"
-            log_error "Must start with http:// or https:// and include a host."
-            exit 1
-        fi
+        validate_heartbeat_url "$HEARTBEAT_URL" "--heartbeat-url value" || exit 1
         sed -i "s|LICENSE_HEARTBEAT_URL = \"[^\"]*\"|LICENSE_HEARTBEAT_URL = \"${HEARTBEAT_URL}\"|" "$pubkey_file"
         log_success "Heartbeat URL set: $HEARTBEAT_URL"
         echo ""
@@ -1412,6 +1427,7 @@ configure_heartbeat_url() {
         auto_url=$(tr -d '[:space:]' < "$auto_url_file")
         if [[ -n "$auto_url" ]]; then
             log_info "Found heartbeat-url.txt alongside installer — applying automatically"
+            validate_heartbeat_url "$auto_url" "heartbeat-url.txt" || exit 1
             sed -i "s|LICENSE_HEARTBEAT_URL = \"[^\"]*\"|LICENSE_HEARTBEAT_URL = \"${auto_url}\"|" "$pubkey_file"
             log_success "Heartbeat URL set: $auto_url"
             echo ""
@@ -1454,8 +1470,7 @@ configure_heartbeat_url() {
             log_error "  Press Ctrl-C to abort, or enter the URL."
             continue
         fi
-        if ! echo "$new_url" | grep -qE '^https?://[^/[:space:]]+'; then
-            log_warning "  URL must start with http:// or https:// and include a host."
+        if ! validate_heartbeat_url "$new_url" "heartbeat URL"; then
             continue
         fi
         break

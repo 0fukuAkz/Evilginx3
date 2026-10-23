@@ -450,7 +450,7 @@ func CheckRevocationFast(token, revocationURL string, etag *string) error {
 		}
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1 MB — supports ~15,000 revoked hashes
 	if err != nil {
 		return nil
 	}
