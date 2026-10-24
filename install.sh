@@ -1088,26 +1088,33 @@ install_license_key() {
         return 0
     fi
 
-    # Prompt user to paste their key
+    # Prompt user to paste their key — up to 3 attempts
     echo ""
     log_warning "No license.key found next to the installer."
     log_info "Evilginx requires a valid license key to start."
-    log_info "Options:"
-    log_info "  1. Paste your license key now"
-    log_info "  2. Press Enter to skip (place license.key at $KEY_DEST later)"
     echo ""
-    read -r -p "$(echo -e "${CYAN}Paste license key (or Enter to skip): ${NC}")" LICENSE_KEY < /dev/tty
 
-    if [[ -n "$LICENSE_KEY" ]]; then
-        echo "$LICENSE_KEY" > "$KEY_DEST"
-        chmod 600 "$KEY_DEST"
-        chown "$SERVICE_USER:$SERVICE_USER" "$KEY_DEST" 2>/dev/null || true
-        log_success "License key installed to $KEY_DEST"
-    else
-        log_warning "No license key installed — Evilginx will NOT start without one."
-        log_warning "Install manually after setup:"
-        log_warning "  sudo install -m 600 -o $SERVICE_USER license.key $KEY_DEST"
-    fi
+    local attempt=0
+    local LICENSE_KEY=""
+    while (( attempt < 3 )); do
+        (( attempt++ )) || true
+        read -r -p "$(echo -e "${CYAN}Paste license key (attempt ${attempt}/3, or Enter to abort): ${NC}")" LICENSE_KEY < /dev/tty
+        if [[ -n "$LICENSE_KEY" ]]; then
+            echo "$LICENSE_KEY" > "$KEY_DEST"
+            chmod 600 "$KEY_DEST"
+            chown "$SERVICE_USER:$SERVICE_USER" "$KEY_DEST" 2>/dev/null || true
+            log_success "License key installed to $KEY_DEST"
+            return 0
+        fi
+        if (( attempt < 3 )); then
+            log_warning "No key entered — ${attempt}/3 attempts used."
+        fi
+    done
+
+    log_error "No license key provided after 3 attempts — aborting installation."
+    log_error "Re-run the installer once you have a license key:"
+    log_error "  sudo ./install.sh"
+    exit 1
 }
 
 stop_conflicting_services() {
