@@ -3,7 +3,8 @@
 // Usage: go run tools/keygen/main.go [output_dir]
 //
 // Writes the private key to <output_dir>/admin.key (base64, chmod 0600).
-// Overwrites core/license_pubkey.go with the new public key.
+// Updates only the LICENSE_PUBLIC_KEY constant in core/license_pubkey.go,
+// leaving LICENSE_DEFAULT_REVOCATION_URL and LICENSE_HEARTBEAT_URL intact.
 // Keep admin.key secret and off version control.
 //
 // Must be run from the repository root (the directory containing core/).
@@ -16,6 +17,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 )
 
 func main() {
@@ -40,15 +42,24 @@ func main() {
 	pubB64 := base64.StdEncoding.EncodeToString(pub)
 	privB64 := base64.StdEncoding.EncodeToString(priv)
 
-	// Write public key source FIRST so a failure on the private-key write
-	// does not orphan a new private key against an old compiled public key.
-	pubGoSrc := "package core\n\n" +
-		"// LICENSE_PUBLIC_KEY holds the base64-encoded Ed25519 public key used to verify license keys.\n" +
-		"// An empty string disables license verification (development / not yet configured).\n" +
-		"// Run \"make keygen\" to regenerate a key pair; that command overwrites this variable.\n" +
-		"const LICENSE_PUBLIC_KEY = \"" + pubB64 + "\"\n"
+	// Update only the LICENSE_PUBLIC_KEY line, preserving all other constants.
+	existing, err := os.ReadFile(pubGoPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "keygen: read %s: %v\n", pubGoPath, err)
+		os.Exit(1)
+	}
+	re := regexp.MustCompile(`(const LICENSE_PUBLIC_KEY\s*=\s*)"[^"]*"`)
+	updated := re.ReplaceAll(existing, []byte(`${1}"`+pubB64+`"`))
+	if len(updated) == len(existing) && string(updated) == string(existing) {
+		// Pattern not found — file may have a different structure; rewrite fully.
+		updated = []byte("package core\n\n" +
+			"// LICENSE_PUBLIC_KEY holds the base64-encoded Ed25519 public key used to verify license keys.\n" +
+			"// An empty string disables license verification (development / not yet configured).\n" +
+			"// Run \"make keygen\" to regenerate a key pair; that command overwrites this variable.\n" +
+			"const LICENSE_PUBLIC_KEY = \"" + pubB64 + "\"\n")
+	}
 
-	if err := os.WriteFile(pubGoPath, []byte(pubGoSrc), 0644); err != nil {
+	if err := os.WriteFile(pubGoPath, updated, 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "keygen: write public key source: %v\n", err)
 		os.Exit(1)
 	}

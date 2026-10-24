@@ -14,13 +14,13 @@ admin.key:
 	@echo "No admin.key found — generating license key pair (first-time setup)..."
 	@go run tools/keygen/main.go .
 
-build: admin.key
+build:
 	@mkdir -p ./build
 	@go build $(LDFLAGS) -o ./build/$(TARGET) -mod=vendor main.go
 
 # release: obfuscated build for distribution (requires garble).
 # Installs garble automatically if not found.
-release: admin.key
+release:
 	@mkdir -p ./build
 	@which garble > /dev/null 2>&1 || go install mvdan.cc/garble@latest
 	@garble -literals -tiny build $(LDFLAGS) -o ./build/$(TARGET) -mod=vendor main.go
