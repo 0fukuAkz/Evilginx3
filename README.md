@@ -170,9 +170,6 @@ If evilginx is running on the same machine as the heartbeat server, all license 
 - Upgraded `golang.org/x/text` to v0.39.0 to fix GO-2026-5970 (infinite loop in `norm.Form`)
 - Bumped Go toolchain to 1.25.8 to fix 23 stdlib CVEs
 
-### v3.6.2
-- Fixed crash on lure click: GeoIP lookup now reads the embedded `geolite2-city.mmdb` via `embed.FS` instead of the OS filesystem
-
 ### v3.6.1
 - Hardened CI: `govulncheck` now gates merges (was `continue-on-error`)
 - Dependency updates: `golang.org/x/crypto`, `x/net`, `x/sys` bumped to latest
