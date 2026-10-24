@@ -95,7 +95,7 @@
 #   TUNNEL_DOMAIN=example.com sudo ./install.sh --tunnel # Tunnel only, no prompt
 #
 # Author: AKaZA (Akz0fuku)
-# Version: 3.6.1
+# Version: 3.7.1
 #############################################################################
 
 set -euo pipefail  # Exit on error, undefined vars, pipe failures
@@ -175,7 +175,7 @@ HEARTBEAT_URL=""
 PUB_KEY=""
 
 # Configuration
-EVILGINX_VERSION="3.6.1"
+EVILGINX_VERSION="3.7.1"
 GO_VERSION="1.25.13"
 INSTALL_DIR="/usr/local/bin"
 INSTALL_BASE="/opt/evilginx"
