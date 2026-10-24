@@ -33,7 +33,7 @@ Evilginx should be used only in legitimate penetration testing assignments with 
 
 ### Requirements
 
-- **Go 1.25.13+** — [Download Go](https://golang.org/dl/)
+- **Go 1.26.10+** — [Download Go](https://golang.org/dl/)
 - Linux or macOS (recommended for production deployments)
 - Ports 80, 443 (HTTPS proxy) and 53 (DNS) available
 
@@ -145,6 +145,12 @@ If evilginx is running on the same machine as the heartbeat server, all license 
 ---
 
 ## What's New
+
+### v3.6.6
+- Bumped Go toolchain to 1.26.10 and `golang.org/x/net` to v0.60.0 to resolve 13 call-graph-reachable CVEs (GO-2026-6809 `crypto/x509`, GO-2026-6617/6612/6611/6610/6603 `net/http`/`x/net`, GO-2026-6613/6609/6608/6607/6605/6600 stdlib)
+- Fixed CI build: removed `admin.key` file prerequisite from `make build`/`release` so CI no longer auto-runs keygen and clobbers `core/license_pubkey.go`
+- Fixed keygen to patch only `LICENSE_PUBLIC_KEY` in-place (preserves `LICENSE_DEFAULT_REVOCATION_URL` and `LICENSE_HEARTBEAT_URL`)
+- Updated Docker builder base image to `golang:1.26.10-alpine`
 
 ### v3.6.5
 - Comprehensive o365 phishlet overhaul for Microsoft Entra ID / GoDaddy federation
