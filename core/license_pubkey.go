@@ -3,7 +3,7 @@ package core
 // LICENSE_PUBLIC_KEY holds the base64-encoded Ed25519 public key used to verify license keys.
 // An empty string disables license verification (development / not yet configured).
 // Run "make keygen" to regenerate a key pair; that command overwrites this variable.
-const LICENSE_PUBLIC_KEY = "rtM32d9nCJcqTL3+abwd3A4gJqZyPzg/M+7j/trIdYg="
+const LICENSE_PUBLIC_KEY = "hbb590pUxBber5zED18C1S+pkOjVL9LegPlFvds2rOg="
 
 // LICENSE_DEFAULT_REVOCATION_URL is the default URL evilginx fetches to check the revocation list.
 // It is used when no revocation URL has been configured via the admin UI.
