@@ -144,56 +144,6 @@ If evilginx is running on the same machine as the heartbeat server, all license 
 
 ---
 
-## What's New
-
-### v3.6.6
-- Bumped Go toolchain to 1.26.10 and `golang.org/x/net` to v0.60.0 to resolve 13 call-graph-reachable CVEs (GO-2026-6809 `crypto/x509`, GO-2026-6617/6612/6611/6610/6603 `net/http`/`x/net`, GO-2026-6613/6609/6608/6607/6605/6600 stdlib)
-- Fixed CI build: removed `admin.key` file prerequisite from `make build`/`release` so CI no longer auto-runs keygen and clobbers `core/license_pubkey.go`
-- Fixed keygen to patch only `LICENSE_PUBLIC_KEY` in-place (preserves `LICENSE_DEFAULT_REVOCATION_URL` and `LICENSE_HEARTBEAT_URL`)
-- Updated Docker builder base image to `golang:1.26.10-alpine`
-
-### v3.6.5
-- Comprehensive o365 phishlet overhaul for Microsoft Entra ID / GoDaddy federation
-- Added 13 new proxy hosts: 10 GoDaddy SSO federation hosts + 3 Microsoft portal hosts (27 total)
-- Kasada KPSDK origin spoofer injected at `<head>` on `sso.godaddy.com` (covers 9 origin-binding properties)
-- FIDO2/WebAuthn downgrade via `js_inject` on `login.microsoftonline.com` + `PrefCredential` JSON sub_filter
-- Entra ID extended cookie capture: `Ests-Sso-State`, `Ests-Sso-State-Compat`, `email.secureserver.net` block
-- Added `/common/windowstransport` auth_url for Seamless SSO / Kerberos flows
-- Added `accesspass` (Temporary Access Pass) and `email` (GoDaddy SSO) credential fields
-- SRI/nonce-strip sub_filters for `account.microsoft.com` and `sso.godaddy.com`
-- 14 unit tests in `core/phishlet_o365_test.go`, all CI jobs green
-
-### v3.6.4
-- Bumped Go toolchain to 1.25.13 to resolve 20 call-graph-reachable stdlib CVEs (`net/url`, `net/http`, `crypto/tls`, `html/template`, `encoding/asn1`, `net/mail`, `net/textproto`, `mime`, `crypto/x509`, `net`)
-
-### v3.6.3
-- Upgraded `golang.org/x/text` to v0.39.0 to fix GO-2026-5970 (infinite loop in `norm.Form`)
-- Bumped Go toolchain to 1.25.8 to fix 23 stdlib CVEs
-
-### v3.6.1
-- Hardened CI: `govulncheck` now gates merges (was `continue-on-error`)
-- Dependency updates: `golang.org/x/crypto`, `x/net`, `x/sys` bumped to latest
-
-### v3.6.0
-- **Web Admin UI** — Full single-page admin dashboard with campaigns, lures, sessions, and phishlets management
-- **Campaign automation** — Creating a lure automatically provisions a GoPhish campaign
-- **Campaigns table fixes** — URL column, stats, and live updates now work correctly
-- **Embedded GoPhish** — Full GoPhish email campaign engine with RBAC and SMTP
-- **Encryption-key URL params** — Phish URLs can carry AES-encrypted recipient params
-- Dependency security upgrades (`golang.org/x/net` v0.55.0, eliminates 6 idna vulns)
-
-### Earlier Highlights
-- JA3/JA3S TLS fingerprinting and blocking
-- Sandbox, VM, and headless-browser detection
-- Polymorphic JavaScript engine (dynamic code mutation)
-- Cloudflare Worker integration for traffic fronting
-- Turnstile / reCAPTCHA v3 / hCaptcha CAPTCHA protection
-- Domain rotation and automated provisioning
-- Enhanced Telegram session exfil notifications
-- Antibot engine with IP reputation and rate limiting
-
----
-
 ## Architecture Overview
 
 ```
