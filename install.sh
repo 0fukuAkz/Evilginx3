@@ -91,6 +91,11 @@
 #   sudo ./install.sh --dry-run                          # Show what would be done
 #   ./install.sh --help                                  # Show usage
 #
+#   Source-build flags (baked into the binary at compile time):
+#   sudo ./install.sh --source --pub-key=<base64>        # Bake admin Ed25519 public key (skips prompt)
+#   sudo ./install.sh --source --heartbeat-url=<url>     # Bake heartbeat URL (skips prompt)
+#   Drop public.key / heartbeat-url.txt alongside installer for the same effect
+#
 #   TUNNEL_DOMAIN=example.com sudo ./install.sh          # Pre-set tunnel domain
 #   TUNNEL_DOMAIN=example.com sudo ./install.sh --tunnel # Tunnel only, no prompt
 #
