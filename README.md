@@ -76,6 +76,17 @@ Then enable a phishlet and create a lure:
 : lures get-url 0
 ```
 
+### Hot-reloading phishlets
+
+Edit a phishlet YAML file on disk and reload it without restarting the process:
+
+```
+: phishlets reload o365       # reload a single phishlet
+: phishlets reload            # reload all phishlets (picks up new files too)
+```
+
+Enabled state, hostname, and all other per-phishlet settings are preserved across reloads. Child phishlets are automatically rebuilt from their updated parent.
+
 ### Common Flags
 
 | Flag | Description |
@@ -141,6 +152,16 @@ After startup, evilginx phones home every **5 minutes** to the admin's heartbeat
 ### Admin VPS bypass
 
 If evilginx is running on the same machine as the heartbeat server, all license checks are automatically skipped — no `license.key` needed on the admin machine.
+
+---
+
+## What's New
+
+### v3.7.1
+- **Phishlet hot-reload** — `phishlets reload [name]` re-reads YAML files from disk without restarting the process; picks up new phishlet files too; preserves enabled state and hostname across reloads
+- Bumped Go toolchain to 1.26.10 and `golang.org/x/net` to v0.60.0, resolving 13 call-graph-reachable CVEs (`crypto/x509`, `net/http`, `x/net`, and related stdlib packages)
+- Fixed CI build: `make build` no longer auto-runs keygen when `admin.key` is absent
+- Updated Docker builder base image to `golang:1.26.10-alpine`
 
 ---
 
