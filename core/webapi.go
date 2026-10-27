@@ -143,6 +143,11 @@ func (w *WebAPI) Start(port int) {
 
 	log.Info("Starting Web Admin API at http://127.0.0.1:%d", port)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("web API listener panic: %v", r)
+			}
+		}()
 		if err := http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", port), securityHeaders(mux)); err != nil {
 			log.Error("Web Admin API stopped: %v", err)
 		}
@@ -697,6 +702,11 @@ func (w *WebAPI) handlePhishletEnable(rw http.ResponseWriter, req *http.Request)
 	// Mirror terminal behaviour: provision TLS certificates for the newly enabled phishlet.
 	if w.hp != nil && !w.hp.developer {
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error("WebAPI: TLS provisioning panic: %v", r)
+				}
+			}()
 			if w.cfg.IsAutocertEnabled() {
 				hosts := w.hp.cfg.GetActiveHostnames("")
 				if err := w.hp.crt_db.setManagedSync(hosts, 60*time.Second); err != nil {

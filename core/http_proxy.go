@@ -112,7 +112,10 @@ func (p *HttpProxy) recordWildcard(plName, pattern, actual string) {
 	}
 	actual = strings.ToLower(actual)
 	key := p.wildcardKey(plName, pattern)
-	if prev, ok := p.wildcardHosts.Load(key); !ok || prev.(string) != actual {
+	prev, loaded := p.wildcardHosts.Load(key)
+	if !loaded {
+		log.Debug("wildcard resolved: %s %s -> %s", plName, pattern, actual)
+	} else if s, ok := prev.(string); !ok || s != actual {
 		log.Debug("wildcard resolved: %s %s -> %s", plName, pattern, actual)
 	}
 	p.wildcardHosts.Store(key, actual)
@@ -120,7 +123,9 @@ func (p *HttpProxy) recordWildcard(plName, pattern, actual string) {
 
 func (p *HttpProxy) resolveWildcard(plName, pattern string) (string, bool) {
 	if v, ok := p.wildcardHosts.Load(p.wildcardKey(plName, pattern)); ok {
-		return v.(string), true
+		if s, ok := v.(string); ok {
+			return s, true
+		}
 	}
 	return "", false
 }

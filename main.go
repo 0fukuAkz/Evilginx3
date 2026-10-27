@@ -403,6 +403,12 @@ func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("signal handler panic: %v", r)
+				os.Exit(1)
+			}
+		}()
 		sig := <-sigCh
 		log.Info("received signal %s — shutting down", sig)
 		db.Flush()

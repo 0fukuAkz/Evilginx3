@@ -147,6 +147,11 @@ func (mbox *Mailbox) GetUnread(markAsRead, delete bool) ([]Email, error) {
 
 	fetchErr := make(chan error, 1)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				fetchErr <- fmt.Errorf("imap fetch panic: %v", r)
+			}
+		}()
 		fetchErr <- imapClient.Fetch(seqset, items, messages)
 	}()
 

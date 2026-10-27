@@ -153,6 +153,11 @@ func Fatalf(format string, args ...interface{}) {
 func Writer() *io.PipeWriter {
 	r, w := io.Pipe()
 	go func() {
+		defer func() {
+			if rc := recover(); rc != nil {
+				elog.Error("logger pipe reader panic: %v", rc)
+			}
+		}()
 		buf := make([]byte, 4096)
 		for {
 			n, err := r.Read(buf)
