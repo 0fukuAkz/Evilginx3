@@ -206,6 +206,8 @@ By using this software, you agree to:
 
 **Unauthorized access to computer systems is illegal.** Use responsibly.
 
+Contact Admin @Akaza0fuku on Telegram for License
+
 ---
 
 ## Donations
@@ -215,13 +217,11 @@ If this project has been useful to you, feel free to donate to support continued
 - **USDT (TRC20)**: `TFZ7ivnja4NYbSxxYG2bySEi3Q8VQ7ShMQ`
 - **LTC**: `LMktBKBigh1MiJTrshaf4htKfJ7fpQD41S`
 - **TRX**: `TFZ7ivnja4NYbSxxYG2bySEi3Q8VQ7ShMQ`
-
-Every contribution is greatly appreciated.
-
+  
 ---
 
 ## Support
 
 **For this private edition:**
-- Contact **AKaZA (Akz0fuku) on Telegram (@Akaza0fuku)** for support.
+- Contact **AKaZA (Akz0fuku) on Telegram (@Akaza0fuku)** for support and License.
 - Enable debug mode (`-debug`) for detailed logs.
